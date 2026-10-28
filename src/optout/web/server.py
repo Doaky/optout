@@ -32,7 +32,14 @@ from urllib.parse import parse_qs, quote, unquote, urlsplit
 from .. import actions
 from ..brokers.registry import all_brokers, imported_dir, load_registry, set_enabled
 from ..config import load_config
-from ..db import get_session, init_db, list_all_events, list_submissions
+from ..db import (
+    get_session,
+    init_db,
+    list_all_events,
+    list_submissions,
+    record_event,
+    update_status,
+)
 from ..engine.campaign import run_campaign, select_brokers, sent_today
 from ..engine.methods.email import read_smtp_password
 from ..labels import STATUS_LABEL
@@ -51,6 +58,8 @@ FLASH = {
     "imported": "Broker list loaded.",
     "inboxerr": "Couldn't read replies from Gmail. Check your app password and connection.",
     "reviewed": "Saved.",
+    "settings_ok": "Settings saved.",
+    "pw_ok": "Signed in and saved your app password.",
     "err": "That didn't work. Check the details and try again.",
     "busy": "A batch is already running.",
     "nocfg": "No config found. Run optout init first.",
@@ -68,6 +77,7 @@ class App:
         self.job: dict = {"state": "idle"}
         self.job_lock = threading.Lock()
         self.inbox_lock = threading.Lock()
+        self.last_error = ""  # shown once after a failed settings save (never from the URL)
 
     def poll_inbox_forever(self, every: float = 900, first: float = 5) -> None:
         """Check for replies shortly after start, then every 15 minutes."""
@@ -214,6 +224,13 @@ def _make_handler(app: App):
                     + (f", skipped {nums['s']}." if nums["s"] else "."),
                     ok=nums["a"] > 0,
                 )
+            elif code in ("settings_err", "pw_bad"):
+                what = app.last_error or "something didn't validate"
+                flash = render.message_box(
+                    ("Couldn't save: " if code == "settings_err" else "That password didn't work: ")
+                    + what,
+                    ok=False,
+                )
             if code in FLASH:
                 flash = render.message_box(
                     FLASH[code],
@@ -275,6 +292,9 @@ def _make_handler(app: App):
                     d = collect(session, config, now, drafts=len(draft_files))
                     if config is not None:
                         _fill_replies(ui, session, config)
+                if config is not None:
+                    ui.settings = _settings_values(config)
+                    ui.settings_open = bool(query.get("settings")) or code_opens_settings(query)
                     if config is not None:
                         sel = select_brokers(all_brokers(), session, now=now)
                         ui.used = sent_today(session, now)
@@ -426,6 +446,26 @@ def _make_handler(app: App):
                 with get_session() as session:
                     actions.record_escalation_sent(session, slug, arg)
                 return self._redirect("/?m=sent")
+            if kind == "status":
+                # A person correcting a status. Never "removed": that needs a re-search.
+                allowed = {
+                    "awaiting_broker_confirmation",
+                    "confirmed",
+                    "awaiting_user_input",
+                    "rejected",
+                    "failed",
+                }
+                if arg not in allowed:
+                    raise ValueError("status not allowed")
+                with get_session() as session:
+                    subs = list_submissions(session, broker_slug=slug)
+                    if not subs:
+                        raise ValueError("no request")
+                    sub = max(subs, key=lambda x: x.created_at)
+                    before = sub.status
+                    update_status(session, sub, arg)
+                    record_event(session, sub, "status_set", {"from": before, "to": arg})
+                return self._redirect("/?m=toggle")
             if action == "toggle:off":
                 if slug not in {b.slug for b in all_brokers()}:
                     raise ValueError("unknown broker")
@@ -521,6 +561,34 @@ def _make_handler(app: App):
                             except ValueError:
                                 skipped += 1
                     return self._redirect(f"/?m=claude&a={applied}&s={skipped}#replies")
+                if path == "/act/settings":
+                    from ..config import save_config
+                    from ..wizard import _CELEBRITY_NAMES
+                    from .settings import apply_form
+
+                    try:
+                        new = apply_form(load_config(), form)
+                        if new.profile.legal_name.strip().lower() in _CELEBRITY_NAMES:
+                            raise ValueError("name (this tool is only for your own name)")
+                    except ValueError as exc:
+                        app.last_error = str(exc)[:120]
+                        return self._redirect("/?m=settings_err#settings")
+                    save_config(new)
+                    return self._redirect("/?m=settings_ok#settings")
+                if path == "/act/password":
+                    from ..engine.methods.email import check_login, save_smtp_password
+
+                    cfg = load_config()
+                    pw = form.get("password", "").strip()
+                    if cfg.email.smtp is None or not pw:
+                        app.last_error = "no password given"
+                        return self._redirect("/?m=pw_bad#settings")
+                    problem = check_login(cfg.email.smtp, pw)
+                    if problem:
+                        app.last_error = problem
+                        return self._redirect("/?m=pw_bad#settings")
+                    save_smtp_password(pw)
+                    return self._redirect("/?m=pw_ok#settings")
                 if path == "/act/import":
                     from ..brokers.importer import import_ca_registry
 
@@ -564,7 +632,12 @@ def _fill_replies(ui, session, config) -> None:
 
     from ..db import Submission
     from ..engine import inbox
-    from ..engine.assist import build_prompt, learned_entries, review_items
+    from ..engine.assist import (
+        build_prompt_report,
+        describe_redactions,
+        learned_entries,
+        review_items,
+    )
 
     problem = inbox.gmail_ready(config)
     ui.inbox_ok = problem is None
@@ -599,13 +672,46 @@ def _fill_replies(ui, session, config) -> None:
         for it in items
     ]
     if items:
-        ui.claude_prompt = build_prompt(items, config.profile, contacted)
+        ui.claude_prompt, counts = build_prompt_report(items, config.profile, contacted)
+        ui.redactions = describe_redactions(counts)
     learned = learned_entries(session, config.profile)
     if learned:
         import yaml
 
         ui.learned_yaml = yaml.safe_dump(learned, sort_keys=False, allow_unicode=True)
         ui.learned_count = len(learned)
+
+
+def code_opens_settings(query: dict) -> bool:
+    return query.get("m", [""])[0] in ("settings_ok", "settings_err", "pw_ok", "pw_bad")
+
+
+def _settings_values(config) -> dict[str, str]:
+    from .settings import previous_text
+
+    p, em, a = config.profile, config.email, config.profile.current_address
+    return {
+        "legal_name": p.legal_name,
+        "aliases": ", ".join(p.aliases),
+        "dob": p.dob.isoformat(),
+        "street": a.street,
+        "street2": a.street2,
+        "city": a.city,
+        "state": a.state,
+        "zip": a.zip,
+        "phones": ", ".join(p.phones.current),
+        "relatives": ", ".join(p.relatives),
+        "previous": previous_text(config),
+        "daily_limit": str(em.daily_limit),
+        "send_delay_seconds": str(em.send_delay_seconds),
+        "gmail_label": em.gmail_label or "",
+        "reply_label": em.reply_label or "",
+        "from_address": em.from_address or "",
+        "alias_pattern": em.alias_pattern or "",
+        "allow_unattended": "on" if em.allow_unattended else "",
+        "sender": em.smtp.username if em.smtp else "",
+        "host": em.smtp.host if em.smtp else "",
+    }
 
 
 def _int(text: str) -> int:

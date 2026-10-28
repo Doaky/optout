@@ -25,6 +25,8 @@ from ..brokers.schema import BrokerDef
 from ..db import InboxMessage, Submission, update_status
 
 MAX_TEXT = 8000
+# Bump when matching or classification changes: saved replies are re-checked once.
+RULES_VERSION = 4
 
 # --- parsing -----------------------------------------------------------------
 
@@ -253,7 +255,7 @@ def _sender_matches(rule_sender: str, from_addr: str) -> bool:
 
 
 def known_reply(mail: ParsedMail, known: list[KnownReply]) -> KnownReply | None:
-    blob = f"{mail.subject}\n{mail.text}".lower()
+    blob = re.sub(r"\s+", " ", f"{mail.subject}\n{mail.text}").lower()
     for kr in known:
         if _sender_matches(kr.sender, mail.from_addr) and kr.phrase in blob:
             return kr
@@ -262,7 +264,8 @@ def known_reply(mail: ParsedMail, known: list[KnownReply]) -> KnownReply | None:
 
 def classify(subject: str, text: str) -> tuple[str, str, list[str]]:
     """Returns (kind, rule, every kind that matched). 'unknown' if nothing matched."""
-    blob = f"{subject}\n{text}"
+    # Mail wraps lines mid-sentence ("we do not\nprocess"); patterns see single spaces.
+    blob = re.sub(r"\s+", " ", f"{subject}\n{text}")
     hits = [(kind, name) for kind, name, rx in RULES if rx.search(blob)]
     kinds = [k for k, _ in hits]
     if not hits:
@@ -506,6 +509,7 @@ def process(
             broker_slug=sub.broker_slug if sub else None,
             matched_by=how,
             from_addr=mail.from_addr[:200],
+            from_name=mail.from_name[:200],
             subject=mail.subject[:300],
             received_at=mail.date.astimezone(UTC) if mail.date else None,
             text=mail.text,
@@ -552,8 +556,13 @@ def last_checked() -> datetime | None:
 
 def mark_checked(when: datetime, error: str | None = None) -> None:
     path = _state_path()
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        data = {}
+    data.update({"last_checked": when.isoformat(), "error": error})
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"last_checked": when.isoformat(), "error": error}))
+    path.write_text(json.dumps(data))
 
 
 def last_error() -> str | None:
@@ -606,12 +615,28 @@ def run_sync(config, *, dry_run: bool = False) -> SyncReport:
             ) as gmail:
                 gmail.label_replies(domains)
                 raws = gmail.fetch_replies(seen)
+                # Replies saved before display names were recorded: fetch just the header.
+                nameless = session.exec(
+                    select(InboxMessage).where(
+                        InboxMessage.from_name == "",
+                        InboxMessage.state.in_(("applied", "review")),  # type: ignore[attr-defined]
+                    )
+                ).all()
+                found = gmail.display_names([r.message_id for r in nameless]) if nameless else {}
+            for r in nameless:
+                if found.get(r.message_id):
+                    r.from_name = found[r.message_id]
+                    session.add(r)
+            session.commit()
             mails = []
             for raw in raws:
                 try:
                     mails.append(parse_message(raw))
                 except Exception:  # a malformed message must not stop the rest
                     continue
+            if not dry_run and (rules_version_seen() < RULES_VERSION or any(found.values())):
+                recheck(session, idx)
+                mark_rules_version()
             report = process(session, mails, idx, dry_run=dry_run)
     except Exception as exc:
         if not dry_run:
@@ -658,3 +683,94 @@ def senders_by_broker(session: Session) -> dict[str, list[str]]:
     for addr, slug, _how in _sender_rows(session):
         out.setdefault(slug, set()).add(addr)
     return {slug: sorted(addrs) for slug, addrs in out.items()}
+
+
+# --- re-checking saved replies after the rules improve ----------------------
+
+# What an automatic verdict did to a request's status (so it can be undone if the verdict
+# changes and nobody has touched the request since).
+_STATUS_SET_BY = {
+    "deleted": "confirmed",
+    "no-data": "confirmed",
+    "denied": "rejected",
+    "need-info": "awaiting_user_input",
+    "bounced": "failed",
+}
+
+
+def recheck(session: Session, idx: MatchIndex, known: list[KnownReply] | None = None) -> int:
+    """Re-match and re-classify saved replies nobody has decided on by hand.
+
+    Returns how many changed. Human decisions ("resolved", "ignored") are never touched.
+    """
+    known = load_known_replies() if known is None else known
+    changed = 0
+    rows = session.exec(
+        select(InboxMessage).where(InboxMessage.state.in_(("applied", "review")))  # type: ignore[attr-defined]
+    ).all()
+    for row in rows:
+        mail = ParsedMail(
+            message_id=row.message_id,
+            in_reply_to=[],
+            from_addr=row.from_addr,
+            to_addrs=[],
+            subject=row.subject,
+            date=row.received_at,
+            text=tidy(row.text),
+            from_name=row.from_name,
+        )
+        kr = known_reply(mail, known)
+        sub, how = match(mail, idx, kr)
+        if sub is None and row.submission_id and row.matched_by in ("message-id", "alias"):
+            # Headers aren't stored; keep a match that came from them.
+            sub, how = session.get(Submission, row.submission_id), row.matched_by
+        if sub is None and (guess := only_open_request(mail, idx)) is not None:
+            sub, how = guess, "only-request"
+        if kr is not None:
+            kind, rule, kinds = kr.outcome, f"known reply ({kr.sender})", [kr.outcome]
+        else:
+            kind, rule, kinds = classify(mail.subject, mail.text)
+        auto = (
+            sub is not None and how != "only-request" and kind != "unknown" and is_confident(kinds)
+        )
+        new_state = "applied" if auto else "review"
+        if (row.kind, row.state, row.submission_id) == (kind, new_state, sub.id if sub else None):
+            if row.text != mail.text:
+                row.text = mail.text
+                session.add(row)
+            continue
+        # Undo what the old automatic verdict did, if the request still shows exactly that.
+        if row.state == "applied" and row.submission_id:
+            old_sub = session.get(Submission, row.submission_id)
+            set_by_old = _STATUS_SET_BY.get(row.kind)
+            if old_sub is not None and set_by_old and old_sub.status == set_by_old:
+                update_status(session, old_sub, "awaiting_broker_confirmation")
+        row.kind, row.rule, row.state, row.text = kind, rule, new_state, mail.text
+        row.submission_id = sub.id if sub else None
+        row.broker_slug = sub.broker_slug if sub else None
+        row.matched_by = how
+        session.add(row)
+        session.commit()
+        if auto and sub is not None:
+            apply_kind(session, sub, kind, rule)
+        changed += 1
+    session.commit()
+    return changed
+
+
+def rules_version_seen() -> int:
+    try:
+        return int(json.loads(_state_path().read_text()).get("rules_version", 0))
+    except (OSError, ValueError):
+        return 0
+
+
+def mark_rules_version() -> None:
+    path = _state_path()
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        data = {}
+    data["rules_version"] = RULES_VERSION
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data))

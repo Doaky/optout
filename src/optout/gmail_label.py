@@ -132,6 +132,28 @@ class GmailLabeler:
         new = [u for u, mid in self._message_ids(uids).items() if mid not in already_seen]
         return [raw for u in new if (raw := self._fetch(u))]
 
+    def display_names(self, message_ids: list[str]) -> dict[str, str]:
+        """Sender display names for saved messages (looked up by Message-ID, headers only)."""
+        from email.utils import parseaddr
+
+        assert self._imap is not None
+        out: dict[str, str] = {}
+        for mid in message_ids[:200]:
+            token = mid.strip().strip("<>")
+            if not re.fullmatch(r"[A-Za-z0-9._%+@=-]+", token):
+                continue
+            uids = self._search(f"rfc822msgid:{token}")
+            if not uids:
+                continue
+            _s, data = self._imap.uid(
+                "FETCH", uids[0].decode(), "(BODY.PEEK[HEADER.FIELDS (FROM)])"
+            )
+            for item in data or []:
+                if isinstance(item, tuple):
+                    raw = item[1].decode("utf-8", "replace")
+                    out[mid] = parseaddr(raw.split(":", 1)[-1].strip())[0][:200]
+        return out
+
     def _message_ids(self, uids: list[bytes]) -> dict[bytes, str]:
         assert self._imap is not None
         out: dict[bytes, str] = {}

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 from dataclasses import dataclass
 
 from sqlmodel import Session, select
@@ -20,8 +21,30 @@ from ..db import InboxMessage, Submission
 OUTCOMES = ("deleted", "denied", "need-info", "auto-reply", "ignore")
 
 
-def redact(text: str, profile: Profile) -> str:
-    """Replace the user's own identifying details with placeholders."""
+# What each placeholder stands for, in the words shown to the user.
+PLACEHOLDERS = {
+    "[MY NAME]": "your name",
+    "[MY STREET]": "your street address",
+    "[MY OLD STREET]": "a previous address",
+    "[MY ZIP]": "your ZIP code",
+    "[MY EMAIL]": "your email address",
+    "[MY PHONE]": "your phone number",
+    "[MY BIRTHDATE]": "your date of birth",
+    "[RELATIVE]": "a relative's name",
+    "[MASKED]": "partly-masked personal details",
+}
+
+
+def redact_report(text: str, profile: Profile) -> tuple[str, Counter[str]]:
+    """Replace the user's own identifying details with placeholders, counting each kind."""
+    counts: Counter[str] = Counter()
+
+    def sub(pattern: str, mark: str, flags: int = re.IGNORECASE) -> None:
+        nonlocal text
+        text, n = re.subn(pattern, mark, text, flags=flags)
+        if n:
+            counts[mark] += n
+
     a = profile.current_address
     pairs: list[tuple[str, str]] = [(profile.legal_name, "[MY NAME]")]
     pairs += [(n, "[MY NAME]") for n in profile.aliases]
@@ -29,19 +52,43 @@ def redact(text: str, profile: Profile) -> str:
     pairs += [(p.street, "[MY OLD STREET]") for p in profile.previous_addresses]
     pairs += [(e, "[MY EMAIL]") for e in profile.emails.current + profile.emails.previous]
     pairs += [(p, "[MY PHONE]") for p in profile.phones.current + profile.phones.previous]
+    pairs += [(r, "[RELATIVE]") for r in profile.relatives]
     for value, mark in sorted(pairs, key=lambda p: -len(p[0])):
         if value and len(value.strip()) >= 4:
-            text = re.sub(re.escape(value.strip()), mark, text, flags=re.IGNORECASE)
-    # Name parts on their own (e.g. "Hi Jane,"), and phone numbers written differently.
+            sub(re.escape(value.strip()), mark)
+    # Name parts on their own ("Hi Jane,").
     for part in profile.legal_name.split():
         if len(part) >= 3:
-            text = re.sub(rf"\b{re.escape(part)}\b", "[MY NAME]", text, flags=re.IGNORECASE)
+            sub(rf"\b{re.escape(part)}\b", "[MY NAME]")
+    # Phone numbers written differently (dots, spaces, +1).
     for p in profile.phones.current + profile.phones.previous:
         digits = re.sub(r"\D", "", p)[-10:]
         if len(digits) == 10:
-            loose = r"\D{0,3}".join(digits)
-            text = re.sub(loose, "[MY PHONE]", text)
-    return text
+            sub(r"\D{0,3}".join(digits), "[MY PHONE]", 0)
+    # Date of birth in the common formats.
+    dob = profile.dob
+    for form in {
+        dob.isoformat(),
+        f"{dob.month}/{dob.day}/{dob.year}",
+        f"{dob.month:02d}/{dob.day:02d}/{dob.year}",
+        dob.strftime("%B %d, %Y"),
+        dob.strftime("%B ") + f"{dob.day}, {dob.year}",
+    }:
+        sub(re.escape(form), "[MY BIRTHDATE]")
+    if a.zip and len(a.zip) >= 5:
+        sub(rf"\b{re.escape(a.zip[:5])}(-\d{{4}})?\b", "[MY ZIP]", 0)
+    # Fragments other systems half-masked ("XXXiel", "XXXXXXXXXcom"): the visible ends of a
+    # masked value can still identify someone.
+    sub(r"\b[X*•]{3,}[\w.@-]*", "[MASKED]", 0)
+    return text, counts
+
+
+def redact(text: str, profile: Profile) -> str:
+    return redact_report(text, profile)[0]
+
+
+def describe_redactions(counts: Counter[str]) -> str:
+    return " · ".join(f"{PLACEHOLDERS.get(mark, mark)} ×{n}" for mark, n in counts.most_common())
 
 
 @dataclass
@@ -60,7 +107,21 @@ def review_items(session: Session) -> list[ReviewItem]:
 
 
 def build_prompt(items: list[ReviewItem], profile: Profile, contacted: dict[str, str]) -> str:
-    """contacted: slug -> broker name, for brokers the user has sent requests to."""
+    return build_prompt_report(items, profile, contacted)[0]
+
+
+def build_prompt_report(
+    items: list[ReviewItem], profile: Profile, contacted: dict[str, str]
+) -> tuple[str, Counter[str]]:
+    """The prompt, plus how many of each personal detail were replaced.
+    contacted: slug -> broker name, for brokers the user has sent requests to."""
+    counts: Counter[str] = Counter()
+
+    def clean(text: str) -> str:
+        out, n = redact_report(text, profile)
+        counts.update(n)
+        return out
+
     blocks = []
     for it in items:
         r = it.row
@@ -73,11 +134,11 @@ def build_prompt(items: list[ReviewItem], profile: Profile, contacted: dict[str,
         blocks.append(
             f'<reply id="{it.ref}">\n'
             f"From: {r.from_addr}\n"
-            f"Subject: {redact(r.subject, profile)}\n"
+            f"Subject: {clean(r.subject)}\n"
             f"Date: {when}\n"
             f"Broker: {broker}\n"
             f"My tool's guess: {r.kind or 'unknown'}\n\n"
-            f"{redact(r.text, profile)[:3000]}\n"
+            f"{clean(r.text)[:3000]}\n"
             "</reply>"
         )
     unmatched = any(it.row.broker_slug is None for it in items)
@@ -98,7 +159,7 @@ def build_prompt(items: list[ReviewItem], profile: Profile, contacted: dict[str,
         else ""
     )
     n = len(items)
-    return f"""I emailed data brokers asking them to delete my personal data. Below are {n} \
+    prompt = f"""I emailed data brokers asking them to delete my personal data. Below are {n} \
 replies that my tool couldn't sort with confidence. Please read each one and tell me what the \
 broker is actually saying.
 
@@ -133,6 +194,7 @@ their web form."}}]
 {chr(10).join(blocks)}
 
 Remember: reply with only the JSON array, using the reply ids exactly as given (R1, R2, ...)."""
+    return prompt, counts
 
 
 @dataclass
@@ -230,6 +292,8 @@ def _stable_phrase(subject: str, profile: Profile) -> str:
         flags=re.IGNORECASE,
     )
     s = re.sub(r"[#\[(]?\b[\w-]*\d{3,}[\w-]*\b[\])]?", " ", s)
+    s = re.sub(_OUR_SUBJECT, " ", s, flags=re.IGNORECASE)  # our own subject, echoed back
+    s = re.sub(r"[\[\](){}<>]", " ", s)  # brackets left around removed ticket numbers
     s = re.sub(r"\s[-–—|:]\s", " ", s)  # separators left behind
     s = re.sub(r"\s+", " ", s).strip(" -:—|")
     return s.lower() if len(s) >= 8 else ""
@@ -255,8 +319,8 @@ def learned_entries(session: Session, profile: Profile) -> list[dict[str, str]]:
         if r.rule.startswith("known reply"):
             continue  # already in the shared list
         phrase = _stable_phrase(r.subject, profile)
-        if not phrase or _OUR_SUBJECT in phrase:
-            continue  # just our own subject echoed back: says nothing about the answer
+        if not phrase:
+            continue  # nothing left once our own echoed subject is removed
         domain = r.from_addr.rsplit("@", 1)[-1]
         if "." not in domain:
             continue

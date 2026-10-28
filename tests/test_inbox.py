@@ -705,3 +705,120 @@ def test_display_name_identifies_broker_behind_a_shared_platform(session):
     )
     assert mail.from_name == "ActivImpact Privacy Team"
     assert match(mail, idx) == (subs["activimpact"], "name")
+
+
+def test_old_database_gains_new_columns(tmp_path):
+    import sqlite3
+
+    from optout.db import get_engine
+
+    path = tmp_path / "old.db"
+    con = sqlite3.connect(path)
+    con.execute(
+        "CREATE TABLE inboxmessage (id CHAR(32) PRIMARY KEY, message_id VARCHAR, "
+        "submission_id CHAR(32), broker_slug VARCHAR, matched_by VARCHAR, "
+        "from_addr VARCHAR, subject VARCHAR, received_at DATETIME, text VARCHAR, "
+        "kind VARCHAR, rule VARCHAR, state VARCHAR, processed_at DATETIME)"
+    )
+    con.execute(
+        "INSERT INTO inboxmessage (id, message_id, state) "
+        "VALUES ('0123456789abcdef0123456789abcdef', '<m>', 'review')"
+    )
+    con.commit()
+    con.close()
+    engine = get_engine(path)
+    init_db(engine)
+    with Session(engine) as s:
+        row = s.exec(select(InboxMessage)).one()
+        assert row.from_name == ""
+
+
+def test_recheck_fixes_old_verdicts_but_not_human_ones(session, world):
+    from optout.engine.inbox import recheck
+
+    brokers, subs = world
+    brokers["acme"] = brokers["acme"].model_copy(update={"name": "AggKnowledge"})
+    # an old automatic verdict: a confirmation misread as "needs info"
+    update_status(session, subs["acme"], "awaiting_user_input")
+    old = InboxMessage(
+        message_id="<old1>",
+        submission_id=subs["acme"].id,
+        broker_slug="acme",
+        matched_by="domain",
+        from_addr="privacy@acme.example",
+        subject="Confirmation: Your request has been completed",
+        text="Your request has been completed.\n\n\n\n\n   \nIf you require "
+        "additional information, contact us.",
+        kind="need-info",
+        state="applied",
+    )
+    # an unmatched platform email the old rules couldn't place
+    unmatched = InboxMessage(
+        message_id="<old2>",
+        from_addr="noreply@platform.example",
+        subject="Confirmation",
+        text="Regards, AggKnowledge Privacy Team. Your request has been completed.",
+        kind="need-info",
+        state="review",
+    )
+    # a human decision, which must stay as it is
+    human = InboxMessage(
+        message_id="<old3>",
+        submission_id=subs["beta"].id,
+        broker_slug="beta",
+        from_addr="x@shared.example",
+        subject="Hi",
+        text="We deleted it.",
+        kind="auto-reply",
+        state="resolved",
+    )
+    for r in (old, unmatched, human):
+        session.add(r)
+    session.commit()
+    idx = build_index(subs.values(), brokers, None)
+    assert recheck(session, idx, known=[]) == 2
+    assert (old.kind, old.state) == ("deleted", "applied")
+    assert subs["acme"].status == "confirmed"  # wrong "needs input" undone, then applied
+    assert "\n\n\n" not in old.text
+    assert (unmatched.broker_slug, unmatched.matched_by) == ("acme", "name")
+    assert (human.kind, human.state) == ("auto-reply", "resolved")
+    assert subs["beta"].status == "awaiting_broker_confirmation"
+
+
+def test_learned_phrase_keeps_what_remains_after_our_subject(me):
+    assert (
+        assist._stable_phrase(
+            "Request Received - [#REQ-233588] Data Deletion Request — Jane Q Example", me
+        )
+        == "request received"
+    )
+    assert assist._stable_phrase("Automatic reply: Data Deletion Request — Jane", me) == ""
+
+
+def test_line_wrapped_sentences_still_classify():
+    text = "Therefore, we do not\nprocess privacy requests that do not contain a company email."
+    assert classify("Re: request", text)[0] == "denied"
+
+
+def test_redaction_report_labels_what_was_removed(me):
+    from collections import Counter
+
+    text = (
+        "Dear Jane, First Name: XXXiel Last Name: XXXXXXree Email: XXXXXXXXXcom "
+        "born 1990-01-01, ZIP 23219, phone 804.555.0142, jane.example@gmail.com"
+    )
+    out, counts = assist.redact_report(text, me)
+    for leak in ("Jane", "iel", "ree", "1990-01-01", "23219", "555", "jane.example"):
+        assert leak not in out, leak
+    assert counts == Counter(
+        {
+            "[MASKED]": 3,
+            "[MY NAME]": 1,
+            "[MY BIRTHDATE]": 1,
+            "[MY ZIP]": 1,
+            "[MY PHONE]": 1,
+            "[MY EMAIL]": 1,
+        }
+    )
+    label = assist.describe_redactions(counts)
+    assert "partly-masked personal details ×3" in label and "your ZIP code ×1" in label

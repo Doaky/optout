@@ -137,7 +137,30 @@ form.inline{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
 form.inline.rowform{flex-wrap:nowrap}
 .rowform select{width:150px;padding:5px 8px;font-size:13px}.rowform button{padding:5px 12px;font-size:13px}
 .search{display:flex;gap:6px}.search input{width:220px}
-input.combo{width:240px}
+input.combo{width:260px}
+.replies .rowform select{width:auto;max-width:280px}
+.js .nojs{display:none}
+.hdr-link{display:inline-flex;align-items:center;gap:6px;color:var(--text-2);text-decoration:none;
+  font-size:14px;font-weight:600;padding:6px 10px;border-radius:8px;border:1px solid var(--line)}
+.hdr-link:hover{color:var(--text);border-color:var(--accent)}
+details.settings>summary{display:flex;align-items:baseline;gap:12px;cursor:pointer;list-style:none}
+details.settings>summary::-webkit-details-marker{display:none}
+details.settings>summary h2{margin:0}
+details.settings>summary::after{content:"▸";margin-left:auto;color:var(--muted)}
+details.settings[open]>summary::after{content:"▾"}
+fieldset{border:1px solid var(--line);border-radius:10px;padding:12px 16px 16px;margin:16px 0}
+legend{font-weight:700;padding:0 6px}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px}
+.fld{display:flex;flex-direction:column;gap:4px;font-size:13px}
+.fld>span{color:var(--text-2);font-weight:600}
+.fld small{color:var(--muted)}
+.fld.wide{margin-top:12px}
+.check{display:flex;gap:8px;align-items:center;margin-top:12px;font-size:14px}
+.pwform{align-items:end}
+hr{border:0;border-top:1px solid var(--line);margin:18px 0}
+body.busy main{opacity:.65;transition:opacity .15s}
+body.busy{cursor:progress}
+.js .search button{display:none}
 .sendrow{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-top:12px}
 .sendrow label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--text-2)}
 details.emails>summary,details.more>summary{cursor:pointer;font-weight:600;color:var(--accent);margin:8px 0}
@@ -151,7 +174,12 @@ details.email pre{background:var(--surface)}
 .reply{padding:12px 0;border-bottom:1px solid var(--line);display:grid;gap:6px}
 .reply:last-child{border-bottom:0}
 .reply-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.steps{padding-left:20px;display:grid;gap:10px}.steps li{line-height:1.6}
+.steps{padding-left:20px;display:grid;gap:10px}
+.redacted{margin:6px 0 8px;padding:8px 10px;border-radius:8px;font-size:13px;
+  background:color-mix(in srgb,var(--good) 10%,transparent);
+  border:1px solid color-mix(in srgb,var(--good) 30%,transparent)}
+details.peek{display:inline-block;margin-left:8px}details.peek[open]{display:block;margin:8px 0 0}
+details.peek pre{max-height:340px;overflow:auto}.steps li{line-height:1.6}
 textarea{font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;width:100%;padding:8px 10px;
   border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);
   margin:6px 0}
@@ -186,29 +214,150 @@ svg.chart{width:100%;height:auto;display:block;background:var(--chart-surface);b
 """
 
 
-# Progressive enhancement: live batch progress and double-submit protection.
-# The server's CSP allows exactly this script by hash; without it, pages still work.
-LIVE_JS = (
-    "(()=>{"
-    "document.addEventListener('submit',e=>{const b=e.target.querySelector('button[type=submit]');"
-    "if(b&&e.target.method==='post'){b.disabled=true;b.textContent='Working…';}});"
-    "document.addEventListener('click',e=>{const b=e.target.closest('[data-copy]');if(!b)return;"
-    "const t=document.getElementById(b.dataset.copy);if(!t)return;const done=()=>{"
-    "const l=b.textContent;b.textContent='Copied ✓';setTimeout(()=>b.textContent=l,1600);};"
-    "if(navigator.clipboard)navigator.clipboard.writeText(t.value).then(done,()=>{t.select();});"
-    "else{t.select();document.execCommand('copy');done();}});"
-    "const p=document.getElementById('send');if(!p||p.dataset.state!=='running')return;"
-    "const bar=p.querySelector('.progress>span'),txt=p.querySelector('[data-live]'),"
-    "pb=p.querySelector('.progress');"
-    "const tick=async()=>{try{const r=await fetch('/api/job',{cache:'no-store'});"
-    "if(r.ok){const j=await r.json(),d=j.sent+j.failed,t=Math.max(j.total,1),"
-    "pct=Math.round(100*d/t);if(bar)bar.style.width=pct+'%';"
-    "if(pb)pb.setAttribute('aria-valuenow',pct);"
-    "if(txt)txt.textContent=j.sent+' sent, '+j.failed+' failed of '+j.total;"
-    "if(j.state!=='running'){location.replace('/?m=finished');return;}}}catch(_){}"
-    "setTimeout(tick,1500);};setTimeout(tick,1000);"
-    "})();"
-)
+# Progressive enhancement for the dashboard. The server's CSP allows exactly this script
+# (by hash); without it every page still works through plain forms and links.
+#  - forms post in the background and the page body is swapped in place (no reloads)
+#  - dropdowns apply as soon as you choose; search and status pills filter instantly
+#  - batch progress updates live; copy buttons copy
+LIVE_JS = """(() => {
+const d = document;
+d.documentElement.classList.add('js');
+const strip = ['m', 'a', 'r', 's', 'live', 'draft', 'ds', 'dk', 'settings'];
+
+const filter = () => {
+  const box = d.getElementById('q');
+  const q = box ? box.value.trim().toLowerCase() : '';
+  const on = d.querySelector('a.fpill[data-filter][aria-current=page]');
+  const status = on ? on.dataset.filter : '';
+  let shown = 0;
+  d.querySelectorAll('tr[data-name]').forEach((tr) => {
+    const ok = (!status || tr.dataset.status === status) && (!q || tr.dataset.name.includes(q));
+    tr.hidden = !ok;
+    if (ok) shown++;
+  });
+  const none = d.getElementById('nomatch');
+  if (none) none.hidden = shown > 0;
+};
+
+const swap = async (res) => {
+  const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+  const fresh = doc.querySelector('main');
+  if (!fresh) { location.href = res.url; return; }
+  const keepQ = (d.getElementById('q') || {}).value || '';
+  const y = window.scrollY;
+  d.querySelector('main').replaceWith(fresh);
+  d.title = doc.title;
+  const url = new URL(res.url);
+  strip.forEach((k) => url.searchParams.delete(k));
+  history.replaceState(null, '', url.pathname + url.search);
+  const box = d.getElementById('q');
+  if (box && keepQ) box.value = keepQ;
+  filter();
+  const draft = d.getElementById('draft');
+  const settings = d.getElementById('settings');
+  if (draft) draft.scrollIntoView({ block: 'start' });
+  else if (settings && settings.open) settings.scrollIntoView({ block: 'start' });
+  else window.scrollTo(0, y);
+  start();
+};
+
+const post = async (form) => {
+  d.body.classList.add('busy');
+  const btn = form.querySelector('button[type=submit]:not(.nojs)');
+  let dots = null;
+  try {
+    // Read the fields first: disabled fields are left out of a submission.
+    const body = new URLSearchParams(new FormData(form));
+    if (btn) {
+      btn.style.width = btn.offsetWidth + 'px';  // keep the size while the label changes
+      let n = 0;
+      const show = () => { btn.textContent = 'Working' + '.'.repeat((n++ % 3) + 1); };
+      show();
+      dots = setInterval(show, 400);
+    }
+    form.querySelectorAll('button, select, input').forEach((el) => { el.disabled = true; });
+    // getAttribute, not form.action: a field named "action" shadows that property.
+    const res = await fetch(form.getAttribute('action'), { method: 'POST', body });
+    if (res.ok) await swap(res); else location.reload();
+  } catch (_) {
+    location.reload();
+  } finally {
+    if (dots) clearInterval(dots);
+    d.body.classList.remove('busy');
+  }
+};
+
+d.addEventListener('submit', (e) => {
+  const f = e.target;
+  if (f.getAttribute('role') === 'search') { e.preventDefault(); filter(); return; }
+  if ((f.getAttribute('method') || 'get').toLowerCase() !== 'post') return;
+  e.preventDefault();
+  post(f);
+});
+
+d.addEventListener('change', (e) => {
+  const el = e.target;
+  if (el.matches('form.auto select') && el.value && el.form.reportValidity()) post(el.form);
+});
+
+d.addEventListener('input', (e) => { if (e.target.id === 'q') filter(); });
+
+const openSettings = () => {
+  const panel = d.getElementById('settings');
+  if (panel) { panel.open = true; panel.scrollIntoView({ block: 'start' }); }
+};
+if (location.hash === '#settings') openSettings();
+
+d.addEventListener('click', (e) => {
+  if (e.target.closest('a[href$="#settings"]')) { e.preventDefault(); openSettings(); return; }
+  const pill = e.target.closest('a.fpill[data-filter]');
+  if (pill) {
+    e.preventDefault();
+    d.querySelectorAll('a.fpill[data-filter]').forEach((p) => p.removeAttribute('aria-current'));
+    pill.setAttribute('aria-current', 'page');
+    filter();
+    return;
+  }
+  const btn = e.target.closest('[data-copy]');
+  if (!btn) return;
+  const src = d.getElementById(btn.dataset.copy);
+  if (!src) return;
+  const label = btn.textContent;
+  const done = () => { btn.textContent = 'Copied ✓'; setTimeout(() => { btn.textContent = label; }, 1600); };
+  if (navigator.clipboard) navigator.clipboard.writeText(src.value).then(done, () => src.select());
+  else { src.select(); d.execCommand('copy'); done(); }
+});
+
+let polling = false;
+const tick = async () => {
+  try {
+    const res = await fetch('/api/job', { cache: 'no-store' });
+    if (res.ok) {
+      const j = await res.json();
+      const p = d.getElementById('send');
+      const pct = Math.round((100 * (j.sent + j.failed)) / Math.max(j.total, 1));
+      const bar = p && p.querySelector('.progress>span');
+      const txt = p && p.querySelector('[data-live]');
+      if (bar) bar.style.width = pct + '%';
+      if (txt) txt.textContent = j.sent + ' sent, ' + j.failed + ' failed of ' + j.total;
+      if (j.state !== 'running') {
+        polling = false;
+        await swap(await fetch('/?m=finished'));
+        return;
+      }
+    }
+  } catch (_) { /* try again */ }
+  setTimeout(tick, 1500);
+};
+const start = () => {
+  const p = d.getElementById('send');
+  if (!polling && p && p.dataset.state === 'running') { polling = true; setTimeout(tick, 1000); }
+};
+
+filter();
+start();
+})();"""
+
 LIVE_JS_HASH = "sha256-" + base64.b64encode(hashlib.sha256(LIVE_JS.encode()).digest()).decode()
 
 
@@ -222,6 +371,16 @@ def page(title: str, body: str, *, nav: bool, refresh: int | None = None, update
     )
     back = "<a href='/' class='small'>← Dashboard</a>" if nav else ""
     upd = f"<span class='updated'>Updated {e(updated)}</span>" if updated else ""
+    settings_link = (
+        "<a class='hdr-link' href='/#settings' aria-label='Settings'>"
+        "<svg viewBox='0 0 24 24' width='18' height='18' aria-hidden='true'><path fill='currentColor' "
+        "d='M19.4 13a7.5 7.5 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9"
+        "a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.5 7.5 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 "
+        "1.7 1l.4 2.9h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 "
+        "0 0 1 0 7z'/></svg><span>Settings</span></a>"
+        if updated
+        else ""
+    )
     return (
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
@@ -234,7 +393,8 @@ def page(title: str, body: str, *, nav: bool, refresh: int | None = None, update
         "<a class='skip' href='#main'>Skip to content</a>"
         "<header class='topbar'><div class='wrap'>"
         f"<a class='brand' href='/' aria-label='optout home'>{_LOGO}<span>optout</span></a>"
-        f"<span class='sub'>Data-broker opt-outs</span>{back}{upd}</div></header>"
+        f"<span class='sub'>Data-broker opt-outs</span>{back}{upd}"
+        f"{'' if nav else settings_link}</div></header>"
         f"<main id='main' class='wrap'>{body}</main><script>{LIVE_JS}</script></body></html>"
     )
 
@@ -446,8 +606,11 @@ class UI:
     )
     contacted: list[tuple[str, str]] = field(default_factory=list)  # (slug, name)
     claude_prompt: str = ""
+    redactions: str = ""  # e.g. "your name ×6 · your email address ×2"
     learned_yaml: str = ""
     learned_count: int = 0
+    settings: dict[str, str] = field(default_factory=dict)
+    settings_open: bool = False
 
 
 ROW_ACTIONS = [
@@ -478,6 +641,16 @@ ROW_ACTIONS = [
             ("sent:complaint", "Sent: complaint"),
         ],
     ),
+    (
+        "Move to",
+        [
+            ("status:awaiting_broker_confirmation", "Awaiting reply"),
+            ("status:confirmed", "Broker says done"),
+            ("status:awaiting_user_input", "Needs input"),
+            ("status:rejected", "Refused"),
+            ("status:failed", "Failed"),
+        ],
+    ),
     ("Other", [("toggle:off", "Never contact this broker")]),
 ]
 
@@ -497,10 +670,10 @@ def row_form(slug: str, csrf: str, name: str = "") -> str:
         for group, items in ROW_ACTIONS
     )
     return (
-        "<form method='post' action='/act/row' class='inline rowform'>"
+        "<form method='post' action='/act/row' class='inline rowform auto'>"
         f"{_hidden(csrf, slug=slug)}"
         f"<select name='action' required aria-label='Action for {e(name or slug)}'>{opts}"
-        "</select><button type='submit'>Go</button></form>"
+        "</select><button type='submit' class='nojs'>Go</button></form>"
     )
 
 
@@ -528,6 +701,12 @@ def _send_panel(ui: UI) -> str:
         inner = "<p class='muted small'>This updates by itself; you can keep using the page.</p>"
     elif not ui.configured:
         inner = "<p class='bad'>No config found. Run <code>optout init</code> first.</p>"
+    elif n == 0 and ui.limit and ui.used >= ui.limit:
+        inner = (
+            f"<p>You've sent today's limit of <b>{ui.limit}</b>.</p><p class='muted small'>"
+            "To send another batch now, raise <b>Emails per day</b> in "
+            "<a href='#settings'>Settings</a>.</p>"
+        )
     elif n == 0:
         inner = (
             f"<p class='muted'>Nothing to send right now. {ui.used}/{ui.limit} used today; "
@@ -611,7 +790,7 @@ def _replies_panel(ui: UI) -> str:
                 ""
                 if name
                 else "<input name='broker' list='contacted-brokers' required autocomplete='off' "
-                "placeholder='Which broker? Type to search' aria-label='Which broker sent this' "
+                "placeholder='Which broker? (type to search)' aria-label='Which broker sent this' "
                 "class='combo'>"
             )
             opts = "".join(f"<option value='{v}'>{t}</option>" for v, t in _REVIEW_OPTIONS)
@@ -623,18 +802,25 @@ def _replies_panel(ui: UI) -> str:
                 f"<div class='small'><span class='muted'>{e(sender)}</span> · {e(subject)}</div>"
                 f"<details class='email'><summary>Show the email</summary><div><pre>{e(text)}"
                 "</pre></div></details>"
-                f"<form method='post' action='/act/review' class='inline rowform'>"
+                f"<form method='post' action='/act/review' class='inline rowform auto'>"
                 f"{_hidden(ui.csrf, id=rid)}{pick}"
-                f"<select name='outcome' aria-label='What did they say'>{opts}</select>"
-                "<button type='submit'>Save</button></form></li>"
+                "<select name='outcome' required aria-label='What did they say'>"
+                f"<option value='' disabled selected>What did they say?</option>{opts}</select>"
+                "<button type='submit' class='nojs'>Save</button></form></li>"
             )
         n = len(ui.replies)
         claude = (
             f"<details class='more'><summary>Ask Claude to sort these {n}</summary>"
-            "<ol class='steps'><li>Copy the prompt. Your name, address, email, and phone are "
-            "replaced with placeholders.<br>"
-            "<button type='button' class='secondary' data-copy='claude-prompt'>Copy prompt"
-            "</button></li>"
+            "<ol class='steps'><li>Copy the prompt. Your personal details are replaced with "
+            "placeholders like [MY NAME] first."
+            + (
+                f"<div class='redacted'><b>Removed before copying:</b> {e(ui.redactions)}</div>"
+                if ui.redactions
+                else ""
+            )
+            + "<button type='button' class='secondary' data-copy='claude-prompt'>Copy prompt"
+            "</button> <details class='peek'><summary>See exactly what will be copied</summary>"
+            f"<pre>{e(ui.claude_prompt)}</pre></details></li>"
             "<li>Paste it into <a href='https://claude.ai/new' target='_blank' "
             "rel='noreferrer'>Claude</a> and send it.</li>"
             "<li>Paste Claude's answer here:"
@@ -667,6 +853,121 @@ def _replies_panel(ui: UI) -> str:
     return (
         "<section class='card' aria-labelledby='replies-h' id='replies'>"
         f"<h2 id='replies-h'>Broker replies</h2>{head}{body}{share}</section>"
+    )
+
+
+def _field(
+    label: str, name: str, value: str, *, kind: str = "text", hint: str = "", attrs: str = ""
+) -> str:
+    return (
+        f"<label class='fld'><span>{e(label)}</span>"
+        f"<input type='{kind}' name='{name}' value='{e(value)}' {attrs}>"
+        f"{f'<small>{e(hint)}</small>' if hint else ''}</label>"
+    )
+
+
+def _settings_panel(ui: UI) -> str:
+    v = ui.settings
+    if not v:
+        return ""
+    about = (
+        "<fieldset><legend>About you</legend><div class='fgrid'>"
+        + _field("Full legal name", "legal_name", v["legal_name"], attrs="required")
+        + _field(
+            "Other names", "aliases", v["aliases"], hint="Comma-separated: maiden name, nickname"
+        )
+        + _field(
+            "Date of birth",
+            "dob",
+            v["dob"],
+            kind="date",
+            attrs="required",
+            hint="Only some people-search forms use it; never put in emails",
+        )
+        + _field("Street", "street", v["street"], attrs="required autocomplete='address-line1'")
+        + _field(
+            "Apt / Suite / Unit", "street2", v["street2"], attrs="autocomplete='address-line2'"
+        )
+        + _field("City", "city", v["city"], attrs="required autocomplete='address-level2'")
+        + _field(
+            "State",
+            "state",
+            v["state"],
+            attrs="required maxlength='2' autocomplete='address-level1' style='width:5em'",
+        )
+        + _field("ZIP", "zip", v["zip"], attrs="required autocomplete='postal-code'")
+        + _field("Phone numbers", "phones", v["phones"], hint="Comma-separated; optional")
+        + _field("Relatives on your listings", "relatives", v["relatives"], hint="Optional")
+        + "</div><label class='fld wide'><span>Previous addresses</span>"
+        f"<textarea name='previous' rows='3' placeholder='12 Oak St, Richmond, VA 23219'>"
+        f"{e(v['previous'])}</textarea><small>One per line: street, city, ST ZIP. "
+        "Your last one or two is plenty.</small></label></fieldset>"
+    )
+    sending = (
+        "<fieldset><legend>Sending</legend><div class='fgrid'>"
+        + _field(
+            "Emails per day",
+            "daily_limit",
+            v["daily_limit"],
+            kind="number",
+            attrs="min='1' max='200' required",
+            hint="Raise this to send another batch today. Gmail allows ~500; 40–100 is safer.",
+        )
+        + _field(
+            "Pause between emails (seconds)",
+            "send_delay_seconds",
+            v["send_delay_seconds"],
+            kind="number",
+            attrs="min='0' max='120' required",
+        )
+        + _field(
+            "Label for sent requests",
+            "gmail_label",
+            v["gmail_label"],
+            hint="Gmail label, e.g. OPTOUT. Blank to skip.",
+        )
+        + _field(
+            "Label for broker replies",
+            "reply_label",
+            v["reply_label"],
+            hint="Replies get this label and are read automatically.",
+        )
+        + _field(
+            "Send as (optional)",
+            "from_address",
+            v["from_address"],
+            kind="email",
+            hint="A 'Send mail as' address set up in Gmail. Blank = your account.",
+        )
+        + _field(
+            "Per-broker alias (optional)",
+            "alias_pattern",
+            v["alias_pattern"],
+            hint="Needs your own domain, e.g. optout-{slug}@yourdomain.com",
+        )
+        + "</div><label class='check'><input type='checkbox' name='allow_unattended'"
+        f"{' checked' if v['allow_unattended'] == 'on' else ''}> Let the daily run send "
+        "batches without me clicking Send</label>"
+        f"<p class='muted small'>Sending from <b>{e(v['sender'])}</b> via {e(v['host'])}. "
+        "To change the account, run <code>optout init</code>.</p></fieldset>"
+    )
+    password = (
+        "<form method='post' action='/act/password' class='inline pwform'>"
+        f"{_hidden(ui.csrf)}<label class='fld'><span>App password</span>"
+        "<input type='password' name='password' autocomplete='new-password' required "
+        "placeholder='Paste a new app password'></label>"
+        "<button type='submit' class='secondary'>Test &amp; save</button></form>"
+        "<p class='muted small'>Signs in to check it before saving; it's never shown again. "
+        "Gmail: <a href='https://myaccount.google.com/apppasswords' target='_blank' "
+        "rel='noreferrer'>create an app password</a>.</p>"
+    )
+    return (
+        f"<details class='card settings' id='settings'{' open' if ui.settings_open else ''}>"
+        "<summary><h2>Settings</h2><span class='muted small'>Your details, sending, and "
+        "Gmail</span></summary>"
+        f"<form method='post' action='/act/settings'>{_hidden(ui.csrf)}{about}{sending}"
+        "<button type='submit' class='big'>Save settings</button></form>"
+        f"<hr>{password}</details>"
     )
 
 
@@ -800,13 +1101,15 @@ def _filters(d: Dashboard, status_filter: str | None, query: str) -> str:
     q = f"&q={quote(query, safe='')}" if query else ""
     cur = " aria-current='page'" if not status_filter else ""
     pills = [
-        f"<a class='fpill' href='/{('?q=' + quote(query, safe='')) if query else ''}'{cur}>"
+        f"<a class='fpill' data-filter='' "
+        f"href='/{('?q=' + quote(query, safe='')) if query else ''}'{cur}>"
         f"All <span class='c'>{len(d.rows)}</span></a>"
     ]
     for code, (label, n) in sorted(codes.items(), key=lambda kv: -kv[1][1]):
         active = " aria-current='page'" if status_filter == label else ""
         pills.append(
-            f"<a class='fpill' href='/?status={quote(label, safe='')}{q}'{active}>"
+            f"<a class='fpill' data-filter='{e(label)}' "
+            f"href='/?status={quote(label, safe='')}{q}'{active}>"
             f"<span class='dot' style='background:{_tone_var(code)}'></span>{e(_clean(label, code))} "
             f"<span class='c'>{n}</span></a>"
         )
@@ -831,7 +1134,7 @@ def dashboard(
         if (not status_filter or r.label == status_filter)
         and (not needle or needle in r.name.lower() or needle in r.slug.lower())
     ]
-    shown = rows[:300]
+    shown = rows[:3000]
 
     attn = ""
     if d.attention:
@@ -846,7 +1149,8 @@ def dashboard(
         )
 
     trs = "".join(
-        f"<tr><td class='name'>{e(r.name)}{_reply_from(r)}</td><td>{pill(r.status, r.label)}</td>"
+        f"<tr data-name='{e((r.name + ' ' + r.slug).lower())}' data-status='{e(r.label)}'>"
+        f"<td class='name'>{e(r.name)}{_reply_from(r)}</td><td>{pill(r.status, r.label)}</td>"
         f"<td class='num'>{e(_short(r.submitted))}</td>"
         f"<td>{_days_cell(r)}<div class='muted small'>{_due(r)}</div></td>"
         f"<td class='small'>{e(r.last_check)}"
@@ -865,7 +1169,9 @@ def dashboard(
             "<th scope='col'>Status</th><th scope='col'>Sent</th>"
             "<th scope='col'>Time left</th><th scope='col'>Last check</th>"
             f"{'<th scope=col>Action</th>' if with_actions else ''}</tr></thead>"
-            f"<tbody>{trs}</tbody></table></div>{more}"
+            f"<tbody>{trs}<tr id='nomatch' hidden><td colspan='7' class='muted'>No requests "
+            "match.</td></tr></tbody></table></div>"
+            f"{more}"
         )
     elif d.rows:
         table = "<p class='muted'>No requests match.</p>"
@@ -881,7 +1187,7 @@ def dashboard(
         )
         search = (
             "<form method='get' action='/' class='search' role='search'>"
-            f"{keep}<input type='search' name='q' value='{e(query)}' "
+            f"{keep}<input type='search' id='q' name='q' value='{e(query)}' "
             "placeholder='Search brokers' aria-label='Search brokers'>"
             "<button type='submit' class='secondary'>Search</button></form>"
         )
@@ -908,6 +1214,7 @@ def dashboard(
         "means a later re-search confirmed the listing is gone.</p>"
     )
     replies = _replies_panel(act) if act is not None else ""
+    settings = _settings_panel(act) if act is not None else ""
     requests = (
         "<section class='card' aria-labelledby='req-h'><h2 id='req-h'>Requests</h2>"
         f"{toolbar}{table}{note}"
@@ -916,7 +1223,7 @@ def dashboard(
     refresh = 3 if ui and ui.job.get("state") == "running" else None
     return page(
         "optout · dashboard",
-        f"<h1>Your opt-out requests</h1>{_stats(d, ui)}{top}{attn}{replies}{requests}",
+        f"<h1>Your opt-out requests</h1>{_stats(d, ui)}{top}{attn}{replies}{requests}{settings}",
         nav=False,
         refresh=refresh,
         updated=d.generated,

@@ -253,7 +253,8 @@ def test_main_page_has_everything_without_clicking_in(ui):
     assert "Send a batch" in body and "Preview all 1 emails" in body
     assert "Send emails" in body  # one-click send lives on the main page
     assert "1 Main St, Richmond, VA 23219" in body  # the exact email text, inline
-    assert "1990" not in body and "5125550000" not in body
+    send = body[body.index("id='send'") : body.index("</section>", body.index("id='send'"))]
+    assert "1990" not in send and "5125550000" not in send  # emails omit birth date and phone
 
 
 def _sent_request(slug="evil"):
@@ -337,13 +338,15 @@ def test_buttons_work_in_a_real_browser(ui, monkeypatch):
         page.goto(f"http://127.0.0.1:{ui.port}/?t={ui.token}")
         assert page.title().startswith("optout")
 
+        page.evaluate("window.__noReload = 1")
         page.get_by_role("button", name="Write drafts for overdue requests").click()
-        page.wait_for_load_state()
-        assert "m=drafts" in page.url and "Forbidden" not in page.content()
+        page.get_by_text("New drafts are listed").wait_for()
+        assert "Forbidden" not in page.content()
 
         page.get_by_role("button", name="Send emails").click()
-        page.wait_for_load_state()
-        assert "m=started" in page.url and started == [1]
+        page.get_by_text("Batch started.").wait_for()
+        assert started == [1]
+        assert page.evaluate("window.__noReload") == 1  # updated in place, never reloaded
     finally:
         browser.close()
         pw.stop()
@@ -388,11 +391,11 @@ def test_batch_progress_updates_live_without_a_refresh(ui, monkeypatch):
         errors: list[str] = []
         page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
         page.goto(f"http://127.0.0.1:{ui.port}/?t={ui.token}")
+        page.evaluate("window.__noReload = 1")
         page.get_by_role("button", name="Send emails").click()
-        page.wait_for_url("**m=started**")
-        assert page.locator(".flash.live").count() == 1  # glowing "Batch started."
-        page.wait_for_url("**m=finished**", timeout=15000)  # no manual refresh
-        assert "Batch finished" in page.content()
+        page.locator(".flash.live").wait_for()  # glowing "Batch started."
+        page.get_by_text("Batch finished").first.wait_for(timeout=15000)  # no manual refresh
+        assert page.evaluate("window.__noReload") == 1
         assert not [e for e in errors if "Content Security Policy" in e]
     finally:
         browser.close()
@@ -424,3 +427,133 @@ def test_one_row_per_broker_latest_attempt_wins(ui):
     _, body = ui.req("GET", "/")
     assert body.count("<td class='name'>") == 1
     assert "Failed</span>" not in body
+
+
+def test_instant_filters_and_auto_applying_menus(ui):
+    from optout.db import create_submission, mark_submitted
+
+    sync_api = pytest.importorskip("playwright.sync_api")
+    with get_session() as s:
+        for slug in ("evil", "other-co"):
+            sub = create_submission(
+                s,
+                broker_slug=slug,
+                method_used="email",
+                legal_basis_cited=[],
+                statutory_response_days=45,
+            )
+            mark_submitted(s, sub, {}, None, 45)
+            sub.status = "awaiting_broker_confirmation"
+            s.add(sub)
+            s.commit()
+    try:
+        pw = sync_api.sync_playwright().start()
+        browser = pw.chromium.launch()
+    except Exception as exc:
+        pytest.skip(f"no browser: {type(exc).__name__}")
+    try:
+        page = browser.new_page()
+        page.goto(f"http://127.0.0.1:{ui.port}/?t={ui.token}")
+        page.evaluate("window.__noReload = 1")
+        rows = page.locator("tr[data-name]")
+        assert rows.count() == 2
+        assert page.locator("form.rowform button:visible").count() == 0  # no Go buttons
+
+        page.fill("#q", "other")  # filters as you type, no Enter
+        assert page.locator("tr[data-name]:visible").count() == 1
+        page.fill("#q", "zzz")
+        assert page.locator("#nomatch").is_visible()
+        page.fill("#q", "")
+
+        # choosing from the menu applies at once; a false "done" can be moved back
+        evil = page.locator("tr[data-name*='evil'] select")
+        evil.select_option("status:confirmed")
+        page.locator("tr[data-name*='evil'] .pill", has_text="Broker says done").wait_for()
+        page.locator("tr[data-name*='evil'] select").select_option(
+            "status:awaiting_broker_confirmation"
+        )
+        page.locator("tr[data-name*='evil'] .pill", has_text="Awaiting reply").wait_for()
+
+        page.locator("a.fpill", has_text="Awaiting reply").click()  # instant, no navigation
+        assert page.locator("tr[data-name]:visible").count() == 2
+        assert page.evaluate("window.__noReload") == 1
+    finally:
+        browser.close()
+        pw.stop()
+
+
+def test_move_to_never_allows_removed(ui):
+    _sent_request()
+    r, _ = ui.post("/act/row", {"slug": "evil", "action": "status:removed"})
+    assert r.getheader("Location") == "/?m=err"
+
+
+def test_settings_edit_and_validate(ui):
+    from optout.config import load_config
+
+    _, body = ui.req("GET", "/")
+    assert "id='settings'" in body and "name='daily_limit'" in body
+    assert "name='password'" in body and "value='abcd" not in body  # password never shown
+
+    form = {
+        "legal_name": "Jane Q Public",
+        "aliases": "Janie, J Public",
+        "dob": "1990-05-14",
+        "street": "1 Main St",
+        "street2": "Apt 2",
+        "city": "Richmond",
+        "state": "va",
+        "zip": "23219",
+        "phones": "",
+        "relatives": "",
+        "previous": "9 Elm Rd, Norfolk, VA 23510",
+        "daily_limit": "80",
+        "send_delay_seconds": "3",
+        "gmail_label": "OPTOUT",
+        "reply_label": "OPTOUT Response",
+        "from_address": "",
+        "alias_pattern": "",
+    }
+    r, _ = ui.post("/act/settings", form)
+    assert r.getheader("Location") == "/?m=settings_ok#settings"
+    cfg = load_config()
+    assert cfg.email.daily_limit == 80 and cfg.email.reply_label == "OPTOUT Response"
+    assert cfg.profile.current_address.state == "VA"
+    assert cfg.profile.current_address.street2 == "Apt 2"
+    assert cfg.profile.previous_addresses[0].city == "Norfolk"
+    assert cfg.profile.aliases == ["Janie", "J Public"]
+
+    for bad in (
+        {"daily_limit": "5000"},
+        {"dob": "not-a-date"},
+        {"previous": "nonsense"},
+        {"gmail_label": 'BAD"LABEL'},
+        {"alias_pattern": "no-slug@x.example"},
+        {"legal_name": "Taylor Swift"},
+    ):
+        r, _ = ui.post("/act/settings", {**form, **bad})
+        assert r.getheader("Location") == "/?m=settings_err#settings", bad
+        _, body = ui.req("GET", "/?m=settings_err")
+        assert "Couldn&#x27;t save" in body
+    assert load_config().email.daily_limit == 80  # nothing invalid was written
+
+
+def test_password_is_tested_before_saving(ui, monkeypatch):
+    from optout.config import load_config
+    from optout.engine.methods.email import read_smtp_password
+
+    monkeypatch.setattr(
+        "optout.engine.methods.email.check_login",
+        lambda cfg, pw: None if pw == "good pass word" else "rejected",
+    )
+    r, _ = ui.post("/act/password", {"password": "nope"})
+    assert r.getheader("Location") == "/?m=pw_bad#settings"
+    r, _ = ui.post("/act/password", {"password": "good pass word"})
+    assert r.getheader("Location") == "/?m=pw_ok#settings"
+    assert read_smtp_password(load_config().email.smtp) == "good pass word"
+
+
+def test_limit_reached_points_to_settings(ui, monkeypatch):
+    monkeypatch.setattr("optout.web.server.sent_today", lambda session, now: 40)
+    _, body = ui.req("GET", "/")
+    assert "sent today's limit" in body and "href='#settings'" in body

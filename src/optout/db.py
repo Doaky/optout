@@ -113,6 +113,7 @@ class InboxMessage(SQLModel, table=True):
     broker_slug: str | None = Field(default=None, index=True)
     matched_by: str = ""  # message-id | alias | domain | ""
     from_addr: str = ""
+    from_name: str = ""  # display name, e.g. "ActivImpact Privacy Team" via OneTrust
     subject: str = ""
     received_at: datetime | None = None
     text: str = ""  # reply text with quoted history removed, capped; stays local
@@ -157,8 +158,36 @@ def get_engine(path: Path | None = None):
 
 
 def init_db(engine=None) -> None:
-    """Create all tables. Safe to call multiple times (create_all is idempotent)."""
-    SQLModel.metadata.create_all(engine or get_engine())
+    """Create all tables and add any columns newer versions introduced. Idempotent."""
+    engine = engine or get_engine()
+    SQLModel.metadata.create_all(engine)
+    _add_missing_columns(engine)
+
+
+def _add_missing_columns(engine) -> None:
+    """create_all never alters existing tables; add new nullable/defaulted columns here so
+    an older database keeps working after an upgrade."""
+    from sqlalchemy import inspect, text
+
+    insp = inspect(engine)
+    with engine.begin() as conn:
+        for table in SQLModel.metadata.sorted_tables:
+            if not insp.has_table(table.name):
+                continue
+            have = {c["name"] for c in insp.get_columns(table.name)}
+            for col in table.columns:
+                if col.name in have:
+                    continue
+                ddl_type = col.type.compile(dialect=engine.dialect)
+                default = ""
+                if col.default is not None and getattr(col.default, "is_scalar", False):
+                    val = col.default.arg
+                    default = " DEFAULT " + (
+                        str(int(val)) if isinstance(val, bool) else repr(val).replace('"', "'")
+                    )
+                conn.execute(
+                    text(f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" {ddl_type}{default}')
+                )
 
 
 @contextmanager

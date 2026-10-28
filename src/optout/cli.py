@@ -1067,6 +1067,9 @@ def inbox(
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Show what would happen; change nothing."
     ),
+    recheck_saved: bool = typer.Option(
+        False, "--recheck", help="Re-sort saved replies with the current rules (no Gmail)."
+    ),
 ) -> None:
     """Read broker replies from Gmail and update requests where the answer is clear."""
     from .config import load_config
@@ -1079,6 +1082,26 @@ def inbox(
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1)
     init_db()
+    if recheck_saved:
+        from sqlmodel import select
+
+        from .brokers.registry import all_brokers, load_registry
+        from .db import Submission, get_session
+        from .engine.inbox import build_index, mark_rules_version, recheck, reply_senders
+
+        load_registry()
+        with get_session() as session:
+            subs = list(session.exec(select(Submission)))
+            idx = build_index(
+                subs,
+                {b.slug: b for b in all_brokers()},
+                config.email.alias_pattern,
+                reply_senders(session),
+            )
+            n = recheck(session, idx)
+        mark_rules_version()
+        console.print(f"Re-checked saved replies: {n} changed.")
+        return
     try:
         report = run_sync(config, dry_run=dry_run)
     except ValueError as exc:
