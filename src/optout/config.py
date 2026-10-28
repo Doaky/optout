@@ -89,6 +89,8 @@ class EmailConfig(BaseModel):
 class PlaywrightConfig(BaseModel):
     headless: bool = False
     slow_mo_ms: int = 0
+    # "chrome" = real installed Chrome (preferred). None = Playwright's bundled Chromium.
+    channel: str | None = "chrome"
 
 
 class MonitoringConfig(BaseModel):

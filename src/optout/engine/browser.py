@@ -30,7 +30,7 @@ def launch_browser(config: PlaywrightConfig) -> Generator[BrowserContext, None, 
     with sync_playwright() as pw:
         ctx = pw.chromium.launch_persistent_context(
             user_data_dir=str(profile_dir),
-            channel="chrome",
+            channel=config.channel,
             headless=config.headless,
             viewport=None,
             args=["--disable-blink-features=AutomationControlled"],

@@ -113,8 +113,13 @@ def test_unknown_legal_basis_rejected():
 
     with pytest.raises(ValidationError, match="unknown legal_basis"):
         BrokerDef(
-            slug="x", name="X", domain="x.example", category="people_search",
-            method="manual", legal_basis=["NOPE"], statutory_response_days=45,
+            slug="x",
+            name="X",
+            domain="x.example",
+            category="people_search",
+            method="manual",
+            legal_basis=["NOPE"],
+            statutory_response_days=45,
         )
 
 

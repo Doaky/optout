@@ -138,6 +138,82 @@ def brokers_list(
     console.print(f"[dim]{len(brokers)} broker(s) listed.[/dim]")
 
 
+@brokers_app.command("probe")
+def brokers_probe(
+    slug: str = typer.Argument(..., help="Broker slug (e.g. spokeo)."),
+    channel: str = typer.Option(
+        "config",
+        "--channel",
+        help="Browser: 'chrome', 'chromium' (bundled), or 'config' to use your config.",
+    ),
+) -> None:
+    """Check a broker's selectors against the live site. Never fills or submits."""
+    import json
+    from dataclasses import asdict
+    from datetime import UTC, datetime
+
+    from .brokers.registry import get_broker
+    from .config import PlaywrightConfig, config_dir, load_config
+    from .engine.browser import launch_browser
+    from .engine.probe import build_plan, run_checks
+
+    try:
+        broker = get_broker(slug)
+    except KeyError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+
+    try:
+        pw_cfg = load_config().playwright
+    except FileNotFoundError:
+        pw_cfg = PlaywrightConfig()
+    pw_cfg = pw_cfg.model_copy(update={"headless": False})
+    if channel != "config":
+        pw_cfg.channel = None if channel == "chromium" else channel
+
+    plan = build_plan(broker)
+    console.print(
+        f"[bold]Probing {broker.name}[/bold]: read-only, placeholder identity "
+        "(John Smith, Virginia). Nothing is filled, clicked, or submitted."
+    )
+
+    with launch_browser(pw_cfg) as ctx:
+        page = ctx.pages[0] if ctx.pages else ctx.new_page()
+        for probe_page in plan.pages:
+            console.print(f"\n[cyan]{probe_page.source}[/cyan] → {probe_page.url}")
+            try:
+                page.goto(probe_page.url, timeout=45_000, wait_until="domcontentloaded")
+            except Exception as exc:
+                probe_page.load_error = str(exc).splitlines()[0][:200]
+                console.print(f"  [red]load failed:[/red] {probe_page.load_error}")
+                continue
+            typer.prompt(
+                "  Clear any CAPTCHA/Cloudflare check in the browser (don't submit "
+                "anything), then press Enter",
+                default="",
+                show_default=False,
+            )
+            run_checks(page, probe_page)
+            for c in probe_page.checks:
+                colour = {"found": "green", "missing": "red", "error": "yellow"}[c.status]
+                console.print(
+                    f"  [{colour}]{c.status:<7}[/{colour}] {c.count:>3}  "
+                    f"{c.role:<24} {c.selector}" + (f"  ({c.detail})" if c.detail else "")
+                )
+
+    if plan.unreachable:
+        console.print("\n[dim]Not checkable without interacting (after a click or prompt):[/dim]")
+        for c in plan.unreachable:
+            console.print(f"  [dim]{c.role:<24} {c.selector}[/dim]")
+
+    out_dir = config_dir() / "probes"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    out = out_dir / f"{broker.slug}-{stamp}.json"
+    out.write_text(json.dumps(asdict(plan), indent=2))
+    console.print(f"\nReport saved to {out}")
+
+
 @brokers_app.command("info")
 def brokers_info(
     slug: str = typer.Argument(..., help="Broker slug (e.g. whitepages)."),

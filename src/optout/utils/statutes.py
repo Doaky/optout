@@ -72,9 +72,7 @@ STATUTES: dict[str, Statute] = {
         key="VCDPA",
         name="Virginia Consumer Data Protection Act",
         citation="Va. Code § 59.1-577(A)(3)",
-        right_text=(
-            "To delete personal data provided by or obtained about the consumer."
-        ),
+        right_text=("To delete personal data provided by or obtained about the consumer."),
         response_days=45,
         response_note=(
             "Va. Code § 59.1-577(B)(1): may be extended once by 45 additional days "
