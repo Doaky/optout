@@ -21,8 +21,11 @@ legal_basis: [CCPA, CPRA]
 statutory_response_days: 45
 re_add_window_days: 30
 
-last_verified_at: 2026-05-10
+last_verified_at: 2026-10-28
 notes: |
+  Probe 2026-10-28 (read-only, placeholder identity): scan, search and
+  opt-out form selectors all found. Post-submit assert not checkable without submitting.
+
   Spokeo's opt-out requires:
   1. The full URL of your Spokeo listing (e.g. https://www.spokeo.com/Jane-Public/TX/Austin/...)
   2. An email address to receive a verification link.

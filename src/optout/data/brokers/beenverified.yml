@@ -23,6 +23,9 @@ re_add_window_days: 60
 
 last_verified_at: 2026-05-10
 notes: |
+  Probe 2026-10-28: opt-out page returned a Cloudflare challenge; NOT re-verified.
+  Needs a headed run with a human to clear the challenge.
+
   Opt-out form at beenverified.com/svc/optout/search/ (redirected from
   /app/optout/search). Cloudflare passes automatically with a warmed
   persistent browser profile.

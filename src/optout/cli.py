@@ -158,10 +158,12 @@ def brokers_probe(
     from dataclasses import asdict
     from datetime import UTC, datetime
 
+    from rich.markup import escape
+
     from .brokers.registry import get_broker
     from .config import PlaywrightConfig, config_dir, load_config
     from .engine.browser import launch_browser
-    from .engine.probe import build_plan, run_checks
+    from .engine.probe import blocked_reason, build_plan, run_checks
 
     try:
         broker = get_broker(slug)
@@ -205,17 +207,23 @@ def brokers_probe(
             probe_page.final_url = page.url
             probe_page.title = page.title()
             run_checks(page, probe_page)
+            if reason := blocked_reason(probe_page.title):
+                console.print(
+                    f"  [yellow]blocked:[/yellow] page title is {escape(repr(probe_page.title))} "
+                    f"({reason}); results below are not about the broker's real page"
+                )
             for c in probe_page.checks:
                 colour = {"found": "green", "missing": "red", "error": "yellow"}[c.status]
                 console.print(
                     f"  [{colour}]{c.status:<7}[/{colour}] {c.count:>3}  "
-                    f"{c.role:<24} {c.selector}" + (f"  ({c.detail})" if c.detail else "")
+                    f"{c.role:<24} {escape(c.selector)}"
+                    + (f"  ({escape(c.detail)})" if c.detail else "")
                 )
 
     if plan.unreachable:
         console.print("\n[dim]Not checkable without interacting (after a click or prompt):[/dim]")
         for c in plan.unreachable:
-            console.print(f"  [dim]{c.role:<24} {c.selector}[/dim]")
+            console.print(f"  [dim]{c.role:<24} {escape(c.selector)}[/dim]")
 
     out_dir = config_dir() / "probes"
     out_dir.mkdir(parents=True, exist_ok=True)

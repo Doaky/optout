@@ -113,7 +113,7 @@ def build_plan(broker: BrokerDef) -> ProbePlan:
             current = ProbePage(url=_render(step.url), source=f"navigate:{step.id}")
             pages.append(current)
             continue
-        if step.type in ("click", "collect_input"):
+        if step.type in ("click", "collect_input", "prompt_user", "prompt_user_if_present"):
             # Checks on the clicked element itself are fine; anything after may
             # live on a different page.
             if current is not None:
@@ -128,6 +128,24 @@ def build_plan(broker: BrokerDef) -> ProbePlan:
             current.checks.extend(checks)
 
     return ProbePlan(pages=pages, unreachable=unreachable)
+
+
+# Page titles that mean we hit a challenge or block page, not the broker's page.
+_BLOCK_TITLE_MARKERS = (
+    "just a moment",  # Cloudflare
+    "attention required",  # Cloudflare
+    "access denied",
+    "transferred by court order",
+)
+
+
+def blocked_reason(title: str | None) -> str | None:
+    """Return a short reason if the page title looks like a challenge/block page."""
+    t = (title or "").lower()
+    for marker in _BLOCK_TITLE_MARKERS:
+        if marker in t:
+            return marker
+    return None
 
 
 def run_checks(page: Any, probe_page: ProbePage) -> None:

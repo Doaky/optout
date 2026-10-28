@@ -120,3 +120,25 @@ def test_all_shipped_brokers_build_a_plan():
     for path in ymls:
         broker = BrokerDef.model_validate(yaml.safe_load(path.read_text()))
         assert build_plan(broker).pages, broker.slug
+
+
+def test_prompt_steps_end_the_reachable_page():
+    b = _broker(
+        [
+            {"id": "nav", "type": "navigate", "url": "https://x.example/"},
+            {"id": "p", "type": "prompt_user_if_present", "selector": "button", "message": "m"},
+            {"id": "ok", "type": "assert", "selector": ".thanks"},
+        ]
+    )
+    plan = build_plan(b)
+    assert [c.selector for c in plan.pages[0].checks] == ["button"]
+    assert [c.selector for c in plan.unreachable] == [".thanks"]
+
+
+def test_blocked_reason():
+    from optout.engine.probe import blocked_reason
+
+    assert blocked_reason("Just a moment...") == "just a moment"
+    assert blocked_reason("This Domain Has Been Transferred by Court Order") is not None
+    assert blocked_reason("Spokeo | Opt Out") is None
+    assert blocked_reason(None) is None

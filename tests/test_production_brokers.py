@@ -127,9 +127,11 @@ class TestSpecificBrokers:
         navigate_steps = [s for s in b.steps if isinstance(s, NavigateStep)]
         assert len(navigate_steps) >= 1
 
-    def test_radaris_web_form_method(self) -> None:
+    def test_radaris_manual_after_domain_seizure(self) -> None:
+        # radaris.com was transferred by court order (checked 2026-10-28).
         b = self._load("radaris")
-        assert b.method == "web_form"
+        assert b.method == "manual"
+        assert "Court Order" in (b.notes or "")
         assert b.opt_out_url is not None
         assert "GDPR" in b.legal_basis
 

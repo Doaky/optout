@@ -21,8 +21,11 @@ legal_basis: [CCPA, CPRA]
 statutory_response_days: 45
 re_add_window_days: 90
 
-last_verified_at: 2026-05-10
+last_verified_at: 2026-10-28
 notes: |
+  Probe 2026-10-28: all 11 opt-out form selectors found. The search page
+  (pub-multisearch) returned a Cloudflare challenge, so scan selectors are unverified.
+
   Opt-out form at mylife.com/privacyrequest — a JotForm embed (mylife.jotform.com).
   The /privacy-portal/ route has a broken form action; /optout/ redirects to a 410 Gone.
 
