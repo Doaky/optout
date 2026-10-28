@@ -1034,6 +1034,47 @@ def verify(
     console.print("\nNothing is marked removed unless a re-search rendered without your listing.")
 
 
+@app.command()
+def daily() -> None:
+    """Cron entry point: send the day's capped emails (if allowed), draft escalations, notify."""
+    from datetime import UTC, datetime
+
+    from .brokers.registry import all_brokers, load_registry
+    from .config import load_config
+    from .db import get_session, init_db
+    from .engine.campaign import run_campaign, select_brokers, sent_today
+    from .notify import send_webhook
+
+    try:
+        config = load_config()
+    except FileNotFoundError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+    load_registry()
+    init_db()
+    now = datetime.now(UTC)
+    lines: list[str] = []
+
+    with get_session() as session:
+        sel = select_brokers(all_brokers(), session, now=now)
+        quota = max(0, config.email.daily_limit - sent_today(session, now))
+        if config.email.allow_unattended:
+            report = run_campaign(session, config, sel.eligible, limit=quota)
+            lines.append(f"Emails sent: {len(report.sent)}, failed: {len(report.failed)}")
+            if report.stopped_reason:
+                lines.append(f"Stopped: {report.stopped_reason}")
+        elif sel.eligible:
+            lines.append(f"{len(sel.eligible)} brokers ready. Run: optout campaign --send")
+
+    drafts = _write_escalation_drafts(config, now)
+    if drafts:
+        lines.append(f"{len(drafts)} escalation draft(s) waiting: optout escalate")
+    message = "\n".join(lines) or "Nothing to do today."
+    console.print(message)
+    if config.notify.webhook_url and lines:
+        send_webhook(config.notify.webhook_url, "optout daily", message)
+
+
 @app.command("drift-check")
 def drift_check(
     notify: bool = typer.Option(True, "--notify/--no-notify", help="Send the webhook on drift."),
@@ -1099,6 +1140,59 @@ def drift_check(
         )
 
 
+def _write_escalation_drafts(config, now) -> list[tuple[str, str, str]]:
+    """Write drafts for overdue/refused requests. Returns (kind, broker name, path)."""
+    import json
+    import os
+
+    from .brokers.registry import get_broker
+    from .db import db_path, get_session, list_events, list_submissions
+    from .engine.escalation import make_draft, stage_for
+    from .engine.methods.email import _contact_email
+
+    drafts_dir = db_path().parent / "drafts"
+    drafts_dir.mkdir(parents=True, exist_ok=True)
+    written: list[tuple[str, str, str]] = []
+    with get_session() as session:
+        for sub in list_submissions(session):
+            sent_kinds = [
+                json.loads(e.payload_json).get("kind", "")
+                for e in list_events(session, sub.id)
+                if e.event_type == "escalation_sent"
+            ]
+            kind = stage_for(sub, sent_kinds, now)
+            if not kind:
+                continue
+            try:
+                broker = get_broker(sub.broker_slug)
+            except KeyError:
+                # Logged by hand and not in any list: draft against a bare stand-in.
+                from .brokers.schema import BrokerDef
+
+                broker = BrokerDef(
+                    slug=sub.broker_slug,
+                    name=sub.broker_slug.title(),
+                    domain=sub.broker_slug,
+                    category="unlisted",
+                    method="manual",
+                    legal_basis=[],
+                    statutory_response_days=45,
+                )
+            draft = make_draft(
+                kind,
+                sub,
+                broker,
+                config.profile,
+                contact_email=_contact_email(config, broker, config.profile),
+            )
+            path = drafts_dir / f"{broker.slug}-{kind}-{now:%Y%m%d}.txt"
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w") as fh:
+                fh.write(f"To: {draft.to}\nSubject: {draft.subject}\n\n{draft.body}")
+            written.append((kind, broker.name, str(path)))
+    return written
+
+
 @app.command()
 def escalate(
     mark_sent: str | None = typer.Option(
@@ -1106,14 +1200,11 @@ def escalate(
     ),
 ) -> None:
     """Write follow-up / appeal / complaint drafts for unanswered requests. Never sends."""
-    import os
     from datetime import UTC, datetime
 
-    from .brokers.registry import get_broker, load_registry
+    from .brokers.registry import load_registry
     from .config import load_config
-    from .db import db_path, get_session, init_db, list_events, list_submissions, record_event
-    from .engine.escalation import make_draft, stage_for
-    from .engine.methods.email import _contact_email
+    from .db import get_session, init_db, list_submissions, record_event
 
     try:
         config = load_config()
@@ -1139,36 +1230,10 @@ def escalate(
         console.print(f"Recorded: {kind} for {slug}.")
         raise typer.Exit(code=0)
 
-    drafts_dir = db_path().parent / "drafts"
-    drafts_dir.mkdir(parents=True, exist_ok=True)
-    count = 0
-    with get_session() as session:
-        for sub in list_submissions(session):
-            sent_kinds = [
-                __import__("json").loads(e.payload_json).get("kind", "")
-                for e in list_events(session, sub.id)
-                if e.event_type == "escalation_sent"
-            ]
-            kind = stage_for(sub, sent_kinds, now)
-            if not kind:
-                continue
-            try:
-                broker = get_broker(sub.broker_slug)
-            except KeyError:
-                continue
-            draft = make_draft(
-                kind,
-                sub,
-                broker,
-                config.profile,
-                contact_email=_contact_email(config, broker, config.profile),
-            )
-            path = drafts_dir / f"{broker.slug}-{kind}-{now:%Y%m%d}.txt"
-            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            with os.fdopen(fd, "w") as fh:
-                fh.write(f"To: {draft.to}\nSubject: {draft.subject}\n\n{draft.body}")
-            console.print(f"  [yellow]{kind:<9}[/yellow] {broker.name}  →  {path}")
-            count += 1
+    written = _write_escalation_drafts(config, now)
+    count = len(written)
+    for kind, name, path in written:
+        console.print(f"  [yellow]{kind:<9}[/yellow] {name}  →  {path}")
     if not count:
         console.print("[green]No request is overdue or refused right now.[/green]")
     else:

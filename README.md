@@ -1,202 +1,97 @@
-# OptOut
+# optout: self-hosted data-broker opt-out (for one person)
 
-**Self-hosted CLI that automates CCPA/CPRA data-broker opt-out requests.**
+Sends deletion requests to data brokers on your behalf, remembers who you've
+contacted and when, tracks the legal deadline, re-checks whether your listing is
+actually gone, and drafts follow-ups when a broker ignores you. Personal use only:
+one profile, no acting as an agent for anyone else.
 
-[![CI](https://github.com/Blake104/OptOut/actions/workflows/ci.yml/badge.svg)](https://github.com/Blake104/OptOut/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/optout)](https://pypi.org/project/optout/)
-[![Python](https://img.shields.io/pypi/pyversions/optout)](https://pypi.org/project/optout/)
-[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue)](https://www.gnu.org/licenses/agpl-3.0)
+Derived from [Blake104/OptOut](https://github.com/Blake104/OptOut) (AGPL-3.0). See `NOTICE`.
 
----
+## What it does
 
-![optout status](docs/screenshots/status.png)
+| | |
+|---|---|
+| `optout brokers import` | Builds ~580 email-method broker definitions from California's public registry. Disabled by default for FCRA/GLBA/HIPAA-regulated entities. |
+| `optout campaign` | Previews, then (with `--send` and a typed confirmation) emails brokers. Capped per day, paced, stops on repeated failures. |
+| `optout log <company>` | Records a request you made yourself (spammers, phone calls, one-off emails). |
+| `optout history` / `optout status` | Who you contacted and when; deadline countdown; last verification; drift flags. |
+| `optout verify` | Re-searches people-search sites 7 days after a request. **The only way anything becomes "removed".** |
+| `optout escalate` | Writes follow-up, appeal, and Attorney General complaint *drafts*. You send/file them. |
+| `optout daily` | One cron entry point: capped sends (if you allow it), escalation drafts, webhook summary. |
+| `optout brokers probe/enable/disable` | Check selectors against the live site; skip brokers you want to stay listed on. |
 
-![optout scan](docs/screenshots/scan.png)
-
----
-
-## Why this exists
-
-CCPA and CPRA give California residents the right to demand deletion of their data from any company that sells it. Data brokers — Whitepages, BeenVerified, Spokeo, and dozens more — are legally required to comply. They also make exercising that right as hostile as possible: a different form on every site, CAPTCHAs, phone verification calls, 45-day deadlines you have to track manually, and data that silently reappears 60–90 days later.
-
-OptOut automates the hostile parts. You run it on your own machine with your own information. There is no central server, no account, no SaaS subscription — which means the "authorized agent" legal complexity that DeleteMe and Optery have to navigate simply does not apply.
-
----
-
-## Install
+## Quick start
 
 ```bash
-pipx install optout
-playwright install chromium   # one-time browser download (~130 MB)
-optout init                   # interactive setup wizard
+uv sync --all-extras
+uv run playwright install chromium        # only for the browser lane
+uv run optout init                        # or copy examples/config.example.yml to ~/.config/optout/config.yml
+export OPTOUT_SMTP_PASSWORD=...           # an app password, not your main one
+uv run optout brokers import              # downloads the California registry CSV
+uv run optout campaign                    # PREVIEW: shows who would be emailed and a sample
+uv run optout campaign --send --limit 10  # start small; type the confirmation
+uv run optout status
 ```
 
-> **Requirements:** Python 3.12+, [pipx](https://pipx.pypa.io/), [Playwright](https://playwright.dev/python/)
-
----
-
-## Quickstart
-
-```bash
-optout init                      # create ~/.config/optout/config.yml
-optout queue                     # add all brokers to the submission queue
-optout submit                    # open Chrome, walk each broker's form
-optout status                    # table of deadlines and statuses
-optout monitor                   # re-scan; re-queues brokers that re-added you
-```
-
-`optout submit` opens a real Chrome window for each broker. It fills every form field it can, then pauses with a prompt when human action is needed (CAPTCHA, listing selection, phone verification).
-
----
-
-## Supported brokers
-
-| Broker | Method | Automation | Human steps | Last verified |
-|--------|--------|-----------|-------------|---------------|
-| [BeenVerified](https://www.beenverified.com) | Web form | Partial | Click your listing; solve Turnstile CAPTCHA | 2026-05-10 |
-| [MyLife](https://www.mylife.com) | Web form | Partial | Solve reCAPTCHA; click Submit | 2026-05-10 |
-| [Radaris](https://radaris.com) | Web form | Mostly automated | Click your listing; click "Start Removing"; click confirmation email | 2026-05-12 |
-| [Spokeo](https://www.spokeo.com) | Web form | Partial | Click your listing; solve reCAPTCHA; click confirmation email | 2026-05-12 |
-| [Whitepages](https://www.whitepages.com) | Web form | Partial | Click your listing; answer phone call; enter verification code | 2026-05-10 |
-
-All five brokers are verified end-to-end as of 2026-05-12. New brokers are added as YAML files — no Python required. See [CONTRIBUTING.md](CONTRIBUTING.md).
-
----
-
-## How it works
-
-OptOut reads broker definitions from YAML files bundled with the package. Each YAML declares the broker's opt-out URL, required fields, and a list of steps. The engine walks those steps using a persistent Playwright Chromium context, so Cloudflare Turnstile cookies survive between runs and you only solve those challenges once.
-
-```mermaid
-flowchart LR
-    CLI["optout CLI\nTyper + Rich"]
-    DB[("SQLite\nsubmissions\ndeadlines")]
-    Registry["Broker Registry\nYAML → Pydantic"]
-    Dispatcher["Dispatcher"]
-    WebForm["web_form\nPlaywright engine"]
-    Email["email\nSMTP handler"]
-    Chrome(["Chromium\npersistent profile"])
-    Brokers(["Live broker\nwebsites"])
-
-    CLI --> Registry
-    CLI --> DB
-    CLI --> Dispatcher
-    Dispatcher --> WebForm
-    Dispatcher --> Email
-    WebForm --> Chrome
-    Chrome --> Brokers
-```
-
-Submissions are tracked in a local SQLite database. `optout status` surfaces anything overdue. `optout monitor` re-scans and re-queues automatically — safe to run from cron.
-
----
-
-## Commands
-
-```
-optout init                          # interactive setup wizard
-optout doctor                        # check that everything is installed correctly
-optout brokers list [--category]     # list all known brokers
-optout brokers info <slug>           # details + your submission history
-optout scan    [--broker SLUG]       # check which brokers list you (no submissions made)
-optout queue   [--broker SLUG]       # add brokers to the submission queue
-optout submit  [--broker SLUG] [-v]  # process the queue; -v shows debug output
-optout status  [--broker] [--status] # table of submissions and deadlines
-optout monitor                       # one-shot re-scan (cron-friendly)
-```
-
----
-
-## Configuration
-
-`optout init` writes `~/.config/optout/config.yml` (mode `600`). Key sections:
+Config goes in `~/.config/optout/config.yml` (mode 0600). Useful email settings:
 
 ```yaml
-profile:
-  legal_name: "Jane Q Public"
-  dob: "1990-05-14"
-  current_address:
-    street: "123 Main St"
-    city: "Austin"
-    state: "TX"
-    zip: "78701"
-  emails:
-    current: ["jane@example.com"]
-  phones:
-    current: ["+15125551234"]
-
 email:
-  method: smtp
-  smtp:
-    host: smtp.gmail.com
-    port: 587
-    username: jane@example.com
-    password_env: OPTOUT_SMTP_PASSWORD   # read from env, never stored in file
-
-playwright:
-  headless: false    # keep false so you can solve CAPTCHAs
-  slow_mo_ms: 0
+  alias_pattern: "optout-{slug}@yourdomain.com"   # per-broker alias via a catch-all
+  from_address: optout@yourdomain.com             # otherwise From is your SMTP username
+  identifiers: minimal                            # name + address + alias only (default)
+  daily_limit: 40
+  send_delay_seconds: 30
+  allow_unattended: false                         # true lets `optout daily` send on its own
+notify:
+  webhook_url: https://ntfy.sh/your-private-topic  # counts and slugs only, never PII
 ```
 
-Runtime data lives at:
+With an alias per broker, a spam email sent to `optout-acme@yourdomain.com` tells you
+which broker leaked or resold your address.
 
-| Path | Contents |
-|------|----------|
-| `~/.config/optout/config.yml` | Your profile and settings |
-| `~/.config/optout/browser_profile/` | Persistent Chrome profile (keeps Cloudflare cookies warm) |
-| `~/.local/share/optout/optout.db` | SQLite — submissions, events, scan history |
-| `~/.local/share/optout/artifacts/` | Confirmation screenshots |
+## Two lanes
 
----
+- **Unattended (email):** `optout daily` from cron/systemd (or the container below). Deadline
+  tracking, escalation drafts, webhook summary.
+- **Attended (browser):** web forms with CAPTCHA or email-link verification, plus
+  `verify`. Run on a machine with a real browser. CAPTCHAs and verification are done
+  by you, in the window; there is no CAPTCHA-solving service and no fingerprint spoofing.
 
-## Adding a broker
+**Sharing state.** Both lanes use one SQLite file (`~/.local/share/optout/optout.db`).
+The simplest correct setup is one machine owning it. Start by running everything from
+the desktop (cron or Task Scheduler for `optout daily`). Don't put the file on a sync
+service; SQLite and file sync corrupt each other. If you later want the homelab to own it,
+run the browser commands over SSH with X forwarding or add an export/import step (not built).
 
-New brokers are a single YAML file — no Python needed. Five steps:
+## Container (unattended lane only; untested)
 
-**1. Verify the opt-out flow manually** in a real browser. Note every field, selector, and verification step.
-
-**2. Copy the nearest template:**
-```bash
-cp src/optout/data/brokers/radaris.yml src/optout/data/brokers/new-broker.yml
-```
-
-**3. Fill in the metadata** — `slug`, `name`, `domain`, `method`, `opt_out_url`, `legal_basis`, `statutory_response_days`.
-
-**4. Write the steps** — each step is a `type` (`navigate`, `form_fill`, `click`, `wait_for`, `prompt_user_if_present`, `capture`) with the relevant CSS selectors.
-
-**5. Validate:**
-```bash
-uv run pytest tests/test_production_brokers.py -v
-```
-
-Full step reference and template variables are in [CONTRIBUTING.md](CONTRIBUTING.md).
-
----
+`Dockerfile` and `docker-compose.yml` run `optout daily` once a day. The author had no
+Docker available when writing them, so build and check them before relying on them.
 
 ## Honest limitations
 
-- **Removal is not guaranteed.** Some brokers comply in days; others take the full 45-day window or ignore requests.
-- **Data reappears.** 60–90 days is typical. Run `optout monitor` monthly to catch this.
-- **CAPTCHAs require a human.** The tool pauses and prompts — no CAPTCHA solving, by design.
-- **Broker forms change.** When a broker redesigns their opt-out page, the YAML selectors need updating. Use `debug_elements.py` locally to find the new selectors.
-- **Phone verification is manual.** Whitepages calls your phone; you enter the code. The tool waits.
+- **Sent is not removed.** Email requests to registry brokers can't be re-searched, so they stay
+  "Submitted, awaiting reply" until the broker answers. Only people-search sites with a `scan`
+  config can reach "Removed ✓ verified".
+- **The legal footing is thin in Virginia.** Requests cite the Virginia Consumer Data Protection
+  Act, Va. Code § 59.1-577. It excludes some data and some businesses, and California's CCPA
+  deadlines don't bind brokers about a Virginia resident. Many brokers honor requests anyway;
+  some will refuse. California's DROP platform is for California residents.
+- **Registry emails go stale.** Expect bounces. Contacts come from brokers' own filings and
+  aren't verified.
+- **Broker sites change.** Selectors decay and Cloudflare blocks automation; `drift-check`
+  tells you when. Radaris's domain was seized by court order (2026-08); it's marked manual.
+- **Data comes back.** Brokers re-acquire it. Re-run `campaign` every 90 days (it skips anyone
+  contacted more recently) and `verify` weekly.
+- **It won't stop spam from breaches or marketing lists you signed up for.** Per-broker aliases
+  help you find out where it came from.
 
----
+## Safety rules the code enforces
 
-## Legal basis
-
-OptOut cites the applicable statute in every submission:
-
-- **CCPA §1798.105** — right to deletion, 45-day response window
-- **CPRA** — extends CCPA with stronger enforcement
-- **GDPR Art. 17** — right to erasure, 30-day response window
-
-Each broker's YAML declares which statutes apply. See [COMPLIANCE.md](COMPLIANCE.md) for the full legal posture.
-
----
-
-## License
-
-AGPL-3.0-only. See [LICENSE](LICENSE).
-
-This license was chosen intentionally: anyone who forks this and runs it as a hosted service must publish their changes. The project's legal model depends on each user running their own copy.
+- Nothing is sent without `--send` plus a typed confirmation (or `allow_unattended`).
+- A request becomes `removed` only via `mark_removed()` after a stored, later, clean re-search.
+  Block pages, timeouts, and layout changes are "unverifiable", never "clear".
+- No SSN, ID, or payment data is ever asked for or stored.
+- Registry-supplied URLs are stored as text and never opened; email addresses are validated strictly.
+- `tests/test_no_pii_in_repo.py` fails if your config values or SSN-shaped strings appear in tracked files.

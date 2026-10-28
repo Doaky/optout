@@ -1,0 +1,9 @@
+services:
+  optout:
+    build: .
+    restart: unless-stopped
+    environment:
+      OPTOUT_SMTP_PASSWORD: ${OPTOUT_SMTP_PASSWORD}
+    volumes:
+      - ./container/config:/config   # put config.yml in ./container/config/optout/ (chmod 600)
+      - ./container/data:/data       # SQLite DB and drafts live here
