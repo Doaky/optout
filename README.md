@@ -1,118 +1,159 @@
-# optout: self-hosted data-broker opt-out (for one person)
+# optout
 
-Sends deletion requests to data brokers on your behalf, remembers who you've
-contacted and when, tracks the legal deadline, re-checks whether your listing is
-actually gone, and drafts follow-ups when a broker ignores you. Personal use only:
-one profile, no acting as an agent for anyone else.
+**Get your personal data deleted from data brokers, from your own computer.**
 
-Derived from [Blake104/OptOut](https://github.com/Blake104/OptOut) (AGPL-3.0). See `NOTICE`.
+optout emails deletion requests to the ~580 data brokers registered with the State of
+California, keeps track of who you contacted and when each legal deadline falls, and helps you
+follow up with the ones that ignore you. It runs entirely on your machine: your details never
+go to any server except the brokers you choose to email.
 
-## What it does
+It's for one person: you. Each friend who wants to use it runs their own copy.
 
-| | |
-|---|---|
-| `optout brokers import` | Builds ~580 email-method broker definitions from California's public registry. Disabled by default for FCRA/GLBA/HIPAA-regulated entities. |
-| `optout campaign` | Previews, then (with `--send` and a typed confirmation) emails brokers. Capped per day, paced, stops on repeated failures. |
-| `optout log <company>` | Records a request you made yourself (spammers, phone calls, one-off emails). |
-| `optout history` / `optout status` | Who you contacted and when; deadline countdown; last verification; drift flags. |
-| `optout verify` | Re-searches people-search sites 7 days after a request. **The only way anything becomes "removed".** |
-| `optout escalate` | Writes follow-up, appeal, and Attorney General complaint *drafts*. You send/file them. |
-| `optout daily` | One cron entry point: capped sends (if you allow it), escalation drafts, webhook summary. |
-| `optout brokers probe/enable/disable` | Check selectors against the live site; skip brokers you want to stay listed on. |
+![The optout dashboard](docs/dashboard.png)
 
-## Web interface
+---
 
-```
-uv run optout ui          # prints a link; open it
-uv run optout report      # or: a static status page, no server
-```
+## Setup (about 5 minutes)
 
-The UI lets you preview the exact emails, confirm a send by typing `SEND n`, see everything
-you've sent, record a broker's reply (including "automated reply only"), and write a
-follow-up, appeal, or complaint draft with one click. It listens on 127.0.0.1 only, needs the
-one-time link it prints, checks the Host and Origin headers, uses a CSRF token on every action,
-sends a strict Content-Security-Policy, and escapes all registry text. Anything else running as
-your user can still read your files; that's true of the CLI too. Drafts and previews show your
-name and address, so don't screen-share them.
+Tested on Linux and Windows (WSL); macOS should work the same way. You need a terminal and a Gmail account (other
+providers work too, with one extra step).
 
-## Gmail label
-
-Add `gmail_label: OPTOUT` under `email:` and sent opt-out emails get that label automatically
-(over IMAP, using the same app password; add-only, no message bodies are read). Run
-`optout label` once to label what you already sent and the replies brokers sent back.
-
-## Quick start
+**1. Install uv**, the tool that installs optout and the right Python for it:
 
 ```bash
-uv sync --all-extras
-uv run playwright install chromium        # only for the browser lane
-uv run optout init                        # or copy examples/config.example.yml to ~/.config/optout/config.yml
-uv run optout smtp-password               # app password, typed hidden, saved to a 0600 file
-uv run optout brokers import              # downloads the California registry CSV
-uv run optout campaign                    # PREVIEW: shows who would be emailed and a sample
-uv run optout campaign --send --limit 10  # start small; type the confirmation
-uv run optout status
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Config goes in `~/.config/optout/config.yml` (mode 0600). Useful email settings:
+Then close and reopen your terminal.
+
+**2. Install optout:**
+
+```bash
+git clone https://github.com/Doaky/optout.git
+cd optout
+uv tool install --editable .
+```
+
+**3. Run it:**
+
+```bash
+optout
+```
+
+The first time, a short setup asks for:
+
+| Step | What it asks | Notes |
+|---|---|---|
+| 1. About you | Name, address, date of birth; optionally old addresses, phone, relatives | Stays in a private file on your computer. Bulk emails only include your name, address, and email. |
+| 2. Your email | Your email address, then an **app password** | Gmail and iCloud are detected and configured automatically: no server names to type. |
+| 3. Broker list | Whether to download California's public broker list | Nothing is sent. |
+
+Then your dashboard opens in your browser. From then on, `optout` just opens the dashboard.
+
+### About the app password (Gmail)
+
+Gmail won't let apps use your normal password. You create a separate 16-letter **app password**
+just for optout. Setup links you straight to the right pages and checks it works before saving it:
+
+1. Turn on 2-Step Verification: <https://myaccount.google.com/signinoptions/twosv>
+2. Create an app password named `optout`: <https://myaccount.google.com/apppasswords>
+3. Copy the 16 letters Google shows (like `abcd efgh ijkl mnop`) and paste them when asked.
+
+If the app passwords page says it's unavailable, 2-Step Verification is off, or a work/school
+administrator has disabled app passwords. Changed it later? Run `optout smtp-password`.
+
+The password is stored in `~/.config/optout/smtp_password`, readable only by you.
+
+---
+
+## Using it
+
+Everything happens on the dashboard (`optout`):
+
+- **Send a batch.** Expand *Preview* to read every email exactly as it will be sent, then click
+  **Send emails**. Up to 40 a day, a few seconds apart, so your account isn't flagged as a
+  bulk mailer. About two weeks covers every broker.
+- **Track requests.** Each broker has one row with a status, when you sent it, and how long
+  until its legal deadline.
+- **When a broker replies**, use the row's menu: *They say it's deleted*, *They refused*,
+  *They need more info*, or *Automated reply only*.
+- **Follow up** from the same menu: it writes a clarification, follow-up, appeal, or Attorney
+  General complaint draft for you to copy into an email. Overdue requests show up under
+  *Needs your attention*.
+
+Other commands, if you prefer a terminal:
+
+| Command | Does |
+|---|---|
+| `optout status` / `optout history` | Who you contacted, when, and what happened |
+| `optout campaign --send` | Send a batch from the terminal |
+| `optout log <company>` | Record a request you made yourself (e.g. a spammer) |
+| `optout reply <broker> deleted` | Record a broker's answer |
+| `optout escalate` | Write drafts for overdue or refused requests |
+| `optout label` | Add your Gmail label to past sent emails and replies |
+| `optout init` | Redo setup |
+
+### Settings worth knowing
+
+Your settings live in `~/.config/optout/config.yml`. Defaults are fine for most people:
 
 ```yaml
 email:
-  alias_pattern: "optout-{slug}@yourdomain.com"   # per-broker alias via a catch-all
-  from_address: optout@yourdomain.com             # otherwise From is your SMTP username
-  identifiers: minimal                            # name + address + alias only (default)
-  daily_limit: 40
-  send_delay_seconds: 30
-  allow_unattended: false                         # true lets `optout daily` send on its own
-notify:
-  webhook_url: https://ntfy.sh/your-private-topic  # counts and slugs only, never PII
+  gmail_label: OPTOUT        # Gmail label put on sent requests (setup asks)
+  daily_limit: 40            # emails per day
+  send_delay_seconds: 5      # pause between emails
+  alias_pattern: "optout-{slug}@yourdomain.com"   # optional: a different address per broker
 ```
 
-With an alias per broker, a spam email sent to `optout-acme@yourdomain.com` tells you
-which broker leaked or resold your address.
+With `alias_pattern` (needs your own domain with a catch-all), each broker gets its own
+address, so spam to `optout-acme@…` tells you exactly who sold your data.
 
-## Two lanes
+---
 
-- **Unattended (email):** `optout daily` from cron/systemd (or the container below). Deadline
-  tracking, escalation drafts, webhook summary.
-- **Attended (browser):** web forms with CAPTCHA or email-link verification, plus
-  `verify`. Run on a machine with a real browser. CAPTCHAs and verification are done
-  by you, in the window; there is no CAPTCHA-solving service and no fingerprint spoofing.
+## What to expect (honestly)
 
-**Sharing state.** Both lanes use one SQLite file (`~/.local/share/optout/optout.db`).
-The simplest correct setup is one machine owning it. Start by running everything from
-the desktop (cron or Task Scheduler for `optout daily`). Don't put the file on a sync
-service; SQLite and file sync corrupt each other. If you later want the homelab to own it,
-run the browser commands over SSH with X forwarding or add an export/import step (not built).
+- **Sent isn't deleted.** Many brokers reply with an automated message, ask for more
+  information, or don't answer. The tool tracks deadlines so you know when to follow up.
+- **"Broker says done" is their word.** Only people-search sites the tool can re-check
+  reach "Removed (verified)".
+- **The legal footing depends on your state.** Emails cite your state's privacy law for
+  Virginia, California, Colorado, Connecticut, and Utah, and use general wording elsewhere.
+  Only the Virginia citation has been checked against current statute text in this project.
+  California residents should also use the state's free DROP (Delete Request and Opt-out
+  Platform), which reaches every registered broker at once.
+- **Some brokers are exempt.** Credit, finance, and health-regulated brokers are off by
+  default because state deletion laws usually exclude that data.
+- **Data comes back.** Brokers re-acquire information. Re-running every few months
+  (it skips anyone you contacted in the last 90 days) keeps it down.
+- **It won't stop spam you already get** from breaches or lists you joined; it reduces how much
+  your details are bought and sold.
 
-## Container (unattended lane only; untested)
+## Privacy and safety
 
-`Dockerfile` and `docker-compose.yml` run `optout daily` once a day. The author had no
-Docker available when writing them, so build and check them before relying on them.
+- Runs locally. No telemetry. Settings and the database are private to your user account.
+- The dashboard only listens on `127.0.0.1` and needs the one-time link optout opens for you.
+  It checks every request's origin, uses a strict Content-Security-Policy, and escapes all
+  broker data.
+- Nothing is sent without you clicking Send (or explicitly enabling unattended sending).
+- A request is only marked removed after a later re-search shows the listing gone.
+- It never asks for an SSN, ID, or payment details.
 
-## Honest limitations
+## For developers
 
-- **Sent is not removed.** Email requests to registry brokers can't be re-searched, so they stay
-  "Submitted, awaiting reply" until the broker answers. Only people-search sites with a `scan`
-  config can reach "Removed ✓ verified".
-- **The legal footing is thin in Virginia.** Requests cite the Virginia Consumer Data Protection
-  Act, Va. Code § 59.1-577. It excludes some data and some businesses, and California's CCPA
-  deadlines don't bind brokers about a Virginia resident. Many brokers honor requests anyway;
-  some will refuse. California's DROP platform is for California residents.
-- **Registry emails go stale.** Expect bounces. Contacts come from brokers' own filings and
-  aren't verified.
-- **Broker sites change.** Selectors decay and Cloudflare blocks automation; `drift-check`
-  tells you when. Radaris's domain was seized by court order (2026-08); it's marked manual.
-- **Data comes back.** Brokers re-acquire it. Re-run `campaign` every 90 days (it skips anyone
-  contacted more recently) and `verify` weekly.
-- **It won't stop spam from breaches or marketing lists you signed up for.** Per-broker aliases
-  help you find out where it came from.
+```bash
+uv sync --all-extras
+uv run pytest            # tests (a few drive a real browser if Playwright's Chromium is installed)
+uv run ruff check src tests && uv run mypy src/optout/
+```
 
-## Safety rules the code enforces
+Advanced pieces not covered above: per-broker web-form automation for people-search sites
+(`optout queue` / `optout submit`, needs `uv run playwright install chromium`),
+`optout verify` (re-search to confirm removal), `optout daily` (cron entry point),
+`optout drift-check` (detect broken broker forms), and a `Dockerfile` for an unattended
+email-only lane (untested).
 
-- Nothing is sent without `--send` plus a typed confirmation (or `allow_unattended`).
-- A request becomes `removed` only via `mark_removed()` after a stored, later, clean re-search.
-  Block pages, timeouts, and layout changes are "unverifiable", never "clear".
-- No SSN, ID, or payment data is ever asked for or stored.
-- Registry-supplied URLs are stored as text and never opened; email addresses are validated strictly.
-- `tests/test_no_pii_in_repo.py` fails if your config values or SSN-shaped strings appear in tracked files.
+## License and credits
+
+AGPL-3.0. Derived from [Blake104/OptOut](https://github.com/Blake104/OptOut); ideas from
+[auto-identity-remove](https://github.com/stephenlthorn/auto-identity-remove) and
+[Privotron](https://github.com/kevinl95/Privotron) (both MIT). See `NOTICE`.

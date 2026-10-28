@@ -355,3 +355,19 @@ def test_address_line_two_flows_into_emails_and_forms(config):
     # no line 2: unchanged output, no stray space or comma
     plain = Address(street="9 Oak Rd", city="X", state="VA", zip="1")
     assert plain.street_line == "9 Oak Rd"
+
+
+def test_retry_reuses_a_failed_attempt_instead_of_adding_a_row(session, config):
+    from optout.db import list_submissions
+
+    b = _broker("b0")
+    runner_fail, _ = _fake_runner({"b0": "fail"})
+    run_campaign(
+        session, config, [b], limit=1, runner=runner_fail, sleep=lambda s: None, now=lambda: NOW
+    )
+    runner_ok, _ = _fake_runner({})
+    run_campaign(
+        session, config, [b], limit=1, runner=runner_ok, sleep=lambda s: None, now=lambda: NOW
+    )
+    (only,) = list_submissions(session, broker_slug="b0")
+    assert only.status == "awaiting_broker_confirmation" and only.failure_reason is None

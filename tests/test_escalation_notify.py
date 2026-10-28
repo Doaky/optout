@@ -102,3 +102,38 @@ def test_webhook_posts_and_survives_failure(monkeypatch):
 
     monkeypatch.setattr("urllib.request.urlopen", boom)
     assert send_webhook("https://ntfy.example.invalid/topic", "T", "hello") is False
+
+
+@pytest.fixture()
+def texan(profile):
+    return profile.model_copy(
+        update={"current_address": profile.current_address.model_copy(update={"state": "TX"})}
+    )
+
+
+def test_drafts_for_other_states_cite_no_virginia_law(texan, broker):
+    for kind in ("followup", "clarify", "appeal", "complaint"):
+        d = make_draft(kind, _sub(), broker, texan, contact_email="a@x.invalid")
+        assert "59.1-577" not in d.body and "Virginia" not in d.body, kind
+    complaint = make_draft("complaint", _sub(), broker, texan, contact_email="a@x.invalid")
+    assert complaint.to == "" and "your state Attorney General" in complaint.body
+
+
+def test_bulk_email_cites_the_users_state_law(texan, profile):
+    from optout.engine.methods.email import _render_body
+
+    bulk = BrokerDef(
+        slug="acme",
+        name="Acme",
+        domain="acme.example",
+        category="data_broker",
+        method="email",
+        opt_out_email="p@acme.example",
+        legal_basis=["VCDPA"],
+        statutory_response_days=45,
+        source="ca-registry",
+    )
+    va = _render_body(bulk, profile, contact_email="a@x.invalid", minimal=True)
+    tx = _render_body(bulk, texan, contact_email="a@x.invalid", minimal=True)
+    assert "Va. Code § 59.1-577(A)(3)" in va
+    assert "59.1-577" not in tx and "privacy laws that apply to you" in tx

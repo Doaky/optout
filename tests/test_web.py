@@ -347,3 +347,80 @@ def test_buttons_work_in_a_real_browser(ui, monkeypatch):
     finally:
         browser.close()
         pw.stop()
+
+
+def test_job_status_endpoint_needs_login(ui):
+    assert ui.req("GET", "/api/job", cookie=False)[0].status == 403
+    r, body = ui.req("GET", "/api/job")
+    assert r.status == 200 and r.getheader("Content-Type") == "application/json"
+    assert '"state": "idle"' in body
+
+
+def test_batch_progress_updates_live_without_a_refresh(ui, monkeypatch):
+    """The page must follow the job by itself and land on the result when it finishes."""
+    import time as _time
+
+    from optout.web import server
+
+    sync_api = pytest.importorskip("playwright.sync_api")
+
+    def fake_start(self, n):
+        self.job = {"state": "running", "sent": [], "failed": [], "total": 2}
+
+        def run():
+            _time.sleep(1.2)
+            self.job["sent"].append("a")
+            _time.sleep(1.2)
+            self.job["sent"].append("b")
+            self.job["state"] = "done"
+
+        threading.Thread(target=run, daemon=True).start()
+        return "started"
+
+    monkeypatch.setattr(server.App, "start_campaign", fake_start)
+    try:
+        pw = sync_api.sync_playwright().start()
+        browser = pw.chromium.launch()
+    except Exception as exc:
+        pytest.skip(f"no browser: {type(exc).__name__}")
+    try:
+        page = browser.new_page()
+        errors: list[str] = []
+        page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
+        page.goto(f"http://127.0.0.1:{ui.port}/?t={ui.token}")
+        page.get_by_role("button", name="Send emails").click()
+        page.wait_for_url("**m=started**")
+        assert page.locator(".flash.live").count() == 1  # glowing "Batch started."
+        page.wait_for_url("**m=finished**", timeout=15000)  # no manual refresh
+        assert "Batch finished" in page.content()
+        assert not [e for e in errors if "Content Security Policy" in e]
+    finally:
+        browser.close()
+        pw.stop()
+
+
+def test_one_row_per_broker_latest_attempt_wins(ui):
+    from optout.db import create_submission, mark_submitted
+
+    with get_session() as s:
+        old = create_submission(
+            s,
+            broker_slug="evil",
+            method_used="email",
+            legal_basis_cited=[],
+            statutory_response_days=45,
+        )
+        old.status = "failed"
+        s.add(old)
+        s.commit()
+        new = create_submission(
+            s,
+            broker_slug="evil",
+            method_used="email",
+            legal_basis_cited=[],
+            statutory_response_days=45,
+        )
+        mark_submitted(s, new, {}, None, 45)
+    _, body = ui.req("GET", "/")
+    assert body.count("<td class='name'>") == 1
+    assert "Failed</span>" not in body

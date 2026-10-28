@@ -18,7 +18,7 @@ from sqlmodel import Session, select
 
 from ..brokers.schema import BrokerDef
 from ..config import UserConfig
-from ..db import Submission, create_submission
+from ..db import Submission, create_submission, record_event
 from .dispatcher import run_submission
 from .methods import email as email_method
 
@@ -81,6 +81,30 @@ def _aware(dt: datetime) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
+def _retry_or_new(session: Session, broker: BrokerDef) -> Submission:
+    """Reuse a never-sent failed attempt for this broker, so a retry doesn't add a row."""
+    stmt = select(Submission).where(
+        Submission.broker_slug == broker.slug,
+        Submission.status == "failed",
+        Submission.submitted_at == None,  # noqa: E711 (SQL IS NULL)
+    )
+    failed = session.exec(stmt).first()
+    if failed is None:
+        return create_submission(
+            session,
+            broker_slug=broker.slug,
+            method_used=broker.method,
+            legal_basis_cited=broker.legal_basis,
+            statutory_response_days=broker.statutory_response_days,
+        )
+    failed.status = "queued"
+    failed.failure_reason = None
+    session.add(failed)
+    session.commit()
+    record_event(session, failed, "retried")
+    return failed
+
+
 def run_campaign(
     session: Session,
     config: UserConfig,
@@ -104,13 +128,7 @@ def run_campaign(
         for i, broker in enumerate(brokers[:budget]):
             if i:
                 sleep(config.email.send_delay_seconds)
-            sub = create_submission(
-                session,
-                broker_slug=broker.slug,
-                method_used=broker.method,
-                legal_basis_cited=broker.legal_basis,
-                statutory_response_days=broker.statutory_response_days,
-            )
+            sub = _retry_or_new(session, broker)
             runner(session, sub, broker, config.profile, config)
             if sub.status == "awaiting_broker_confirmation":
                 report.sent.append(broker.slug)

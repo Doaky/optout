@@ -122,3 +122,13 @@ STATUTES: dict[str, Statute] = {
 def get_statutes(keys: list[str]) -> list[Statute]:
     """Return Statute objects for the given keys, silently dropping unknowns."""
     return [STATUTES[k] for k in keys if k in STATUTES]
+
+
+# Which statute a bulk request cites, by the user's state. Only VCDPA has been checked
+# against current statute text in this project; the others come from upstream.
+STATE_LAW: dict[str, str] = {"VA": "VCDPA", "CA": "CCPA", "CO": "CPA", "CT": "CTDPA", "UT": "UCPA"}
+
+
+def statutes_for_state(state: str) -> list[Statute]:
+    key = STATE_LAW.get(state.strip().upper())
+    return [STATUTES[key]] if key else []

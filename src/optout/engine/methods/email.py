@@ -17,7 +17,7 @@ import jinja2
 from ...brokers.schema import BrokerDef
 from ...config import SmtpConfig, UserConfig, config_dir, load_config
 from ...db import Submission, artifacts_dir
-from ...utils.statutes import get_statutes
+from ...utils.statutes import get_statutes, statutes_for_state
 from .. import SubmissionFailed, SubmissionResult, UserInputRequired
 
 # Jinja2 environment — templates live in src/optout/templates/
@@ -127,7 +127,11 @@ def _render_body(
     contact_email: str | None = None,
     minimal: bool = False,
 ) -> str:
-    statutes = get_statutes(broker.legal_basis)
+    if broker.source:
+        # Bulk-imported brokers: cite the law of the state the user lives in, if any.
+        statutes = statutes_for_state(profile.current_address.state)  # type: ignore[attr-defined]
+    else:
+        statutes = get_statutes(broker.legal_basis)
     name = "opt_out_email_minimal.txt.j2" if minimal else "opt_out_email.txt.j2"
     return _env.get_template(name).render(
         broker=broker,
@@ -184,6 +188,30 @@ def read_smtp_password(smtp_cfg: SmtpConfig) -> str:
             raise UserInputRequired(f"{path} is readable by other users. Run: chmod 600 {path}")
         return path.read_text().strip()
     return os.environ.get(smtp_cfg.password_env, "")
+
+
+def save_smtp_password(password: str) -> Path:
+    """Write the password to ~/.config/optout/smtp_password, readable only by the user."""
+    path = config_dir() / "smtp_password"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        fh.write(password.strip())
+    path.chmod(0o600)
+    return path
+
+
+def check_login(smtp_cfg: SmtpConfig, password: str) -> str | None:
+    """Log in and out without sending anything. Returns None if it worked, else why not."""
+    try:
+        _quit(_open(smtp_cfg, password))
+    except smtplib.SMTPAuthenticationError:
+        return "the server rejected the email address or password"
+    except smtplib.SMTPServerDisconnected:
+        return "the server closed the connection (usually a wrong or regular password)"
+    except (smtplib.SMTPException, OSError) as exc:
+        return f"couldn't reach {smtp_cfg.host}:{smtp_cfg.port} ({type(exc).__name__})"
+    return None
 
 
 class _Batch:

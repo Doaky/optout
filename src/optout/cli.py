@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-app = typer.Typer(name="optout", no_args_is_help=True)
+app = typer.Typer(name="optout", invoke_without_command=True)
 brokers_app = typer.Typer(help="Browse and inspect broker definitions.")
 app.add_typer(brokers_app, name="brokers")
 
@@ -19,9 +19,21 @@ console = Console()
 
 @app.callback()
 def _main(ctx: typer.Context) -> None:
-    """Self-hosted data broker opt-out tool."""
+    """Self-hosted data broker opt-out tool. Run with no command to open the dashboard."""
     if ctx.invoked_subcommand is not None:
         console.print("\n[bold]OptOut[/bold]  [dim]·  self-hosted data-broker opt-out[/dim]\n")
+        return
+    # Plain `optout`: set up on first run, then open the dashboard.
+    from .config import config_path
+    from .web.server import serve
+
+    if not config_path().exists():
+        from .wizard import run_init_wizard
+
+        run_init_wizard(open_dashboard=False)
+        if not config_path().exists():
+            raise typer.Exit(code=0)
+    serve()
 
 
 # ---------------------------------------------------------------------------
@@ -255,60 +267,31 @@ def brokers_probe(
     console.print(f"\nReport saved to {out}")
 
 
-_CA_REGISTRY_URL = "https://cppa.ca.gov/data_broker_registry/registry.csv"
-_MAX_REGISTRY_BYTES = 20_000_000
-
-
 @brokers_app.command("import")
 def brokers_import(
     csv_path: str | None = typer.Argument(
         None, help="Registry CSV file. Omit to download California's from cppa.ca.gov."
     ),
 ) -> None:
-    """Generate email-method broker definitions from the California registry CSV."""
-    import urllib.request
-    from datetime import date
+    """Load the list of registered data brokers (California registry). Sends nothing."""
     from pathlib import Path
 
-    from .brokers.importer import parse_ca_registry, write_yaml_dir
+    from .brokers.importer import CA_REGISTRY_URL, import_ca_registry
     from .brokers.registry import imported_dir
-    from .db import db_path
 
-    if csv_path:
-        path = Path(csv_path).expanduser()
-        if not path.is_file():
-            console.print(f"[red]No such file: {path}[/red]")
-            raise typer.Exit(code=1)
-    else:
-        # Fixed allowlisted URL only; nothing from inside the registry is ever fetched.
-        path = db_path().parent / "registry-cache" / "ca-registry.csv"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        console.print(f"Downloading {_CA_REGISTRY_URL}")
-        req = urllib.request.Request(_CA_REGISTRY_URL, headers={"User-Agent": "optout/0.2"})
-        try:
-            with urllib.request.urlopen(req, timeout=60) as resp:  # noqa: S310 (fixed https URL)
-                data = resp.read(_MAX_REGISTRY_BYTES + 1)
-        except OSError as exc:
-            console.print(f"[red]Download failed: {exc}[/red]")
-            raise typer.Exit(code=1)
-        if len(data) > _MAX_REGISTRY_BYTES:
-            console.print("[red]Registry file is unexpectedly large; aborting.[/red]")
-            raise typer.Exit(code=1)
-        path.write_bytes(data)
-
-    result = parse_ca_registry(path)
-    if not result.brokers:
-        console.print("[red]No usable brokers found; is this a registry CSV?[/red]")
+    if not csv_path:
+        console.print(f"Downloading {CA_REGISTRY_URL}")
+    try:
+        r = import_ca_registry(Path(csv_path).expanduser() if csv_path else None)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1)
-    n = write_yaml_dir(result, imported_dir(), "ca-registry", date.today().isoformat())
-    exempt = sum(1 for b in result.brokers if b.exemptions)
-    merged = sum(len(b.covers) for b in result.brokers)
     console.print(
-        f"[green]Imported {n} brokers[/green] to {imported_dir()}\n"
-        f"  {exempt} disabled by default (FCRA/GLBA/HIPAA-regulated)\n"
-        f"  {merged} more entities merged into a shared contact\n"
-        f"  {len(result.skipped)} skipped (no valid email)\n"
-        "Nothing has been sent. Next: [cyan]optout campaign[/cyan] previews what would go out."
+        f"[green]Imported {r.imported} brokers[/green] to {imported_dir()}\n"
+        f"  {r.disabled} disabled by default (FCRA/GLBA/HIPAA-regulated)\n"
+        f"  {r.merged} more entities merged into a shared contact\n"
+        f"  {r.skipped} skipped (no valid email)\n"
+        "Nothing has been sent."
     )
 
 
@@ -1145,21 +1128,14 @@ def reply(
 @app.command("smtp-password")
 def smtp_password() -> None:
     """Save your email app password to a private file (typed hidden, never on a command line)."""
-    import os
+    from .engine.methods.email import save_smtp_password
 
-    from .config import config_dir
-
-    path = config_dir() / "smtp_password"
     first = typer.prompt("App password", hide_input=True)
     again = typer.prompt("Again", hide_input=True)
     if not first.strip() or first != again:
         console.print("[red]Empty or mismatched; nothing saved.[/red]")
         raise typer.Exit(code=1)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w") as fh:
-        fh.write(first.strip())
-    path.chmod(0o600)
+    path = save_smtp_password(first)
     console.print(f"[green]Saved[/green] to {path} (readable only by you).")
 
 

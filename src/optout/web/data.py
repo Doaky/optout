@@ -68,7 +68,11 @@ def collect(
 
     newest_first = Submission.created_at.desc()  # type: ignore[attr-defined]
     subs = list(session.exec(select(Submission).order_by(newest_first)))
-    for sub in subs:
+    seen: set[str] = set()
+    for sub in subs:  # newest first: keep one row per broker, the latest attempt
+        if sub.broker_slug in seen:
+            continue
+        seen.add(sub.broker_slug)
         drift = drift_cache.setdefault(sub.broker_slug, is_drifted(session, sub.broker_slug))
         v = latest_verification(session, sub.id)
         days = None

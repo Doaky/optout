@@ -30,10 +30,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 from .. import actions
-from ..brokers.registry import all_brokers, load_registry, set_enabled
+from ..brokers.registry import all_brokers, imported_dir, load_registry, set_enabled
 from ..config import load_config
 from ..db import get_session, init_db, list_all_events, list_submissions
 from ..engine.campaign import run_campaign, select_brokers, sent_today
+from ..engine.methods.email import read_smtp_password
 from ..labels import STATUS_LABEL
 from . import render
 from .data import collect
@@ -46,6 +47,8 @@ FLASH = {
     "sent": "Marked as sent.",
     "drafts": "Checked. New drafts are listed under “Saved drafts”.",
     "started": "Batch started.",
+    "finished": "Batch finished.",
+    "imported": "Broker list loaded.",
     "err": "That didn't work. Check the details and try again.",
     "busy": "A batch is already running.",
     "nocfg": "No config found. Run optout init first.",
@@ -118,11 +121,24 @@ def _make_handler(app: App):
             self.send_header(
                 "Content-Security-Policy",
                 "default-src 'none'; style-src 'unsafe-inline'; img-src data:; "
+                f"script-src '{render.LIVE_JS_HASH}'; connect-src 'self'; "
                 "form-action 'self'; "
                 "base-uri 'none'; frame-ancestors 'none'",
             )
             for k, v in (headers or {}).items():
                 self.send_header(k, v)
+            self.end_headers()
+            self.wfile.write(body)
+
+        def _send_json(self, data: dict) -> None:
+            import json
+
+            body = json.dumps(data).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
             self.end_headers()
             self.wfile.write(body)
 
@@ -166,7 +182,9 @@ def _make_handler(app: App):
             flash = ""
             if (code := query.get("m", [""])[0]) in FLASH:
                 flash = render.message_box(
-                    FLASH[code], ok=code not in ("err", "busy", "confirm", "nocfg")
+                    FLASH[code],
+                    ok=code not in ("err", "busy", "nocfg"),
+                    live=code == "started" and app.job.get("state") == "running",
                 )
 
             try:
@@ -178,6 +196,17 @@ def _make_handler(app: App):
             init_db()
             load_registry()
             now = datetime.now(UTC)
+            if path == "/api/job":
+                job = dict(app.job)
+                return self._send_json(
+                    {
+                        "state": job.get("state", "idle"),
+                        "sent": len(job.get("sent", [])),
+                        "failed": len(job.get("failed", [])),
+                        "total": job.get("total", 0),
+                    }
+                )
+
             if path == "/":
                 try:
                     config = load_config()
@@ -193,6 +222,10 @@ def _make_handler(app: App):
                     flash=flash,
                     query=query.get("q", [""])[0][:80],
                     configured=config is not None,
+                    needs_import=not any(imported_dir().glob("*.yml")),
+                    password_missing=config is not None
+                    and config.email.smtp is not None
+                    and not read_smtp_password(config.email.smtp),
                 )
                 if (want := query.get("draft", [""])[0]) and (
                     match := next((p for p in draft_files if p.name == want), None)
@@ -392,6 +425,11 @@ def _make_handler(app: App):
                         load_config(), slug, form.get("kind", ""), datetime.now(UTC)
                     )
                     return self._redirect(f"/draft/{quote(out.name, safe='')}")
+                if path == "/act/import":
+                    from ..brokers.importer import import_ca_registry
+
+                    import_ca_registry()
+                    return self._redirect("/?m=imported")
                 if path == "/act/make-drafts":
                     actions.write_escalation_drafts(load_config(), datetime.now(UTC))
                     return self._redirect("/?m=drafts")

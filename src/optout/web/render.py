@@ -8,6 +8,8 @@ chart tooltips are native SVG <title> elements.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 from dataclasses import dataclass, field
 from datetime import date
 from html import escape as e
@@ -83,7 +85,17 @@ h2{font-size:16px;margin:0 0 12px;letter-spacing:-.01em}
 .flash{border-radius:10px;padding:10px 14px;margin:0 0 16px;border:1px solid var(--line);background:var(--surface)}
 .flash.ok{border-color:color-mix(in srgb,var(--good) 40%,var(--line));color:var(--text)}
 .flash.bad{border-color:color-mix(in srgb,var(--critical) 45%,var(--line));color:var(--text)}
-.flash::before{content:"● ";color:var(--good)}.flash.bad::before{color:var(--critical)}
+.flash{display:flex;align-items:center;gap:10px;animation:rise .25s ease-out}
+.flash::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--good);flex:none}
+.flash.bad::before{background:var(--critical)}
+.flash.live::before,.live-dot{animation:glow 1.6s ease-in-out infinite}
+.live-dot{width:9px;height:9px;border-radius:50%;background:var(--good);display:inline-block;
+  margin-right:8px;vertical-align:middle}
+@keyframes glow{0%,100%{opacity:.35;box-shadow:0 0 0 0 color-mix(in srgb,var(--good) 0%,transparent)}
+  50%{opacity:1;box-shadow:0 0 0 5px color-mix(in srgb,var(--good) 28%,transparent)}}
+@keyframes rise{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.notice{border-left:3px solid var(--warning)}
+.notice.go{border-left-color:var(--accent)}
 .pill{display:inline-flex;align-items:center;gap:6px;padding:2px 10px 2px 8px;border-radius:999px;
   font-size:12.5px;font-weight:600;line-height:20px;white-space:nowrap;color:var(--text);
   background:color-mix(in srgb,var(--tone) 14%,transparent);
@@ -115,6 +127,8 @@ input:hover,select:hover{border-color:color-mix(in srgb,var(--accent) 50%,var(--
 button{padding:7px 14px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);
   font-weight:600;cursor:pointer}
 button:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+button:active{transform:translateY(1px)}
+button[disabled]{opacity:.7;cursor:progress}
 button.big{padding:10px 18px;font-size:15px}
 button.secondary{background:var(--surface);color:var(--text);border-color:var(--line)}
 button.secondary:hover{border-color:var(--accent)}
@@ -136,7 +150,8 @@ details.email pre{background:var(--surface)}
   padding:10px 0;border-bottom:1px solid var(--line)}
 .attn li:last-child{border-bottom:0}
 .progress{height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden;margin:8px 0 4px}
-.progress>span{display:block;height:100%;background:var(--accent);border-radius:999px}
+.progress>span{display:block;height:100%;background:var(--accent);border-radius:999px;
+  transition:width .6s ease}
 .bars{display:grid;gap:10px;margin:4px 0 8px}
 .bar{display:grid;grid-template-columns:7.5em 1fr 3em;align-items:center;gap:10px;font-size:13px}
 .bar .bl{color:var(--text-2)}.bar .bv{font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
@@ -153,12 +168,43 @@ svg.chart{width:100%;height:auto;display:block;background:var(--chart-surface);b
 .chart .col:hover .xh{opacity:.6}
 .chart .col rect{fill:transparent}
 @media (prefers-reduced-motion:no-preference){a.fpill,button,tbody tr{transition:background-color .12s,border-color .12s}}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}
+  .card,.stat{transition:box-shadow .15s,border-color .15s}}
+@media (prefers-reduced-motion:reduce){.flash.live::before,.live-dot,.flash{animation:none}
+  .progress>span{transition:none}}
 @media (forced-colors:active){.pill,.fpill{border:1px solid CanvasText}}
 """
 
 
+# Progressive enhancement: live batch progress and double-submit protection.
+# The server's CSP allows exactly this script by hash; without it, pages still work.
+LIVE_JS = (
+    "(()=>{"
+    "document.addEventListener('submit',e=>{const b=e.target.querySelector('button[type=submit]');"
+    "if(b&&e.target.method==='post'){b.disabled=true;b.textContent='Working…';}});"
+    "const p=document.getElementById('send');if(!p||p.dataset.state!=='running')return;"
+    "const bar=p.querySelector('.progress>span'),txt=p.querySelector('[data-live]'),"
+    "pb=p.querySelector('.progress');"
+    "const tick=async()=>{try{const r=await fetch('/api/job',{cache:'no-store'});"
+    "if(r.ok){const j=await r.json(),d=j.sent+j.failed,t=Math.max(j.total,1),"
+    "pct=Math.round(100*d/t);if(bar)bar.style.width=pct+'%';"
+    "if(pb)pb.setAttribute('aria-valuenow',pct);"
+    "if(txt)txt.textContent=j.sent+' sent, '+j.failed+' failed of '+j.total;"
+    "if(j.state!=='running'){location.replace('/?m=finished');return;}}}catch(_){}"
+    "setTimeout(tick,1500);};setTimeout(tick,1000);"
+    "})();"
+)
+LIVE_JS_HASH = "sha256-" + base64.b64encode(hashlib.sha256(LIVE_JS.encode()).digest()).decode()
+
+
 def page(title: str, body: str, *, nav: bool, refresh: int | None = None, updated: str = "") -> str:
-    meta = f"<meta http-equiv='refresh' content='{int(refresh)}'>" if refresh else ""
+    # No-script fallback. The target has no #fragment: a refresh to the same URL with a
+    # fragment is treated as an in-page jump and never reloads.
+    meta = (
+        f"<noscript><meta http-equiv='refresh' content='{int(refresh)};url=/?live=1'></noscript>"
+        if refresh
+        else ""
+    )
     back = "<a href='/' class='small'>← Dashboard</a>" if nav else ""
     upd = f"<span class='updated'>Updated {e(updated)}</span>" if updated else ""
     return (
@@ -174,7 +220,7 @@ def page(title: str, body: str, *, nav: bool, refresh: int | None = None, update
         "<header class='topbar'><div class='wrap'>"
         f"<a class='brand' href='/' aria-label='optout home'>{_LOGO}<span>optout</span></a>"
         f"<span class='sub'>Data-broker opt-outs</span>{back}{upd}</div></header>"
-        f"<main id='main' class='wrap'>{body}</main></body></html>"
+        f"<main id='main' class='wrap'>{body}</main><script>{LIVE_JS}</script></body></html>"
     )
 
 
@@ -371,6 +417,8 @@ class UI:
     flash: str = ""
     query: str = ""
     configured: bool = True
+    needs_import: bool = False  # no broker list loaded yet
+    password_missing: bool = False
 
 
 ROW_ACTIONS = [
@@ -437,8 +485,9 @@ def _send_panel(ui: UI) -> str:
         failed = "".join(f"<li>{e(s)}: {e(why)}</li>" for s, why in job.get("failed", []))
         stopped = f"<p class='bad'>Stopped: {e(job['stopped'])}</p>" if job.get("stopped") else ""
         status = (
-            f"<p><b>{'Sending…' if job.get('state') == 'running' else 'Batch finished'}</b> "
-            f"<span class='muted'>{len(job.get('sent', []))} sent, "
+            f"<p>{'<span class=live-dot></span>' if job.get('state') == 'running' else ''}"
+            f"<b>{'Sending…' if job.get('state') == 'running' else 'Batch finished'}</b> "
+            f"<span class='muted' data-live>{len(job.get('sent', []))} sent, "
             f"{len(job.get('failed', []))} failed of {job.get('total', 0)}</span></p>"
             f"<div class='progress' role='progressbar' aria-label='Sending progress' "
             f"aria-valuemin='0' aria-valuemax='100' aria-valuenow='{pct}'>"
@@ -447,7 +496,7 @@ def _send_panel(ui: UI) -> str:
         )
     n = len(ui.previews)
     if job.get("state") == "running":
-        inner = "<p class='muted small'>This page refreshes by itself while sending.</p>"
+        inner = "<p class='muted small'>This updates by itself; you can keep using the page.</p>"
     elif not ui.configured:
         inner = "<p class='bad'>No config found. Run <code>optout init</code> first.</p>"
     elif n == 0:
@@ -474,9 +523,38 @@ def _send_panel(ui: UI) -> str:
             f"<button type='submit' class='big'>Send emails</button></form>"
         )
     return (
-        "<section class='card' aria-labelledby='send-h' id='send'>"
+        f"<section class='card' aria-labelledby='send-h' id='send' "
+        f"data-state='{e(str(job.get('state', 'idle')))}'>"
         f"<h2 id='send-h'>Send a batch</h2>{status}{inner}</section>"
     )
+
+
+def _notices(ui: UI) -> str:
+    out = []
+    if not ui.configured:
+        out.append(
+            "<section class='card notice go'><h2>Finish setting up</h2><p>Run "
+            "<code>optout</code> (or <code>optout init</code>) in your terminal. It asks a few "
+            "questions, checks your email login, and loads the broker list.</p></section>"
+        )
+        return "".join(out)
+    if ui.password_missing:
+        out.append(
+            "<section class='card notice'><h2>Add your email app password</h2>"
+            "<p>Sending needs it. In your terminal run <code>optout smtp-password</code> and "
+            "paste the app password (for Gmail: "
+            "<a href='https://myaccount.google.com/apppasswords' rel='noreferrer' "
+            "target='_blank'>create one here</a>).</p></section>"
+        )
+    if ui.needs_import:
+        out.append(
+            "<section class='card notice go'><h2>Load the broker list</h2>"
+            "<p>Downloads the public list of data brokers registered with California "
+            "(about 580). Nothing is sent.</p>"
+            f"<form method='post' action='/act/import'>{_hidden(ui.csrf)}"
+            "<button type='submit' class='big'>Load broker list</button></form></section>"
+        )
+    return "".join(out)
 
 
 def _draft_panel(ui: UI) -> str:
@@ -667,7 +745,12 @@ def dashboard(
         f"<h2 id='chart-h'>Progress over time</h2>{progress_chart(d.series)}</section>"
     )
     if act is not None:
-        top = act.flash + f"<div class='grid'>{chart}{_send_panel(act)}</div>" + _draft_panel(act)
+        top = (
+            act.flash
+            + _notices(act)
+            + f"<div class='grid'>{chart}{_send_panel(act)}</div>"
+            + _draft_panel(act)
+        )
     else:
         top = chart
 
@@ -693,8 +776,9 @@ def dashboard(
 # --- secondary pages (kept for direct links) ---------------------------------
 
 
-def message_box(text: str, ok: bool = True) -> str:
-    return f"<div class='flash {'ok' if ok else 'bad'}' role='status'>{e(text)}</div>"
+def message_box(text: str, ok: bool = True, live: bool = False) -> str:
+    cls = ("ok" if ok else "bad") + (" live" if live else "")
+    return f"<div class='flash {cls}' role='status'>{e(text)}</div>"
 
 
 def broker_page(

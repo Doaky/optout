@@ -14,6 +14,8 @@ Email:    {{ contact_email }}
 
 {% for s in statutes %}
 Basis: {{ s.citation }} ({{ s.name }}): "{{ s.right_text }}"
+{% else %}
+I make this request under the consumer privacy laws that apply to you.
 {% endfor %}
 Where the law requires it, I ask that you respond within {{ broker.statutory_response_days }} days. If you need
 more information to verify this request, reply to this email and I will

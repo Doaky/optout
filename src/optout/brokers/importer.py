@@ -174,3 +174,54 @@ def write_yaml_dir(result: ImportResult, out_dir: Path, source: str, verified_on
         text = yaml.safe_dump(to_broker_dict(b, source, verified_on), sort_keys=False)
         (out_dir / f"{b.slug}.yml").write_text(text)
     return len(result.brokers)
+
+
+CA_REGISTRY_URL = "https://cppa.ca.gov/data_broker_registry/registry.csv"
+MAX_REGISTRY_BYTES = 20_000_000
+
+
+@dataclass
+class ImportSummary:
+    imported: int
+    disabled: int
+    merged: int
+    skipped: int
+
+
+def import_ca_registry(csv_path: Path | None = None) -> ImportSummary:
+    """Download (or read) California's registry and write broker definitions.
+
+    Only the fixed, allowlisted CPPA URL is ever fetched; nothing inside the
+    registry is opened. Raises ValueError with a readable message on failure.
+    """
+    import urllib.request
+    from datetime import date
+
+    from ..db import db_path
+    from .registry import imported_dir
+
+    if csv_path is None:
+        csv_path = db_path().parent / "registry-cache" / "ca-registry.csv"
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        req = urllib.request.Request(CA_REGISTRY_URL, headers={"User-Agent": "optout/0.2"})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:  # noqa: S310 (fixed https URL)
+                data = resp.read(MAX_REGISTRY_BYTES + 1)
+        except OSError as exc:
+            raise ValueError(f"Download failed: {exc}") from exc
+        if len(data) > MAX_REGISTRY_BYTES:
+            raise ValueError("Registry file is unexpectedly large; not importing it.")
+        csv_path.write_bytes(data)
+    elif not csv_path.is_file():
+        raise ValueError(f"No such file: {csv_path}")
+
+    result = parse_ca_registry(csv_path)
+    if not result.brokers:
+        raise ValueError("No usable brokers found; is this a registry CSV?")
+    n = write_yaml_dir(result, imported_dir(), "ca-registry", date.today().isoformat())
+    return ImportSummary(
+        imported=n,
+        disabled=sum(1 for b in result.brokers if b.exemptions),
+        merged=sum(len(b.covers) for b in result.brokers),
+        skipped=len(result.skipped),
+    )

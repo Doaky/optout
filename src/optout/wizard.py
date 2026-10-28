@@ -173,44 +173,48 @@ def _collect_previous_addresses() -> list[PreviousAddress]:
 
 
 def _collect_profile() -> Profile:
-    _section("Your identity")
+    _section("Step 1 of 3 · About you")
     console.print(
-        "[dim]This information stays on your machine and is never sent to a server.[/dim]"
+        "Brokers need enough to find your records. Everything you enter stays in a\n"
+        f"private file on this computer ([dim]{config_path()}[/dim]).\n"
     )
 
-    legal_name = Prompt.ask("\nFull legal name")
+    legal_name = Prompt.ask("Full legal name [dim](as it would appear on records)[/dim]").strip()
 
     # Celebrity guard — refuse immediately
-    if legal_name.strip().lower() in _CELEBRITY_NAMES:
+    if legal_name.lower() in _CELEBRITY_NAMES:
         err.print(
             f"\n[red bold]Error:[/red bold] '{legal_name}' matches a known public figure. "
             "This tool operates only on behalf of the person running it."
         )
         raise typer.Exit(code=1)
 
-    # Attestation
-    console.print()
     attested = Confirm.ask(
-        f"I confirm that [bold]{legal_name}[/bold] is my own legal name and that I am "
-        "submitting opt-out requests on my own behalf",
+        f"Is [bold]{legal_name}[/bold] your own name, and are these requests for yourself?",
         default=False,
     )
     if not attested:
-        console.print("\n[yellow]Aborted. OptOut only submits on behalf of its operator.[/yellow]")
+        console.print(
+            "\n[yellow]Stopped. This tool only sends requests for the person running it.[/yellow]"
+        )
         raise typer.Exit(code=0)
 
-    aliases = _ask_list("Other names you appear under (maiden name, nickname, etc.)")
-    dob = _ask_date("Date of birth")
-    current_address = _collect_address("Current address")
+    aliases = _ask_list("Other names you go by [dim](maiden name, nickname)[/dim]")
+    dob = _ask_date(
+        "Date of birth [dim](only some people-search forms use it; it's never put in emails)[/dim]"
+    )
+    current_address = _collect_address("Current home address")
+    console.print(
+        "[dim]Old addresses help brokers find older listings. Your last one or two is plenty.[/dim]"
+    )
     previous_addresses = _collect_previous_addresses()
 
     console.print()
-    current_phones = _ask_list("Current phone number(s)", required=True)
-    previous_phones = _ask_list("Previous phone number(s)")
-    current_emails = _ask_list("Current email address(es)", required=True)
-    previous_emails = _ask_list("Previous email address(es)")
+    phones = _ask_list(
+        "Phone number(s) [dim](optional; used by people-search forms, not in emails)[/dim]"
+    )
     relatives = _ask_list(
-        "Names of relatives who may appear on the same listings [dim](helps with matching)[/dim]"
+        "Relatives who appear on your listings [dim](optional, helps matching)[/dim]"
     )
 
     return Profile(
@@ -219,82 +223,168 @@ def _collect_profile() -> Profile:
         dob=dob,
         current_address=current_address,
         previous_addresses=previous_addresses,
-        phones=PhoneSet(current=current_phones, previous=previous_phones),
-        emails=EmailSet(current=current_emails, previous=previous_emails),
+        phones=PhoneSet(current=phones),
+        emails=EmailSet(),  # filled in from the sending address in step 2
         relatives=relatives,
     )
 
 
-def _collect_email_config() -> EmailConfig:
-    _section("Email configuration")
+# Known providers: the user never has to type a server name for these.
+_PROVIDERS = {
+    "gmail": {
+        "name": "Gmail",
+        "host": "smtp.gmail.com",
+        "port": 587,
+        "steps": [
+            (
+                "Turn on 2-Step Verification (Google requires it first)",
+                "https://myaccount.google.com/signinoptions/twosv",
+            ),
+            (
+                "Create an app password: name it [bold]optout[/bold], click Create",
+                "https://myaccount.google.com/apppasswords",
+            ),
+        ],
+        "shape": "Google shows 16 letters in four groups, like [bold]abcd efgh ijkl mnop[/bold].",
+    },
+    "icloud": {
+        "name": "iCloud Mail",
+        "host": "smtp.mail.me.com",
+        "port": 587,
+        "steps": [
+            (
+                "Sign in, open Sign-In and Security → App-Specific Passwords, create one",
+                "https://account.apple.com",
+            ),
+        ],
+        "shape": "Apple shows a password like [bold]abcd-efgh-ijkl-mnop[/bold].",
+    },
+}
+
+
+def _detect_provider(address: str) -> str | None:
+    domain = address.rsplit("@", 1)[-1].lower()
+    if domain in ("gmail.com", "googlemail.com"):
+        return "gmail"
+    if domain in ("icloud.com", "me.com", "mac.com"):
+        return "icloud"
+    return None
+
+
+def _looks_like_app_password(provider: str | None, pw: str) -> bool:
+    raw = pw.replace(" ", "").replace("-", "")
+    if provider == "gmail":
+        return len(raw) == 16 and raw.isalpha()
+    if provider == "icloud":
+        return len(raw) == 16 and raw.isalnum()
+    return bool(raw)
+
+
+def _collect_email_config() -> tuple[EmailConfig, bool]:
+    """Returns the email config and whether a working password was saved."""
+    from .engine.methods.email import check_login, save_smtp_password
+    from .web.server import open_in_browser
+
+    _section("Step 2 of 3 · The email account requests are sent from")
     console.print(
-        "Some data brokers only accept opt-out requests sent by email.\n"
-        "This tool sends those emails [bold]from your own inbox[/bold] so brokers\n"
-        "can't ignore them as coming from a third-party service.\n\n"
-        "[dim]Your password is never stored in the config file — only the name\n"
-        "of an environment variable that you set separately.[/dim]"
+        "Requests go out [bold]from your own email account[/bold], so brokers reply to you.\n"
+        "Gmail is the easiest: everything is filled in for you.\n"
     )
 
-    console.print()
-    host = Prompt.ask("  Your email provider's outgoing mail server", default="smtp.gmail.com")
-    port = int(Prompt.ask("  Port", default="587"))
-    username = Prompt.ask("  Your email address")
+    def _address() -> str:
+        raw = Prompt.ask("Your email address").strip()
+        if "@" not in raw or "." not in raw.rsplit("@", 1)[-1] or " " in raw:
+            raise ValueError("That doesn't look like an email address.")
+        return raw
 
-    if "gmail.com" in host:
+    address = _retry(_address)
+    provider = _detect_provider(address)
+    if provider is None and Confirm.ask(
+        "Is this a Google Workspace account (your work or school email runs on Gmail)?",
+        default=False,
+    ):
+        provider = "gmail"
+
+    if provider:
+        p = _PROVIDERS[provider]
+        host, port = str(p["host"]), int(p["port"])  # type: ignore[call-overload]
         console.print(
-            "\n[bold yellow]Gmail requires an App Password — "
-            "not your regular password.[/bold yellow]\n"
-            "\n"
-            "To generate one:\n"
-            "  1. Go to [link=https://myaccount.google.com/security]myaccount.google.com/security[/link]\n"
-            "  2. Make sure [bold]2-Step Verification[/bold] is turned on\n"
-            "  3. Search for [bold]App Passwords[/bold] in the search bar\n"
-            "  4. Click App Passwords → create one (name it anything, e.g. 'optout')\n"
-            "  5. Google shows a 16-character password — copy it\n"
-            "\n"
-            "You'll set that password in the next step after the wizard finishes.\n"
+            f"\n[green]✓[/green] Using {p['name']}'s mail server ([dim]{host}, port {port}[/dim]). "
+            "Nothing to change here."
         )
     else:
         console.print(
-            "\n[dim]Use the password you'd use to log in to your email provider's\n"
-            "webmail. Some providers require an 'app password' or 'third-party\n"
-            "access' to be enabled in your account settings.[/dim]\n"
+            "\n[dim]Your provider's outgoing (SMTP) server is in its help pages: search for\n"
+            f'"{address.rsplit("@", 1)[-1]} SMTP settings". Port 587 is the usual choice.[/dim]'
+        )
+        host = Prompt.ask("Outgoing mail server (SMTP)").strip()
+        port = int(Prompt.ask("Port", default="587"))
+
+    smtp = SmtpConfig(host=host, port=port, username=address)
+
+    # --- app password ---------------------------------------------------
+    console.print()
+    if provider:
+        p = _PROVIDERS[provider]
+        console.print(
+            f"{p['name']} needs an [bold]app password[/bold]: a separate password just for this "
+            "tool.\nYour normal password won't work.\n"
+        )
+        for i, (text, url) in enumerate(p["steps"], 1):  # type: ignore[arg-type]
+            console.print(f"  {i}. {text}\n     [link={url}]{url}[/link]")
+        console.print(f"\n  {p['shape']} Copy it.\n")
+        last_url = p["steps"][-1][1]  # type: ignore[index]
+        if Confirm.ask("Open that page in your browser now?", default=True):
+            if not open_in_browser(last_url):
+                console.print(f"[dim]Couldn't open a browser; go to {last_url}[/dim]")
+    else:
+        console.print(
+            "Use your email password. Many providers require an [bold]app password[/bold]\n"
+            "for apps like this; check your account's security settings.\n"
         )
 
-    smtp = SmtpConfig(
-        host=host,
-        port=port,
-        username=username,
-        password_env="OPTOUT_SMTP_PASSWORD",
-    )
+    saved = False
+    while True:
+        pw = Prompt.ask("Paste the app password [dim](typing is hidden)[/dim]", password=True)
+        if not pw.strip():
+            console.print("[yellow]Skipped. Add it later with: optout smtp-password[/yellow]")
+            break
+        if not _looks_like_app_password(provider, pw) and not Confirm.ask(
+            "[yellow]That doesn't look like an app password[/yellow] (a regular password will be "
+            "rejected). Try it anyway?",
+            default=False,
+        ):
+            continue
+        with console.status("Checking it by signing in (nothing is sent)…"):
+            problem = check_login(smtp, pw.strip())
+        if problem is None:
+            path = save_smtp_password(pw)
+            console.print(
+                f"[green]✓ Signed in.[/green] Password saved to {path} (only you can read it)."
+            )
+            saved = True
+            break
+        console.print(f"[red]✗ Didn't work:[/red] {problem}.")
+        if provider == "gmail":
+            console.print(
+                "[dim]Check you copied the app password (not your Gmail password). Work or school\n"
+                "accounts may have app passwords turned off by an administrator.[/dim]"
+            )
+        if not Confirm.ask("Try again?", default=True):
+            console.print("[yellow]Add it later with: optout smtp-password[/yellow]")
+            break
 
-    return EmailConfig(method="smtp", smtp=smtp)
+    label = None
+    if provider == "gmail":
+        console.print()
+        if Confirm.ask(
+            "Put a Gmail label [bold]OPTOUT[/bold] on the emails this tool sends, so they're easy "
+            "to find?",
+            default=True,
+        ):
+            label = "OPTOUT"
 
-
-def _collect_playwright_config() -> PlaywrightConfig:
-    _section("Browser settings")
-    console.print(
-        "[dim]Headed mode (default) lets you solve CAPTCHAs yourself — "
-        "this is intentional and keeps opt-outs legitimate.[/dim]"
-    )
-    headless = Confirm.ask("\nRun browser in headless mode?", default=False)
-    return PlaywrightConfig(headless=headless, slow_mo_ms=0)
-
-
-def _collect_monitoring_config() -> MonitoringConfig:
-    _section("Monitoring")
-
-    def _try() -> MonitoringConfig:
-        raw = Prompt.ask("How often to re-scan brokers [dim](days)[/dim]", default="30")
-        try:
-            days = int(raw)
-        except ValueError:
-            raise ValueError("Enter a whole number of days.")
-        if days < 1:
-            raise ValueError("Interval must be at least 1 day.")
-        return MonitoringConfig(rescan_interval_days=days)
-
-    return _retry(_try)
+    return EmailConfig(method="smtp", smtp=smtp, gmail_label=label), saved
 
 
 # ---------------------------------------------------------------------------
@@ -302,66 +392,75 @@ def _collect_monitoring_config() -> MonitoringConfig:
 # ---------------------------------------------------------------------------
 
 
-def run_init_wizard() -> None:
+def run_init_wizard(open_dashboard: bool = True) -> None:
     console.print(
         Panel(
-            "[bold]OptOut Setup Wizard[/bold]\n"
-            "[dim]Builds your personal config at "
-            f"{config_path()}[/dim]",
+            "[bold]Welcome to optout[/bold]\n"
+            "Three short steps, about 3 minutes. Nothing is sent to anyone during setup.",
             expand=False,
         )
     )
 
-    # Warn if config already exists
     path = config_path()
     if path.exists():
-        console.print(f"\n[yellow]A config already exists at {path}.[/yellow]")
-        if not Confirm.ask("Overwrite it?", default=False):
-            console.print("Keeping existing config. Done.")
+        console.print(f"\n[yellow]You're already set up ({path}).[/yellow]")
+        if not Confirm.ask("Start over and replace your settings?", default=False):
+            console.print("Keeping your settings.")
             raise typer.Exit(code=0)
 
     try:
         profile = _collect_profile()
-        email_cfg = _collect_email_config()
-        playwright_cfg = _collect_playwright_config()
-        monitoring_cfg = _collect_monitoring_config()
+        email_cfg, password_ok = _collect_email_config()
     except KeyboardInterrupt:
-        console.print("\n\n[yellow]Interrupted. No config was written.[/yellow]")
+        console.print("\n\n[yellow]Stopped. Nothing was saved.[/yellow]")
         raise typer.Exit(code=0)
 
+    assert email_cfg.smtp is not None
+    sender = email_cfg.smtp.username
+    profile.emails = EmailSet(current=[sender])
     cfg = UserConfig(
         profile=profile,
         email=email_cfg,
-        playwright=playwright_cfg,
-        monitoring=monitoring_cfg,
+        playwright=PlaywrightConfig(),
+        monitoring=MonitoringConfig(),
     )
-
-    # Write config
     save_config(cfg)
-    console.print(f"\n[green]Config written to {path} (permissions: 600)[/green]")
-
-    # Initialise the database
     init_db()
-    console.print("[green]SQLite database initialised.[/green]")
 
-    smtp_username = cfg.email.smtp.username if cfg.email.smtp else ""
+    _section("Step 3 of 3 · The broker list")
     console.print(
-        "\n[bold]Almost done.[/bold] One last step — save your email password so the\n"
-        "tool can send emails on your behalf. Run this command; it asks for the\n"
-        "password with the typing hidden and saves it to a file only you can read:\n"
+        "optout emails the data brokers registered with the State of California\n"
+        "(about 580 companies). Loading the list downloads that public file; nothing is sent.\n"
     )
-    console.print("  [bold cyan]optout smtp-password[/bold cyan]\n")
-    if cfg.email.smtp and "gmail" in smtp_username:
-        console.print(
-            "  [dim]Enter the 16-character App Password\n"
-            "  you generated in Google (not your regular Gmail password).[/dim]\n"
+    if Confirm.ask("Load it now?", default=True):
+        from .brokers.importer import import_ca_registry
+
+        try:
+            with console.status("Downloading the registry…"):
+                r = import_ca_registry()
+            console.print(
+                f"[green]✓ {r.imported} brokers loaded[/green] "
+                f"[dim]({r.disabled} credit/health/finance-regulated ones are off by default)[/dim]"
+            )
+        except ValueError as exc:
+            console.print(f"[yellow]{exc}. You can load it later from the dashboard.[/yellow]")
+
+    console.print(
+        Panel(
+            "[bold green]You're set up.[/bold green]\n\n"
+            "From now on, just run [bold cyan]optout[/bold cyan] to open your dashboard.\n"
+            "There you can preview the emails, send a batch, and track replies.\n"
+            + (
+                ""
+                if password_ok
+                else "\n[yellow]Before sending, save your app password: "
+                "optout smtp-password[/yellow]\n"
+            )
+            + f"\n[dim]Settings: {path}  ·  change them with: optout init[/dim]",
+            expand=False,
         )
-    else:
-        console.print("  [dim]Replace your-password-here with your email password.[/dim]\n")
-    console.print(
-        "[bold]Then you're ready:[/bold]\n"
-        "  [cyan]optout brokers list[/cyan]   — see which brokers are supported\n"
-        "  [cyan]optout queue[/cyan]           — add brokers to the submission queue\n"
-        "  [cyan]optout submit[/cyan]          — submit opt-out requests\n"
-        "  [cyan]optout status[/cyan]          — check submission status\n"
     )
+    if open_dashboard and Confirm.ask("Open the dashboard now?", default=True):
+        from .web.server import serve
+
+        serve()
