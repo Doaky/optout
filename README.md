@@ -1,6 +1,16 @@
-# optout
-
-**Get your personal data deleted from data brokers, from your own computer.**
+<p align="center">
+  <img src="docs/logo.svg" width="72" height="72" alt="">
+</p>
+<h1 align="center">optout</h1>
+<p align="center">
+  <b>Get your personal data deleted from data brokers, from your own computer.</b>
+</p>
+<p align="center">
+  <a href="https://github.com/Doaky/optout/actions/workflows/ci.yml"><img src="https://github.com/Doaky/optout/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License: AGPL-3.0"></a>
+  <img src="https://img.shields.io/badge/python-3.12%20%7C%203.13-blue" alt="Python 3.12 | 3.13">
+  <img src="https://img.shields.io/badge/runs-locally-2a78d6" alt="Runs locally">
+</p>
 
 optout emails deletion requests to the ~580 data brokers registered with the State of
 California, keeps track of who you contacted and when each legal deadline falls, and helps you
@@ -9,7 +19,12 @@ go to any server except the brokers you choose to email.
 
 It's for one person: you. Each friend who wants to use it runs their own copy.
 
-![The optout dashboard](docs/dashboard.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/dashboard-dark.png">
+  <img src="docs/dashboard.png" alt="The optout dashboard: request totals, a progress chart, the send panel, and brokers needing attention">
+</picture>
+
+<sub>Sample data shown.</sub>
 
 ---
 
