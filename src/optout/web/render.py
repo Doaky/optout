@@ -137,6 +137,11 @@ details.email pre{background:var(--surface)}
 .attn li:last-child{border-bottom:0}
 .progress{height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden;margin:8px 0 4px}
 .progress>span{display:block;height:100%;background:var(--accent);border-radius:999px}
+.bars{display:grid;gap:10px;margin:4px 0 8px}
+.bar{display:grid;grid-template-columns:7.5em 1fr 3em;align-items:center;gap:10px;font-size:13px}
+.bar .bl{color:var(--text-2)}.bar .bv{font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
+.bt{height:12px;background:var(--surface-2);border-radius:4px;overflow:hidden}
+.bt>span{display:block;height:100%;border-radius:0 4px 4px 0}
 .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--text-2);margin:0 0 6px}
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .legend i{width:14px;height:3px;border-radius:2px;display:inline-block}
@@ -161,7 +166,7 @@ def page(title: str, body: str, *, nav: bool, refresh: int | None = None, update
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
         "<meta name='color-scheme' content='light dark'>"
         "<meta name='robots' content='noindex,nofollow'>"
-        "<meta name='referrer' content='no-referrer'>"
+        "<meta name='referrer' content='same-origin'>"
         "<meta name='description' content='Your data-broker opt-out requests'>"
         f'<link rel="icon" type="image/svg+xml" href="{FAVICON}">'
         f"{meta}<title>{e(title)}</title><style>{CSS}</style></head><body>"
@@ -263,9 +268,18 @@ def progress_chart(series: list[tuple[str, int, int, int]]) -> str:
         f"{last[3]} verified removed."
     )
     if len(series) < 2:
+        # One day of data: a line needs two points, so compare the three totals as bars.
+        peak = max(last[1], 1)
+        bars = "".join(
+            f"<div class='bar'><span class='bl'>{name}</span>"
+            f"<span class='bt'><span style='width:{max(v / peak * 100, 0.8 if v else 0):.1f}%;"
+            f"background:var({var})'></span></span><span class='bv'>{v}</span></div>"
+            for (name, var), v in zip(_SERIES, last[1:], strict=True)
+        )
         return (
-            f"{legend}<p class='muted small'>{e(summary)} The line chart fills in from your "
-            f"second day of activity.</p>{table}"
+            f"<div class='bars' role='img' aria-label='{e(summary)}'>{bars}</div>"
+            "<p class='muted small'>The line over time starts after your second day.</p>"
+            f"{table}"
         )
 
     w, h = 720, 260

@@ -318,3 +318,32 @@ def test_search_filters_the_table(ui):
     _, hit = ui.req("GET", "/?q=evil")
     _, miss = ui.req("GET", "/?q=zzzz")
     assert "Awaiting reply</span>" in hit and "No requests match" in miss
+
+
+def test_buttons_work_in_a_real_browser(ui, monkeypatch):
+    """Browsers set Origin from the referrer policy; a script-only test can't catch that."""
+    sync_api = pytest.importorskip("playwright.sync_api")
+    started = []
+    monkeypatch.setattr(
+        "optout.web.server.App.start_campaign", lambda self, n: started.append(n) or "started"
+    )
+    try:
+        pw = sync_api.sync_playwright().start()
+        browser = pw.chromium.launch()
+    except Exception as exc:  # no browser installed (e.g. CI)
+        pytest.skip(f"no browser: {type(exc).__name__}")
+    try:
+        page = browser.new_page()
+        page.goto(f"http://127.0.0.1:{ui.port}/?t={ui.token}")
+        assert page.title().startswith("optout")
+
+        page.get_by_role("button", name="Write drafts for overdue requests").click()
+        page.wait_for_load_state()
+        assert "m=drafts" in page.url and "Forbidden" not in page.content()
+
+        page.get_by_role("button", name="Send emails").click()
+        page.wait_for_load_state()
+        assert "m=started" in page.url and started == [1]
+    finally:
+        browser.close()
+        pw.stop()
