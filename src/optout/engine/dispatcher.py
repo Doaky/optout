@@ -9,7 +9,7 @@ from sqlmodel import Session
 
 from ..brokers.schema import BrokerDef
 from ..config import UserConfig
-from ..db import Submission, record_event, update_status
+from ..db import Submission, record_event, record_health, update_status
 from . import SubmissionFailed, UserInputRequired
 
 # Import handlers with aliases to avoid shadowing stdlib 'email' module
@@ -57,6 +57,9 @@ def run_submission(
         return
     except SubmissionFailed as exc:
         update_status(session, submission, "failed", failure_reason=str(exc))
+        # Email failures (bounces, SMTP trouble) say nothing about a broker's web flow.
+        if broker.method == "web_form":
+            record_health(session, broker.slug, "submission", False, str(exc)[:200])
         return
 
     # Success: persist submission details and advance status
@@ -71,3 +74,5 @@ def run_submission(
 
     record_event(session, submission, "submitted", result.payload)
     update_status(session, submission, "awaiting_broker_confirmation")
+    if broker.method == "web_form":
+        record_health(session, broker.slug, "submission", True)

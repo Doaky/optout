@@ -87,7 +87,7 @@ def run_monitor(
 
     init_db()
     interval = config.monitoring.rescan_interval_days
-    targets = brokers if brokers is not None else _all_brokers()
+    targets = [b for b in (brokers if brokers is not None else _all_brokers()) if b.enabled]
     summary = MonitorSummary()
 
     for broker in targets:
@@ -128,7 +128,8 @@ def run_monitor(
         )
 
         matches_json = (
-            json.dumps([{"text": m.text, "url": m.url} for m in outcome.matches])
+            json.dumps([{"url": m.url} for m in outcome.matches])  # URLs only: result text
+            # can contain other people's names and addresses
             if outcome.matches
             else None
         )

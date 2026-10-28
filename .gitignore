@@ -37,3 +37,7 @@ NOTES_PRIVATE.md
 .claude/
 debug_elements.py
 debug_*.py
+*.eml
+*.db
+probes/
+drafts/

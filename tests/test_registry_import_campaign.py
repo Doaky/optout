@@ -29,8 +29,14 @@ from optout.engine.methods.email import _contact_email, _render_body
 NAME = "Data broker name:"
 WEB = "Data broker primary website:"
 EMAIL = "Data broker primary contact email address:"
-PRIV = "Data broker's primary website that contains details on how consumers can exercise their CA Consumer Privacy rights:"
-FCRA = "The data broker or any of its subsidiaries is regulated by the federal Fair Credit Reporting Act"
+PRIV = (
+    "Data broker's primary website that contains details on how consumers can "
+    "exercise their CA Consumer Privacy rights:"
+)
+FCRA = (
+    "The data broker or any of its subsidiaries is regulated by the "
+    "federal Fair Credit Reporting Act"
+)
 DEL = "Requests to delete - Total requests received"
 DEN = "Requests to delete - Total requests received - Denied"
 COLS = [NAME, WEB, EMAIL, PRIV, FCRA, DEL, DEN]

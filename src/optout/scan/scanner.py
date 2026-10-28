@@ -123,7 +123,10 @@ def _run_scan_on_page(page: Any, broker: BrokerDef, profile: Profile) -> ScanOut
                 result="inconclusive", error="Broker scan config has no search method"
             )
 
-        page.wait_for_selector(scan_cfg.result_selector, timeout=90_000)
+        wait_for = scan_cfg.result_selector
+        if scan_cfg.empty_selector:
+            wait_for = f"{wait_for}, {scan_cfg.empty_selector}"
+        page.wait_for_selector(wait_for, timeout=90_000)
     except PlaywrightTimeoutError:
         return ScanOutcome(result="inconclusive", error="Timeout waiting for search results")
     except Exception as exc:

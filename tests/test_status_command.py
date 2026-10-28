@@ -234,8 +234,9 @@ class TestDaysLeft:
             deadline_days=20,
         )
         result = runner.invoke(app, ["status"])
-        # confirmed status renders as "Removed ✓" in the status column
-        assert "Removed" in result.output
+        # A broker saying "done" is not verified removal: never display it as Removed.
+        assert "Broker says done" in result.output
+        assert "Removed" not in result.output
         assert "✓" in result.output
 
     def test_queued_shows_dash_for_days(self, _env, engine) -> None:
@@ -344,4 +345,23 @@ class TestSummaryAndCallouts:
         )
         result = runner.invoke(app, ["status"])
         assert "Queued" in result.output
-        assert "Removed" in result.output
+        assert "Broker says done" in result.output
+
+
+class TestVerifiedRemoval:
+    def test_removed_status_is_the_only_one_labelled_verified(self, _env, engine) -> None:
+        from optout.db import Submission, get_session, mark_removed, record_verification
+
+        _make_sub(
+            engine,
+            broker_slug="test-email-broker",
+            status="confirmed",
+            submitted_days_ago=10,
+            deadline_days=20,
+        )
+        with get_session(engine) as s:
+            sub = s.exec(__import__("sqlmodel").select(Submission)).first()
+            mark_removed(s, sub, record_verification(s, sub, "verified_clear", "ok"))
+        result = runner.invoke(app, ["status"])
+        assert "Removed ✓ verified" in result.output
+        assert "verified clear" in result.output

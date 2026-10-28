@@ -59,6 +59,7 @@ def _status_style(status: str) -> str:
         "submitted": "cyan",
         "awaiting_broker_confirmation": "cyan",
         "confirmed": "green",
+        "removed": "bold green",
         "rejected": "red",
         "expired": "dim",
         "failed": "red",
@@ -69,8 +70,9 @@ _STATUS_LABEL: dict[str, str] = {
     "queued": "Queued",
     "awaiting_user_input": "⚡ Needs input",
     "submitted": "Submitted",
-    "awaiting_broker_confirmation": "Submitted ✓",
-    "confirmed": "Removed ✓",
+    "awaiting_broker_confirmation": "Submitted, awaiting reply",
+    "confirmed": "Broker says done",
+    "removed": "Removed ✓ verified",
     "rejected": "Rejected",
     "expired": "Expired",
     "failed": "Failed",
@@ -186,8 +188,9 @@ def brokers_probe(
 
     from .brokers.registry import get_broker
     from .config import PlaywrightConfig, config_dir, load_config
+    from .db import get_session, init_db, record_health
     from .engine.browser import launch_browser
-    from .engine.probe import blocked_reason, build_plan, run_checks
+    from .engine.probe import blocked_reason, build_plan, run_checks, summarize
 
     try:
         broker = get_broker(slug)
@@ -249,6 +252,11 @@ def brokers_probe(
         for c in plan.unreachable:
             console.print(f"  [dim]{c.role:<24} {escape(c.selector)}[/dim]")
 
+    ok, detail = summarize(plan)
+    if ok is not None:
+        init_db()
+        with get_session() as session:
+            record_health(session, broker.slug, "probe", ok, detail[:200])
     out_dir = config_dir() / "probes"
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
@@ -841,7 +849,7 @@ def _days_left_cell(submission) -> str:
     """Return a Rich-markup string for the Days Left column."""
     from datetime import datetime
 
-    if submission.status == "confirmed":
+    if submission.status in ("confirmed", "removed"):
         return "[green]✓[/green]"
     if submission.status in _TERMINAL_STATUSES:
         return "—"
@@ -973,6 +981,204 @@ def history_cmd(
 
 
 @app.command()
+def verify(
+    broker: str | None = typer.Option(None, "--broker", "-b", help="Limit to one broker slug."),
+    force: bool = typer.Option(False, "--force", help="Check now even if not yet due."),
+) -> None:
+    """Re-search brokers to confirm listings are gone. Only this can mark a request removed."""
+    from datetime import UTC, datetime
+
+    from .brokers.registry import get_broker, load_registry
+    from .config import load_config
+    from .db import get_session, init_db, list_submissions
+    from .engine.browser import launch_browser
+    from .engine.verify import VERIFIABLE_STATUSES, is_due, run_verification
+
+    try:
+        config = load_config()
+    except FileNotFoundError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+    load_registry()
+    init_db()
+    now = datetime.now(UTC)
+
+    with get_session() as session:
+        subs = [
+            s
+            for s in list_submissions(session, broker_slug=broker)
+            if s.status in VERIFIABLE_STATUSES
+        ]
+        if not subs:
+            console.print("[yellow]Nothing sent yet that could be verified.[/yellow]")
+            raise typer.Exit(code=0)
+        due = [s for s in subs if force or is_due(session, s, now)]
+        console.print(f"{len(subs)} request(s) awaiting verification, {len(due)} due now.")
+        if not due:
+            console.print("First check runs 7 days after sending, then weekly.")
+            raise typer.Exit(code=0)
+
+        with launch_browser(config.playwright) as ctx:
+            report = run_verification(
+                session, due, get_broker, config.profile, lambda b: ctx.new_page(), force=True
+            )
+
+    for slug in report.removed:
+        console.print(
+            f"  [bold green]removed[/bold green]       {slug}  (re-search shows no listing)"
+        )
+    for slug in report.still_listed:
+        console.print(f"  [red]still listed[/red]  {slug}")
+    for slug, why in report.unverifiable:
+        console.print(f"  [yellow]unverified[/yellow]   {slug}: {why}")
+    console.print("\nNothing is marked removed unless a re-search rendered without your listing.")
+
+
+@app.command("drift-check")
+def drift_check(
+    notify: bool = typer.Option(True, "--notify/--no-notify", help="Send the webhook on drift."),
+) -> None:
+    """Probe every web-form broker's selectors; flag and announce brokers that stopped working."""
+    from .brokers.registry import all_brokers, load_registry
+    from .config import PlaywrightConfig, load_config
+    from .db import get_session, init_db, is_drifted, record_health
+    from .engine.browser import launch_browser
+    from .engine.probe import build_plan, run_checks, summarize
+    from .notify import send_webhook
+
+    try:
+        config = load_config()
+        pw = config.playwright
+        hook = config.notify.webhook_url
+    except FileNotFoundError:
+        pw, hook = PlaywrightConfig(), None
+    load_registry()
+    init_db()
+    targets = [b for b in all_brokers() if b.enabled and b.method == "web_form"]
+
+    drifted: list[str] = []
+    unknown: list[str] = []
+    with launch_browser(pw) as ctx, get_session() as session:
+        for b in targets:
+            plan = build_plan(b)
+            page = ctx.new_page()
+            try:
+                for pp in plan.pages:
+                    try:
+                        page.goto(pp.url, timeout=45_000, wait_until="domcontentloaded")
+                        page.wait_for_timeout(6000)
+                        pp.title = page.title()
+                    except Exception as exc:
+                        pp.load_error = str(exc).splitlines()[0][:200]
+                        continue
+                    run_checks(page, pp)
+            finally:
+                page.close()
+            ok, detail = summarize(plan)
+            if ok is None:
+                unknown.append(b.slug)
+                console.print(f"  [yellow]unknown[/yellow]  {b.slug}: {detail}")
+                continue
+            record_health(session, b.slug, "probe", ok, detail[:200])
+            console.print(f"  {'[green]ok[/green]     ' if ok else '[red]broken[/red] '}  {b.slug}")
+            if is_drifted(session, b.slug):
+                drifted.append(b.slug)
+
+    if drifted:
+        console.print(f"\n[red bold]Drifted (3 failures in a row):[/red bold] {', '.join(drifted)}")
+        if notify and hook:
+            sent = send_webhook(
+                hook, "optout: broker drift", "Drifted brokers: " + ", ".join(drifted)
+            )
+            console.print("Webhook sent." if sent else "[yellow]Webhook failed.[/yellow]")
+    else:
+        console.print("\nNo broker has drifted.")
+    if unknown:
+        console.print(
+            f"[dim]{len(unknown)} could not be read (challenge pages); not counted.[/dim]"
+        )
+
+
+@app.command()
+def escalate(
+    mark_sent: str | None = typer.Option(
+        None, "--mark-sent", help="Record that you sent/filed this draft: SLUG:KIND."
+    ),
+) -> None:
+    """Write follow-up / appeal / complaint drafts for unanswered requests. Never sends."""
+    import os
+    from datetime import UTC, datetime
+
+    from .brokers.registry import get_broker, load_registry
+    from .config import load_config
+    from .db import db_path, get_session, init_db, list_events, list_submissions, record_event
+    from .engine.escalation import make_draft, stage_for
+    from .engine.methods.email import _contact_email
+
+    try:
+        config = load_config()
+    except FileNotFoundError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+    load_registry()
+    init_db()
+    now = datetime.now(UTC)
+
+    if mark_sent:
+        slug, _, kind = mark_sent.partition(":")
+        if kind not in ("followup", "appeal", "complaint"):
+            console.print("[red]Use --mark-sent SLUG:followup|appeal|complaint[/red]")
+            raise typer.Exit(code=1)
+        with get_session() as session:
+            subs = list_submissions(session, broker_slug=slug)
+            if not subs:
+                console.print(f"[red]No request on record for {slug}.[/red]")
+                raise typer.Exit(code=1)
+            latest = max(subs, key=lambda x: x.created_at)
+            record_event(session, latest, "escalation_sent", {"kind": kind})
+        console.print(f"Recorded: {kind} for {slug}.")
+        raise typer.Exit(code=0)
+
+    drafts_dir = db_path().parent / "drafts"
+    drafts_dir.mkdir(parents=True, exist_ok=True)
+    count = 0
+    with get_session() as session:
+        for sub in list_submissions(session):
+            sent_kinds = [
+                __import__("json").loads(e.payload_json).get("kind", "")
+                for e in list_events(session, sub.id)
+                if e.event_type == "escalation_sent"
+            ]
+            kind = stage_for(sub, sent_kinds, now)
+            if not kind:
+                continue
+            try:
+                broker = get_broker(sub.broker_slug)
+            except KeyError:
+                continue
+            draft = make_draft(
+                kind,
+                sub,
+                broker,
+                config.profile,
+                contact_email=_contact_email(config, broker, config.profile),
+            )
+            path = drafts_dir / f"{broker.slug}-{kind}-{now:%Y%m%d}.txt"
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w") as fh:
+                fh.write(f"To: {draft.to}\nSubject: {draft.subject}\n\n{draft.body}")
+            console.print(f"  [yellow]{kind:<9}[/yellow] {broker.name}  →  {path}")
+            count += 1
+    if not count:
+        console.print("[green]No request is overdue or refused right now.[/green]")
+    else:
+        console.print(
+            f"\n{count} draft(s) written. Review, send/file them yourself, then run "
+            "[cyan]optout escalate --mark-sent SLUG:KIND[/cyan]."
+        )
+
+
+@app.command()
 def status(
     broker: str | None = typer.Option(None, "--broker", "-b", help="Filter by broker slug."),
     filter_status: str | None = typer.Option(
@@ -996,8 +1202,18 @@ def status(
     except Exception:
         _get_broker = None  # type: ignore[assignment]
 
+    from .db import is_drifted, latest_verification
+
+    verif: dict = {}
+    drift: set[str] = set()
     with get_session() as session:
         subs = list_submissions(session, broker_slug=broker, status=filter_status)
+        for sub in subs:
+            v = latest_verification(session, sub.id)
+            if v:
+                verif[sub.id] = v
+            if sub.broker_slug not in drift and is_drifted(session, sub.broker_slug):
+                drift.add(sub.broker_slug)
 
     if not subs:
         parts = []
@@ -1022,6 +1238,7 @@ def status(
     table.add_column("Submitted", min_width=8)
     table.add_column("Deadline", min_width=8)
     table.add_column("Days Left", justify="right")
+    table.add_column("Last check")
 
     counts: Counter[str] = Counter()
     overdue_slugs: list[str] = []
@@ -1047,6 +1264,12 @@ def status(
             _fmt_date(sub.submitted_at),
             _fmt_date(sub.deadline_at),
             days_cell,
+            (
+                f"{verif[sub.id].outcome.replace('_', ' ')} {_fmt_date(verif[sub.id].checked_at)}"
+                if sub.id in verif
+                else "—"
+            )
+            + ("  [red]⚠ drift[/red]" if sub.broker_slug in drift else ""),
         )
 
         counts[sub.status] += 1

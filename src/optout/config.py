@@ -102,6 +102,10 @@ class EmailConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class NotifyConfig(BaseModel):
+    webhook_url: str | None = None  # e.g. an ntfy topic URL; messages never include PII
+
+
 class PlaywrightConfig(BaseModel):
     headless: bool = False
     slow_mo_ms: int = 0
@@ -123,6 +127,7 @@ class UserConfig(BaseModel):
     email: EmailConfig
     playwright: PlaywrightConfig = PlaywrightConfig()
     monitoring: MonitoringConfig = MonitoringConfig()
+    notify: NotifyConfig = NotifyConfig()
 
 
 # ---------------------------------------------------------------------------

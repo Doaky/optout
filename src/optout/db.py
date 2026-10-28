@@ -22,7 +22,8 @@ SubmissionStatus = Literal[
     "awaiting_user_input",
     "submitted",
     "awaiting_broker_confirmation",
-    "confirmed",
+    "confirmed",  # broker said (in writing) that it deleted; NOT verified by us
+    "removed",  # only ever set by mark_removed(), after a verifying re-search
     "rejected",
     "expired",
     "failed",
@@ -38,7 +39,10 @@ EventType = Literal[
     "escalation_sent",
     "removed_verified",
     "re_added_detected",
+    "verification_checked",
 ]
+
+VerificationOutcome = Literal["verified_clear", "still_listed", "unverifiable"]
 
 ScanResult = Literal["clean", "found", "inconclusive"]
 
@@ -87,6 +91,28 @@ class MonitoringScan(SQLModel, table=True):
     result: str  # ScanResult
     matches_json: str | None = None
     triggered_resubmission_id: uuid.UUID | None = None
+
+
+class VerificationCheck(SQLModel, table=True):
+    """A re-search of a broker after a request, used to decide whether data is gone."""
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    submission_id: uuid.UUID = Field(foreign_key="submission.id", index=True)
+    broker_slug: str = Field(index=True)
+    checked_at: datetime = Field(default_factory=_now)
+    outcome: str  # VerificationOutcome
+    detail: str = ""  # reason only; never listing text or other people's data
+
+
+class BrokerHealth(SQLModel, table=True):
+    """One observation of whether a broker's flow still works (for drift detection)."""
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    broker_slug: str = Field(index=True)
+    observed_at: datetime = Field(default_factory=_now)
+    source: str  # "submission" | "probe" | "verify"
+    ok: bool
+    detail: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -152,6 +178,8 @@ def update_status(
     failure_reason: str | None = None,
     **extra: Any,
 ) -> None:
+    if status == "removed":
+        raise ValueError("'removed' can only be set by mark_removed() after a verifying re-search")
     submission.status = status
     submission.updated_at = _now()
     if failure_reason is not None:
@@ -312,3 +340,82 @@ def get_last_scan(session: Session, broker_slug: str) -> MonitoringScan | None:
         .limit(1)
     )
     return session.exec(stmt).first()
+
+
+# ---------------------------------------------------------------------------
+# Verification + health
+# ---------------------------------------------------------------------------
+
+
+def _aware(dt: datetime) -> datetime:
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+
+
+def record_verification(
+    session: Session, submission: Submission, outcome: str, detail: str = ""
+) -> VerificationCheck:
+    check = VerificationCheck(
+        submission_id=submission.id,
+        broker_slug=submission.broker_slug,
+        outcome=outcome,
+        detail=detail,
+    )
+    session.add(check)
+    session.commit()
+    session.refresh(check)
+    record_event(session, submission, "verification_checked", {"outcome": outcome})
+    return check
+
+
+def mark_removed(session: Session, submission: Submission, check: VerificationCheck) -> None:
+    """The only path to status 'removed'.
+
+    Requires a stored check for this submission that found the listing gone and
+    that happened after the request was sent. A request being submitted, or even
+    acknowledged by the broker, is never enough.
+    """
+    if check.submission_id != submission.id:
+        raise ValueError("verification check belongs to a different submission")
+    if check.outcome != "verified_clear":
+        raise ValueError(f"cannot mark removed: verification outcome was '{check.outcome}'")
+    if submission.submitted_at is None or _aware(check.checked_at) <= _aware(
+        submission.submitted_at
+    ):
+        raise ValueError("cannot mark removed: verification must come after the request was sent")
+    submission.status = "removed"
+    submission.updated_at = _now()
+    session.add(submission)
+    session.commit()
+    session.refresh(submission)
+    record_event(session, submission, "removed_verified", {"check_id": str(check.id)})
+
+
+def latest_verification(session: Session, submission_id: uuid.UUID) -> VerificationCheck | None:
+    stmt = (
+        select(VerificationCheck)
+        .where(VerificationCheck.submission_id == submission_id)
+        .order_by(VerificationCheck.checked_at.desc())  # type: ignore[attr-defined]
+    )
+    return session.exec(stmt).first()
+
+
+def record_health(
+    session: Session, broker_slug: str, source: str, ok: bool, detail: str = ""
+) -> None:
+    session.add(BrokerHealth(broker_slug=broker_slug, source=source, ok=ok, detail=detail))
+    session.commit()
+
+
+DRIFT_THRESHOLD = 3
+
+
+def is_drifted(session: Session, broker_slug: str, threshold: int = DRIFT_THRESHOLD) -> bool:
+    """True when the last *threshold* observations for a broker were all failures."""
+    stmt = (
+        select(BrokerHealth)
+        .where(BrokerHealth.broker_slug == broker_slug)
+        .order_by(BrokerHealth.observed_at.desc())  # type: ignore[attr-defined]
+        .limit(threshold)
+    )
+    recent = list(session.exec(stmt))
+    return len(recent) == threshold and not any(r.ok for r in recent)

@@ -154,6 +154,9 @@ class BrokerScanConfig(BaseModel):
     search_url_template: str | None = None
     search_steps: list[BrokerStep] = []
     result_selector: str
+    # Present when the site shows an explicit "no results" state. Lets a verifying
+    # re-search tell "page rendered and you're not listed" from "page didn't load".
+    empty_selector: str | None = None
     match_fields: list[str] = []
 
     @model_validator(mode="after")

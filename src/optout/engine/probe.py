@@ -160,3 +160,18 @@ def run_checks(page: Any, probe_page: ProbePage) -> None:
             continue
         check.count = n
         check.status = "found" if n > 0 else "missing"
+
+
+def summarize(plan: ProbePlan) -> tuple[bool | None, str]:
+    """Reduce a finished probe to (ok, detail).
+
+    ok is None when the result says nothing about the broker (every page was a
+    challenge/block page or failed to load), so it is not counted as drift.
+    """
+    judged = [p for p in plan.pages if not p.load_error and not blocked_reason(p.title)]
+    if not judged:
+        return None, "no page could be read (blocked or failed to load)"
+    bad = [c for p in judged for c in p.checks if c.status in ("missing", "error")]
+    if bad:
+        return False, "; ".join(f"{c.role} {c.selector}" for c in bad[:5])
+    return True, "all reachable selectors found"
