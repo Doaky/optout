@@ -13,7 +13,7 @@ from pathlib import Path
 import jinja2
 
 from ...brokers.schema import BrokerDef
-from ...config import SmtpConfig, UserConfig, load_config
+from ...config import SmtpConfig, UserConfig, config_dir, load_config
 from ...db import Submission, artifacts_dir
 from ...utils.statutes import get_statutes
 from .. import SubmissionFailed, SubmissionResult, UserInputRequired
@@ -146,13 +146,28 @@ def _build_message(
 # ---------------------------------------------------------------------------
 
 
+def read_smtp_password(smtp_cfg: SmtpConfig) -> str:
+    """Password from the 0600 password file if present, else from the environment.
+
+    The file is refused if other users can read it (same rule ssh applies to keys).
+    """
+    path = (
+        Path(smtp_cfg.password_file).expanduser()
+        if smtp_cfg.password_file
+        else (config_dir() / "smtp_password")
+    )
+    if path.exists():
+        if path.stat().st_mode & 0o077:
+            raise UserInputRequired(f"{path} is readable by other users. Run: chmod 600 {path}")
+        return path.read_text().strip()
+    return os.environ.get(smtp_cfg.password_env, "")
+
+
 def _send(smtp_cfg: SmtpConfig, msg: EmailMessage) -> None:
-    password = os.environ.get(smtp_cfg.password_env, "")
+    password = read_smtp_password(smtp_cfg)
     if not password and smtp_cfg.host != "localhost" and not smtp_cfg.host.startswith("127."):
         raise UserInputRequired(
-            f"Environment variable {smtp_cfg.password_env} is not set, so there is nothing to "
-            f"log in to {smtp_cfg.host} with. "
-            f"Run: export {smtp_cfg.password_env}='your app password'"
+            f"No SMTP password found for {smtp_cfg.host}. Run: optout smtp-password"
         )
 
     try:
@@ -176,12 +191,14 @@ def _send(smtp_cfg: SmtpConfig, msg: EmailMessage) -> None:
     except smtplib.SMTPServerDisconnected as exc:
         raise SubmissionFailed(
             f"{smtp_cfg.host} closed the connection ({exc}). For Gmail this usually means the "
-            "app password is wrong or missing, or the account blocked the sign-in."
+            "app password is wrong or missing, or the account blocked the sign-in. "
+            "Re-enter it with: optout smtp-password"
         ) from exc
     except smtplib.SMTPAuthenticationError as exc:
         raise UserInputRequired(
             f"SMTP authentication failed. Check that {smtp_cfg.password_env!r} "
-            f"is set correctly. Server said: {exc}"
+            f"or the password file is correct (re-enter with `optout smtp-password`). "
+            f"Server said: {exc}"
         ) from exc
     except (smtplib.SMTPException, OSError) as exc:
         raise SubmissionFailed(f"SMTP error: {exc}") from exc

@@ -78,7 +78,11 @@ class SmtpConfig(BaseModel):
     host: str
     port: int = 587
     username: str
-    password_env: str  # name of env var holding the password — never the secret itself
+    # Where to find the password, checked in this order (never stored in this file):
+    #   1. password_file (default ~/.config/optout/smtp_password, mode 0600), if it exists
+    #   2. the environment variable named here
+    password_env: str = "OPTOUT_SMTP_PASSWORD"
+    password_file: str | None = None
 
 
 class EmailConfig(BaseModel):

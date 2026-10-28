@@ -1034,6 +1034,27 @@ def verify(
     console.print("\nNothing is marked removed unless a re-search rendered without your listing.")
 
 
+@app.command("smtp-password")
+def smtp_password() -> None:
+    """Save your email app password to a private file (typed hidden, never on a command line)."""
+    import os
+
+    from .config import config_dir
+
+    path = config_dir() / "smtp_password"
+    first = typer.prompt("App password", hide_input=True)
+    again = typer.prompt("Again", hide_input=True)
+    if not first.strip() or first != again:
+        console.print("[red]Empty or mismatched; nothing saved.[/red]")
+        raise typer.Exit(code=1)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        fh.write(first.strip())
+    path.chmod(0o600)
+    console.print(f"[green]Saved[/green] to {path} (readable only by you).")
+
+
 @app.command()
 def daily() -> None:
     """Cron entry point: send the day's capped emails (if allowed), draft escalations, notify."""

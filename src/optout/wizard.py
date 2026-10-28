@@ -347,15 +347,13 @@ def run_init_wizard() -> None:
     smtp_username = cfg.email.smtp.username if cfg.email.smtp else ""
     console.print(
         "\n[bold]Almost done.[/bold] One last step — save your email password so the\n"
-        "tool can send emails on your behalf. Run this command in your terminal:\n"
+        "tool can send emails on your behalf. Run this command; it asks for the\n"
+        "password with the typing hidden and saves it to a file only you can read:\n"
     )
-    console.print(
-        "  [bold cyan]echo 'export OPTOUT_SMTP_PASSWORD=\"your-password-here\"'"
-        " >> ~/.zshrc && source ~/.zshrc[/bold cyan]\n"
-    )
+    console.print("  [bold cyan]optout smtp-password[/bold cyan]\n")
     if cfg.email.smtp and "gmail" in smtp_username:
         console.print(
-            "  [dim]Replace your-password-here with the 16-character App Password\n"
+            "  [dim]Enter the 16-character App Password\n"
             "  you generated in Google (not your regular Gmail password).[/dim]\n"
         )
     else:

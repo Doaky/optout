@@ -26,7 +26,7 @@ Derived from [Blake104/OptOut](https://github.com/Blake104/OptOut) (AGPL-3.0). S
 uv sync --all-extras
 uv run playwright install chromium        # only for the browser lane
 uv run optout init                        # or copy examples/config.example.yml to ~/.config/optout/config.yml
-export OPTOUT_SMTP_PASSWORD=...           # an app password, not your main one
+uv run optout smtp-password               # app password, typed hidden, saved to a 0600 file
 uv run optout brokers import              # downloads the California registry CSV
 uv run optout campaign                    # PREVIEW: shows who would be emailed and a sample
 uv run optout campaign --send --limit 10  # start small; type the confirmation

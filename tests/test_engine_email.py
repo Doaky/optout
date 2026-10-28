@@ -343,5 +343,36 @@ def test_missing_password_fails_before_connecting(monkeypatch):
     cfg = SmtpConfig(
         host="smtp.gmail.com", port=587, username="a@b.example", password_env="OPTOUT_TEST_NOPW"
     )
-    with pytest.raises(UserInputRequired, match="OPTOUT_TEST_NOPW is not set"):
+    with pytest.raises(UserInputRequired, match="No SMTP password found"):
         _send(cfg, None)  # must raise before touching the message or the network
+
+
+def test_password_file_preferred_and_permissions_enforced(tmp_path, monkeypatch):
+    from optout.engine import UserInputRequired
+    from optout.engine.methods.email import read_smtp_password
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setenv("PW_ENV_X", "from-env")
+    f = tmp_path / "pw"
+    cfg = SmtpConfig(host="h", username="u", password_env="PW_ENV_X", password_file=str(f))
+
+    assert read_smtp_password(cfg) == "from-env"  # no file yet: environment fallback
+    f.write_text("from-file\n")
+    f.chmod(0o644)
+    with pytest.raises(UserInputRequired, match="chmod 600"):
+        read_smtp_password(cfg)
+    f.chmod(0o600)
+    assert read_smtp_password(cfg) == "from-file"
+
+
+def test_default_password_file_location(tmp_path, monkeypatch):
+    from optout.engine.methods.email import read_smtp_password
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.delenv("PW_ENV_Y", raising=False)
+    (tmp_path / "optout").mkdir()
+    pw = tmp_path / "optout" / "smtp_password"
+    pw.write_text("secret")
+    pw.chmod(0o600)
+    cfg = SmtpConfig(host="h", username="u", password_env="PW_ENV_Y")
+    assert read_smtp_password(cfg) == "secret"
