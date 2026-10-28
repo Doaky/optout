@@ -6,7 +6,7 @@ from pathlib import Path
 
 from sqlmodel import Session
 
-from .db import db_path, list_submissions, record_event, update_status
+from .db import Submission, db_path, list_submissions, record_event, update_status
 
 REPLY_OUTCOMES = {
     "deleted": ("confirmed", "confirmation_received"),
@@ -24,6 +24,26 @@ _REPLY_MESSAGES = {
 ESCALATION_KINDS = ("followup", "appeal", "complaint", "clarify")
 
 
+# A reply never moves a request backwards: once the broker has confirmed (or we've
+# verified removal), a later autoresponder or "need info" doesn't undo that.
+_SETTLED = frozenset({"confirmed", "removed"})
+
+
+def apply_outcome(
+    session: Session, sub: Submission, outcome: str, note: str | None, source: str
+) -> None:
+    """Apply a broker's answer to one request. Never sets 'removed'."""
+    if outcome not in REPLY_OUTCOMES:
+        raise ValueError("Outcome must be: deleted, denied, need-info, or auto-reply.")
+    status, event = REPLY_OUTCOMES[outcome]
+    note = (note or "").strip()[:200]
+    if status is not None and sub.status not in _SETTLED:
+        update_status(
+            session, sub, status, failure_reason=note or None if outcome != "deleted" else None
+        )
+    record_event(session, sub, event, {"source": source, "note": note})
+
+
 def record_reply(session: Session, slug: str, outcome: str, note: str | None) -> str:
     """Record a broker's answer on its latest request. Raises ValueError on bad input."""
     if outcome not in REPLY_OUTCOMES:
@@ -32,13 +52,12 @@ def record_reply(session: Session, slug: str, outcome: str, note: str | None) ->
     if not subs:
         raise ValueError(f"No request on record for '{slug}'.")
     sub = max(subs, key=lambda x: x.created_at)
-    status, event = REPLY_OUTCOMES[outcome]
-    note = (note or "").strip()[:200]
-    if status is not None:
-        update_status(
-            session, sub, status, failure_reason=note or None if outcome != "deleted" else None
-        )
-    record_event(session, sub, event, {"source": "user_reported", "note": note})
+    if sub.status in _SETTLED and outcome != "deleted":
+        # The user is telling us explicitly; respect it even over an earlier confirmation.
+        status, _event = REPLY_OUTCOMES[outcome]
+        if status is not None:
+            update_status(session, sub, status, failure_reason=(note or "").strip()[:200] or None)
+    apply_outcome(session, sub, outcome, note, "user_reported")
     return _REPLY_MESSAGES[outcome]
 
 

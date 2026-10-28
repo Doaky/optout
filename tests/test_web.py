@@ -161,7 +161,7 @@ def test_posts_are_forgery_resistant(ui):
         "POST",
         "/act/reply",
         {"Content-Type": "application/x-www-form-urlencoded"},
-        "a=" + "x" * 20000,
+        "a=" + "x" * 70000,
     )
     assert r.status == 413
 

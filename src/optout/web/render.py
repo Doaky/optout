@@ -145,7 +145,15 @@ details.email>div{padding:0 12px 12px}
 pre{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;
   white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;margin:8px 0}
 details.email pre{background:var(--surface)}
-.attn{list-style:none;margin:0;padding:0}
+.attn,.replies{list-style:none;margin:0;padding:0}
+.reply{padding:12px 0;border-bottom:1px solid var(--line);display:grid;gap:6px}
+.reply:last-child{border-bottom:0}
+.reply-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.steps{padding-left:20px;display:grid;gap:10px}.steps li{line-height:1.6}
+textarea{font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;width:100%;padding:8px 10px;
+  border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);
+  margin:6px 0}
+.hidden-copy{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 .attn li{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;
   padding:10px 0;border-bottom:1px solid var(--line)}
 .attn li:last-child{border-bottom:0}
@@ -182,6 +190,11 @@ LIVE_JS = (
     "(()=>{"
     "document.addEventListener('submit',e=>{const b=e.target.querySelector('button[type=submit]');"
     "if(b&&e.target.method==='post'){b.disabled=true;b.textContent='Working…';}});"
+    "document.addEventListener('click',e=>{const b=e.target.closest('[data-copy]');if(!b)return;"
+    "const t=document.getElementById(b.dataset.copy);if(!t)return;const done=()=>{"
+    "const l=b.textContent;b.textContent='Copied ✓';setTimeout(()=>b.textContent=l,1600);};"
+    "if(navigator.clipboard)navigator.clipboard.writeText(t.value).then(done,()=>{t.select();});"
+    "else{t.select();document.execCommand('copy');done();}});"
     "const p=document.getElementById('send');if(!p||p.dataset.state!=='running')return;"
     "const bar=p.querySelector('.progress>span'),txt=p.querySelector('[data-live]'),"
     "pb=p.querySelector('.progress');"
@@ -419,6 +432,16 @@ class UI:
     configured: bool = True
     needs_import: bool = False  # no broker list loaded yet
     password_missing: bool = False
+    inbox_status: str = ""  # "Checked 4 min ago" or why replies can't be read
+    inbox_ok: bool = False
+    # (id, ref, broker name or None, from, subject, date, guess, text)
+    replies: list[tuple[str, str, str | None, str, str, str, str, str]] = field(
+        default_factory=list
+    )
+    contacted: list[tuple[str, str]] = field(default_factory=list)  # (slug, name)
+    claude_prompt: str = ""
+    learned_yaml: str = ""
+    learned_count: int = 0
 
 
 ROW_ACTIONS = [
@@ -529,6 +552,113 @@ def _send_panel(ui: UI) -> str:
     )
 
 
+_GUESS = {
+    "deleted": ("good", "✓", "Says deleted"),
+    "no-data": ("good", "✓", "Says no data"),
+    "denied": ("critical", "✕", "Refused"),
+    "need-info": ("warning", "!", "Wants something"),
+    "auto-reply": ("info", "●", "Automated reply"),
+    "bounced": ("serious", "!", "Bounced"),
+    "unknown": ("neutral", "?", "Not sure"),
+}
+_REVIEW_OPTIONS = [
+    ("deleted", "They deleted it / have no data"),
+    ("denied", "They refused"),
+    ("need-info", "They want me to do something"),
+    ("auto-reply", "Automated reply only"),
+    ("ignore", "Not about my request"),
+]
+
+
+def _guess_pill(kind: str) -> str:
+    tone, icon, text = _GUESS.get(kind, _GUESS["unknown"])
+    return (
+        f"<span class='pill t-{tone}'><span class='i' aria-hidden='true'>{icon}</span>"
+        f"{e(text)}</span>"
+    )
+
+
+def _replies_panel(ui: UI) -> str:
+    head = (
+        "<div class='toolbar'><span class='muted small'>"
+        f"{e(ui.inbox_status)}</span>"
+        + (
+            "<form method='post' action='/act/inbox' class='inline'>"
+            f"{_hidden(ui.csrf)}<button type='submit' class='secondary'>Check for replies"
+            "</button></form>"
+            if ui.inbox_ok
+            else ""
+        )
+        + "</div>"
+    )
+    if not ui.replies:
+        body = "<p class='muted'>No replies need a look. Clear answers are applied for you.</p>"
+    else:
+        brokers = "".join(f"<option value='{e(s)}'>{e(n)}</option>" for s, n in ui.contacted)
+        items = []
+        for rid, ref, name, sender, subject, when, guess, text in ui.replies:
+            pick = (
+                ""
+                if name
+                else f"<select name='broker' required aria-label='Which broker sent this'>"
+                f"<option value='' disabled selected>Which broker?</option>{brokers}</select>"
+            )
+            opts = "".join(f"<option value='{v}'>{t}</option>" for v, t in _REVIEW_OPTIONS)
+            items.append(
+                "<li class='reply'>"
+                f"<div class='reply-head'><span class='muted small'>{e(ref)}</span> "
+                f"<b>{e(name or 'Unmatched sender')}</b> {_guess_pill(guess)}"
+                f"<span class='muted small'>{e(when)}</span></div>"
+                f"<div class='small'><span class='muted'>{e(sender)}</span> · {e(subject)}</div>"
+                f"<details class='email'><summary>Show the email</summary><div><pre>{e(text)}"
+                "</pre></div></details>"
+                f"<form method='post' action='/act/review' class='inline rowform'>"
+                f"{_hidden(ui.csrf, id=rid)}{pick}"
+                f"<select name='outcome' aria-label='What did they say'>{opts}</select>"
+                "<button type='submit'>Save</button></form></li>"
+            )
+        n = len(ui.replies)
+        claude = (
+            f"<details class='more'><summary>Ask Claude to sort these {n}</summary>"
+            "<ol class='steps'><li>Copy the prompt. Your name, address, email, and phone are "
+            "replaced with placeholders.<br>"
+            "<button type='button' class='secondary' data-copy='claude-prompt'>Copy prompt"
+            "</button></li>"
+            "<li>Paste it into <a href='https://claude.ai/new' target='_blank' "
+            "rel='noreferrer'>Claude</a> and send it.</li>"
+            "<li>Paste Claude's answer here:"
+            "<form method='post' action='/act/claude-apply'>"
+            f"{_hidden(ui.csrf)}<textarea name='answer' rows='5' required "
+            "placeholder='Paste the JSON Claude gives you' aria-label='Answer from Claude'>"
+            "</textarea><button type='submit'>Apply Claude's answer</button></form></li></ol>"
+            f"<textarea id='claude-prompt' class='hidden-copy' readonly aria-hidden='true' "
+            f"tabindex='-1'>{e(ui.claude_prompt)}</textarea></details>"
+        )
+        body = (
+            f"<p>{n} repl{'y' if n == 1 else 'ies'} the tool wasn't sure about:</p>"
+            f"<ul class='replies'>{''.join(items)}</ul>{claude}"
+        )
+    share = ""
+    if ui.learned_yaml:
+        share = (
+            f"<details class='more'><summary>Share what you've learned "
+            f"({ui.learned_count} reply pattern{'s' if ui.learned_count != 1 else ''})</summary>"
+            "<p class='small'>Patterns from replies you've sorted, with your personal details "
+            "removed. Contributing them means the next person's replies sort themselves. Check "
+            "there's nothing personal, then "
+            "<a href='https://github.com/Doaky/optout/issues/new?title=Known%20broker%20replies' "
+            "target='_blank' rel='noreferrer'>open an issue</a> and paste them.</p>"
+            "<button type='button' class='secondary' data-copy='learned'>Copy patterns</button>"
+            f"<pre>{e(ui.learned_yaml)}</pre>"
+            f"<textarea id='learned' class='hidden-copy' readonly aria-hidden='true' "
+            f"tabindex='-1'>{e(ui.learned_yaml)}</textarea></details>"
+        )
+    return (
+        "<section class='card' aria-labelledby='replies-h' id='replies'>"
+        f"<h2 id='replies-h'>Broker replies</h2>{head}{body}{share}</section>"
+    )
+
+
 def _notices(ui: UI) -> str:
     out = []
     if not ui.configured:
@@ -591,6 +721,14 @@ def _drafts_line(ui: UI) -> str:
             for n in ui.drafts[-8:]
         )
     return f"<div class='filters' style='margin-top:12px'>{make}{saved}</div>"
+
+
+def _reply_from(row: Row) -> str:
+    if not row.reply_from:
+        return ""
+    shown = ", ".join(e(a) for a in row.reply_from[:2])
+    more = f" +{len(row.reply_from) - 2}" if len(row.reply_from) > 2 else ""
+    return f"<div class='muted small' title='Replies came from'>↩ {shown}{more}</div>"
 
 
 def _short(iso: str) -> str:
@@ -697,7 +835,7 @@ def dashboard(
         )
 
     trs = "".join(
-        f"<tr><td class='name'>{e(r.name)}</td><td>{pill(r.status, r.label)}</td>"
+        f"<tr><td class='name'>{e(r.name)}{_reply_from(r)}</td><td>{pill(r.status, r.label)}</td>"
         f"<td class='num'>{e(_short(r.submitted))}</td>"
         f"<td>{_days_cell(r)}<div class='muted small'>{_due(r)}</div></td>"
         f"<td class='small'>{e(r.last_check)}"
@@ -758,6 +896,7 @@ def dashboard(
         "<p class='muted small'>“Broker says done” is the broker's word. Only “Removed (verified)” "
         "means a later re-search confirmed the listing is gone.</p>"
     )
+    replies = _replies_panel(act) if act is not None else ""
     requests = (
         "<section class='card' aria-labelledby='req-h'><h2 id='req-h'>Requests</h2>"
         f"{toolbar}{table}{note}"
@@ -766,7 +905,7 @@ def dashboard(
     refresh = 3 if ui and ui.job.get("state") == "running" else None
     return page(
         "optout · dashboard",
-        f"<h1>Your opt-out requests</h1>{_stats(d, ui)}{top}{attn}{requests}",
+        f"<h1>Your opt-out requests</h1>{_stats(d, ui)}{top}{attn}{replies}{requests}",
         nav=False,
         refresh=refresh,
         updated=d.generated,

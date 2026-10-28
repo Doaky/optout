@@ -40,7 +40,7 @@ from . import render
 from .data import collect
 
 COOKIE = "optout_session"
-MAX_BODY = 16_384
+MAX_BODY = 65_536
 FLASH = {
     "reply": "Reply recorded.",
     "toggle": "Saved.",
@@ -49,6 +49,8 @@ FLASH = {
     "started": "Batch started.",
     "finished": "Batch finished.",
     "imported": "Broker list loaded.",
+    "inboxerr": "Couldn't read replies from Gmail. Check your app password and connection.",
+    "reviewed": "Saved.",
     "err": "That didn't work. Check the details and try again.",
     "busy": "A batch is already running.",
     "nocfg": "No config found. Run optout init first.",
@@ -65,6 +67,26 @@ class App:
         self.origins = {f"http://{h}" for h in self.hosts}
         self.job: dict = {"state": "idle"}
         self.job_lock = threading.Lock()
+        self.inbox_lock = threading.Lock()
+
+    def poll_inbox_forever(self, every: float = 900, first: float = 5) -> None:
+        """Check for replies shortly after start, then every 15 minutes."""
+        import time
+
+        from ..engine.inbox import gmail_ready, run_sync
+
+        time.sleep(first)
+        while True:
+            try:
+                config = load_config()
+                if gmail_ready(config) is None and self.inbox_lock.acquire(blocking=False):
+                    try:
+                        run_sync(config)
+                    finally:
+                        self.inbox_lock.release()
+            except Exception:
+                pass  # recorded by run_sync; the dashboard shows the last attempt
+            time.sleep(every)
 
     # -- campaign job ----------------------------------------------------
     def start_campaign(self, count: int) -> str:
@@ -180,7 +202,19 @@ def _make_handler(app: App):
                 return self._fail(403, "Open the link printed by `optout ui` in your terminal.")
 
             flash = ""
-            if (code := query.get("m", [""])[0]) in FLASH:
+            nums = {k: _int(query.get(k, ["0"])[0]) for k in ("a", "r", "s")}
+            code = query.get("m", [""])[0]
+            if code == "inbox":
+                flash = render.message_box(
+                    f"Checked replies: {nums['a']} applied, {nums['r']} to review."
+                )
+            elif code == "claude":
+                flash = render.message_box(
+                    f"Applied {nums['a']} of Claude's answers"
+                    + (f", skipped {nums['s']}." if nums["s"] else "."),
+                    ok=nums["a"] > 0,
+                )
+            if code in FLASH:
                 flash = render.message_box(
                     FLASH[code],
                     ok=code not in ("err", "busy", "nocfg"),
@@ -239,6 +273,8 @@ def _make_handler(app: App):
                     )
                 with get_session() as session:
                     d = collect(session, config, now, drafts=len(draft_files))
+                    if config is not None:
+                        _fill_replies(ui, session, config)
                     if config is not None:
                         sel = select_brokers(all_brokers(), session, now=now)
                         ui.used = sent_today(session, now)
@@ -425,6 +461,66 @@ def _make_handler(app: App):
                         load_config(), slug, form.get("kind", ""), datetime.now(UTC)
                     )
                     return self._redirect(f"/draft/{quote(out.name, safe='')}")
+                if path == "/act/inbox":
+                    from ..engine.inbox import run_sync
+
+                    try:
+                        with app.inbox_lock:
+                            rep_ = run_sync(load_config())
+                    except ValueError:
+                        return self._redirect("/?m=inboxerr#replies")
+                    return self._redirect(
+                        f"/?m=inbox&a={len(rep_.applied)}&r={rep_.review}#replies"
+                    )
+                if path == "/act/review":
+                    import uuid as _uuid
+
+                    from ..db import InboxMessage
+                    from ..engine.assist import resolve
+
+                    with get_session() as session:
+                        row = session.get(InboxMessage, _uuid.UUID(form.get("id", "")))
+                        if row is None or row.state != "review":
+                            raise ValueError("unknown reply")
+                        resolve(
+                            session,
+                            row,
+                            form.get("outcome", ""),
+                            "",
+                            "user_reported",
+                            broker=form.get("broker") or None,
+                        )
+                    return self._redirect("/?m=reviewed#replies")
+                if path == "/act/claude-apply":
+                    from sqlmodel import select
+
+                    from ..db import Submission
+                    from ..engine.assist import parse_answer, resolve, review_items
+
+                    applied = skipped = 0
+                    with get_session() as session:
+                        refs = {it.ref: it for it in review_items(session)}
+                        slugs = {
+                            s.broker_slug
+                            for s in session.exec(select(Submission))
+                            if s.submitted_at
+                        }
+                        verdicts, problems = parse_answer(form.get("answer", ""), set(refs), slugs)
+                        skipped = len(problems)
+                        for v in verdicts:
+                            try:
+                                resolve(
+                                    session,
+                                    refs[v.ref].row,
+                                    v.outcome,
+                                    v.note,
+                                    "claude",
+                                    broker=v.broker,
+                                )
+                                applied += 1
+                            except ValueError:
+                                skipped += 1
+                    return self._redirect(f"/?m=claude&a={applied}&s={skipped}#replies")
                 if path == "/act/import":
                     from ..brokers.importer import import_ca_registry
 
@@ -461,6 +557,73 @@ def _email_for(config, broker) -> tuple[str, str]:
         minimal=bool(broker.source) and config.email.identifiers == "minimal",
     )
     return f"Data Deletion Request — {profile.legal_name}", body
+
+
+def _fill_replies(ui, session, config) -> None:
+    from sqlmodel import select
+
+    from ..db import Submission
+    from ..engine import inbox
+    from ..engine.assist import build_prompt, learned_entries, review_items
+
+    problem = inbox.gmail_ready(config)
+    ui.inbox_ok = problem is None
+    if problem:
+        ui.inbox_status = f"Not reading replies: {problem}."
+    else:
+        err = inbox.last_error()
+        ui.inbox_status = (
+            f"Replies checked {_ago(inbox.last_checked())}"
+            + (" (last attempt failed)" if err else "")
+            + ". Checks every 15 minutes while this page's server runs."
+        )
+    names = {b.slug: b.name for b in all_brokers()}
+    contacted = {
+        s.broker_slug: names.get(s.broker_slug, s.broker_slug)
+        for s in session.exec(select(Submission))
+        if s.submitted_at
+    }
+    ui.contacted = sorted(contacted.items(), key=lambda kv: kv[1].lower())
+    items = review_items(session)
+    ui.replies = [
+        (
+            str(it.row.id),
+            it.ref,
+            names.get(it.row.broker_slug, it.row.broker_slug) if it.row.broker_slug else None,
+            it.row.from_addr,
+            it.row.subject,
+            it.row.received_at.strftime("%b %d") if it.row.received_at else "",
+            it.row.kind or "unknown",
+            it.row.text,
+        )
+        for it in items
+    ]
+    if items:
+        ui.claude_prompt = build_prompt(items, config.profile, contacted)
+    learned = learned_entries(session, config.profile)
+    if learned:
+        import yaml
+
+        ui.learned_yaml = yaml.safe_dump(learned, sort_keys=False, allow_unicode=True)
+        ui.learned_count = len(learned)
+
+
+def _int(text: str) -> int:
+    try:
+        return max(0, min(int(text), 100_000))
+    except ValueError:
+        return 0
+
+
+def _ago(when) -> str:
+    if when is None:
+        return "never"
+    mins = int((datetime.now(UTC) - when).total_seconds() // 60)
+    if mins < 1:
+        return "just now"
+    if mins < 60:
+        return f"{mins} min ago"
+    return f"{mins // 60} h ago" if mins < 1440 else f"{mins // 1440} d ago"
 
 
 def _note(payload_json: str) -> str:
@@ -532,6 +695,7 @@ def serve(port: int = 8765, open_browser: bool = True) -> None:
         flush=True,
     )
     print("Press Ctrl+C to stop.", flush=True)
+    threading.Thread(target=app.poll_inbox_forever, daemon=True).start()
     if open_browser:
         open_in_browser(url)
     try:

@@ -104,6 +104,24 @@ class VerificationCheck(SQLModel, table=True):
     detail: str = ""  # reason only; never listing text or other people's data
 
 
+class InboxMessage(SQLModel, table=True):
+    """A reply (or bounce) read from the mailbox, and what was decided about it."""
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    message_id: str = Field(index=True, unique=True)
+    submission_id: uuid.UUID | None = Field(default=None, foreign_key="submission.id", index=True)
+    broker_slug: str | None = Field(default=None, index=True)
+    matched_by: str = ""  # message-id | alias | domain | ""
+    from_addr: str = ""
+    subject: str = ""
+    received_at: datetime | None = None
+    text: str = ""  # reply text with quoted history removed, capped; stays local
+    kind: str = ""  # deleted | no-data | denied | need-info | auto-reply | bounced | unknown
+    rule: str = ""  # which pattern decided it
+    state: str = "review"  # applied | review | ignored | resolved
+    processed_at: datetime = Field(default_factory=_now)
+
+
 class BrokerHealth(SQLModel, table=True):
     """One observation of whether a broker's flow still works (for drift detection)."""
 

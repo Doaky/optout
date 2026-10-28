@@ -1,11 +1,12 @@
-"""Apply a Gmail label to the opt-out emails you send and the replies you get.
+"""Gmail over IMAP: label opt-out mail, and read broker replies.
 
 Gmail's SMTP can't set labels and filters don't run on outgoing mail, so this
-uses Gmail's IMAP extensions (X-GM-RAW search, X-GM-LABELS). It only ever
-SEARCHes and adds a label: no message bodies are fetched, nothing is marked
-read, moved, or deleted. Uses the same app password as sending.
+uses Gmail's IMAP extensions (X-GM-RAW search, X-GM-LABELS). It SEARCHes, adds a
+label, and reads (with BODY.PEEK, so nothing is marked read) only messages that
+carry your opt-out label or are bounce notices. Nothing is moved or deleted.
+Uses the same app password as sending.
 
-All of this is best effort: a labelling problem never fails a send.
+Labelling is best effort: a labelling problem never fails a send.
 """
 
 from __future__ import annotations
@@ -38,10 +39,13 @@ class GmailLabeler:
         label: str,
         *,
         connect: Callable[[], imaplib.IMAP4] | None = None,
+        reply_label: str | None = None,
     ) -> None:
-        if not valid_label(label):
-            raise ValueError("Label may only contain letters, digits, space, _ - /")
+        for name in (label, reply_label):
+            if name is not None and not valid_label(name):
+                raise ValueError("Label may only contain letters, digits, space, _ - /")
         self.label = label
+        self.reply_label = reply_label or label
         self._username, self._password = username, password
         self._connect = connect or (lambda: imaplib.IMAP4_SSL(IMAP_HOST, 993, timeout=30))
         self._imap: imaplib.IMAP4 | None = None
@@ -84,12 +88,12 @@ class GmailLabeler:
             return []
         return data[0].split()
 
-    def _label(self, uids: Iterable[bytes]) -> int:
+    def _label(self, uids: Iterable[bytes], name: str | None = None) -> int:
         assert self._imap is not None
         uids = list(uids)
         for i in range(0, len(uids), 200):
             chunk = b",".join(uids[i : i + 200]).decode()
-            self._imap.uid("STORE", chunk, "+X-GM-LABELS", f"({_q(self.label)})")
+            self._imap.uid("STORE", chunk, "+X-GM-LABELS", f"({_q(name or self.label)})")
         return len(uids)
 
     def label_message_ids(
@@ -114,11 +118,50 @@ class GmailLabeler:
         """Catch up: every message you sent with the opt-out subject."""
         return self._label(self._search(f'from:me subject:"{SUBJECT}"'))
 
+    def fetch_replies(
+        self, already_seen: set[str], *, days: int = 180, limit: int = 300
+    ) -> list[bytes]:
+        """Raw messages with either label (not sent by you) plus bounces, skipping ones seen."""
+        tags = {name.replace(" ", "-") for name in (self.label, self.reply_label)}
+        uids: list[bytes] = []
+        queries = [f"label:{t} -from:me newer_than:{days}d" for t in sorted(tags)]
+        queries.append(f"from:mailer-daemon newer_than:{days}d")
+        for query in queries:
+            uids.extend(u for u in self._search(query) if u not in uids)
+        uids = uids[-limit:]
+        new = [u for u, mid in self._message_ids(uids).items() if mid not in already_seen]
+        return [raw for u in new if (raw := self._fetch(u))]
+
+    def _message_ids(self, uids: list[bytes]) -> dict[bytes, str]:
+        assert self._imap is not None
+        out: dict[bytes, str] = {}
+        for i in range(0, len(uids), 100):
+            chunk = b",".join(uids[i : i + 100]).decode()
+            _status, data = self._imap.uid(
+                "FETCH", chunk, "(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])"
+            )
+            for item in data or []:
+                if not isinstance(item, tuple):
+                    continue
+                m = re.search(rb"UID (\d+)", item[0])
+                hdr = re.search(rb"Message-ID:\s*(<[^>]+>)", item[1], re.IGNORECASE)
+                if m:
+                    out[m.group(1)] = hdr.group(1).decode(errors="replace") if hdr else ""
+        return out
+
+    def _fetch(self, uid: bytes) -> bytes | None:
+        assert self._imap is not None
+        _status, data = self._imap.uid("FETCH", uid.decode(), "(BODY.PEEK[]<0.300000>)")
+        for item in data or []:
+            if isinstance(item, tuple):
+                return bytes(item[1])
+        return None
+
     def label_replies(self, domains: Iterable[str]) -> int:
         """Label inbox mail from the given broker domains (bodies are never fetched)."""
         clean = sorted({d.lower() for d in domains if _DOMAIN_RE.match(d.lower())})
         total = 0
         for i in range(0, len(clean), 20):
             terms = " OR ".join(f"from:{d}" for d in clean[i : i + 20])
-            total += self._label(self._search(f"in:inbox ({terms})"))
+            total += self._label(self._search(f"in:inbox ({terms})"), self.reply_label)
         return total

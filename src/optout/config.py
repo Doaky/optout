@@ -98,6 +98,9 @@ class EmailConfig(BaseModel):
     identifiers: Literal["minimal", "full"] = "minimal"
     # Gmail only: label to add to sent opt-out emails (created if missing), e.g. "OPTOUT".
     gmail_label: str | None = None
+    # Gmail only: label for broker replies (defaults to gmail_label). Anything you file
+    # under it by hand is read too.
+    reply_label: str | None = None
     # Lets `optout daily` send without a typed confirmation. Off unless you turn it on.
     allow_unattended: bool = False
     daily_limit: int = 40  # max campaign emails per UTC day
@@ -105,11 +108,11 @@ class EmailConfig(BaseModel):
 
     @model_validator(mode="after")
     def _label_is_plain(self) -> EmailConfig:
-        if self.gmail_label is not None:
-            from .gmail_label import valid_label
+        from .gmail_label import valid_label
 
-            if not valid_label(self.gmail_label):
-                raise ValueError("email.gmail_label may only use letters, digits, space, _ - /")
+        for name in (self.gmail_label, self.reply_label):
+            if name is not None and not valid_label(name):
+                raise ValueError("Gmail labels may only use letters, digits, space, _ - /")
         return self
 
     @model_validator(mode="after")

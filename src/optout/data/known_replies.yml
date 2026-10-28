@@ -1,0 +1,14 @@
+# Known broker replies: what a particular broker's email means.
+#
+# Checked before the generic rules, so a broker with unusual wording (or a reply that
+# comes from a ticketing system instead of the broker's own domain) still sorts itself.
+#
+#   from:    "@domain.com" (any address there) or one exact address
+#   phrase:  text that appears in the subject or body (case doesn't matter)
+#   outcome: deleted | no-data | denied | need-info | auto-reply
+#   broker:  the broker's slug (optional; lets a reply from another domain find its request)
+#
+# Add your own in ~/.config/optout/known_replies.yml, or contribute them here:
+# `optout replies share` prints entries learned from replies you've sorted,
+# with your personal details removed.
+[]

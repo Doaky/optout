@@ -1045,7 +1045,9 @@ def label(
             if b.opt_out_email:
                 domains.add(b.opt_out_email.rsplit("@", 1)[1])
     try:
-        with GmailLabeler(smtp.username, read_smtp_password(smtp), name) as gmail:
+        with GmailLabeler(
+            smtp.username, read_smtp_password(smtp), name, reply_label=config.email.reply_label
+        ) as gmail:
             sent = gmail.label_all_sent()
             got = gmail.label_replies(domains) if replies else 0
     except Exception as exc:
@@ -1053,6 +1055,156 @@ def label(
         raise typer.Exit(code=1)
     console.print(
         f"Labeled [bold]{sent}[/bold] sent email(s) and [bold]{got}[/bold] repl(ies) as {name}."
+    )
+
+
+replies_app = typer.Typer(help="Known broker replies (shared patterns).")
+app.add_typer(replies_app, name="replies")
+
+
+@app.command()
+def inbox(
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Show what would happen; change nothing."
+    ),
+) -> None:
+    """Read broker replies from Gmail and update requests where the answer is clear."""
+    from .config import load_config
+    from .db import init_db
+    from .engine.inbox import run_sync
+
+    try:
+        config = load_config()
+    except FileNotFoundError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+    init_db()
+    try:
+        report = run_sync(config, dry_run=dry_run)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+    for slug, kind in report.applied:
+        console.print(f"  [green]{kind:<12}[/green] {slug}")
+    console.print(
+        f"\n{len(report.applied)} new repl{'y' if len(report.applied) == 1 else 'ies'}"
+        f"{' (dry run)' if dry_run else ' applied'}, {report.review} to review."
+    )
+    if report.review and not dry_run:
+        console.print("Review them on the dashboard, or: [cyan]optout review[/cyan]")
+
+
+@app.command()
+def review(
+    prompt: bool = typer.Option(False, "--prompt", help="Print a prompt to paste into Claude."),
+    apply: str = typer.Option(
+        None, "--apply", help="Apply Claude's JSON answer from a file, or - for stdin."
+    ),
+) -> None:
+    """Replies the tool wasn't sure about. Sort them yourself or with Claude's help."""
+    import sys
+
+    from .brokers.registry import all_brokers
+    from .config import load_config
+    from .db import Submission, get_session, init_db
+    from .engine.assist import build_prompt, parse_answer, resolve, review_items
+
+    try:
+        config = load_config()
+    except FileNotFoundError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+    init_db()
+    names = {b.slug: b.name for b in all_brokers()}
+    with get_session() as session:
+        items = review_items(session)
+        from sqlmodel import select
+
+        contacted = {
+            s.broker_slug: names.get(s.broker_slug, s.broker_slug)
+            for s in session.exec(select(Submission))
+            if s.submitted_at
+        }
+        if apply:
+            text = sys.stdin.read() if apply == "-" else open(apply, encoding="utf-8").read()
+            refs = {it.ref: it for it in items}
+            verdicts, problems = parse_answer(text, set(refs), set(contacted))
+            for v in verdicts:
+                try:
+                    msg = resolve(
+                        session, refs[v.ref].row, v.outcome, v.note, "claude", broker=v.broker
+                    )
+                    console.print(f"  [green]{v.ref}[/green] {msg}")
+                except ValueError as exc:
+                    console.print(f"  [yellow]{v.ref}[/yellow] {exc}")
+            for p in problems:
+                console.print(f"  [yellow]{p}[/yellow]")
+            return
+        if not items:
+            console.print("[green]Nothing to review.[/green]")
+            return
+        if prompt:
+            print(build_prompt(items, config.profile, contacted))
+            return
+        for it in items:
+            r = it.row
+            who = names.get(r.broker_slug or "", r.broker_slug or "unmatched")
+            console.print(
+                f"[bold]{it.ref}[/bold] {who}  [dim]{r.from_addr} · {r.subject[:70]}[/dim]  "
+                f"guess: {r.kind}"
+            )
+        console.print(
+            "\nSort them on the dashboard, or ask Claude: [cyan]optout review --prompt[/cyan]"
+        )
+
+
+@replies_app.command("senders")
+def replies_senders() -> None:
+    """Which addresses each broker has replied from."""
+    from .brokers.registry import all_brokers
+    from .db import get_session, init_db
+    from .engine.inbox import senders_by_broker
+
+    init_db()
+    names = {b.slug: b.name for b in all_brokers()}
+    with get_session() as session:
+        found = senders_by_broker(session)
+    if not found:
+        console.print("No replies recorded yet. Run: optout inbox")
+        return
+    table = Table(show_header=True, header_style="bold", box=box.SIMPLE_HEAD)
+    table.add_column("Broker", style="bold")
+    table.add_column("Replied from")
+    for slug, addrs in sorted(found.items(), key=lambda kv: names.get(kv[0], kv[0]).lower()):
+        table.add_row(names.get(slug, slug), "\n".join(addrs))
+    console.print(table)
+
+
+@replies_app.command("share")
+def replies_share() -> None:
+    """Print known-reply entries learned from your sorted replies, without personal details."""
+    import yaml
+
+    from .config import load_config
+    from .db import get_session, init_db
+    from .engine.assist import learned_entries
+
+    try:
+        config = load_config()
+    except FileNotFoundError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+    init_db()
+    with get_session() as session:
+        entries = learned_entries(session, config.profile)
+    if not entries:
+        console.print("Nothing learned yet. Sort some replies first.")
+        return
+    print(yaml.safe_dump(entries, sort_keys=False, allow_unicode=True))
+    console.print(
+        "[dim]Check it has nothing personal, then contribute it: add it to "
+        "src/optout/data/known_replies.yml, or open an issue at "
+        "https://github.com/Doaky/optout/issues[/dim]"
     )
 
 
@@ -1170,6 +1322,16 @@ def daily() -> None:
                 lines.append(f"Stopped: {report.stopped_reason}")
         elif sel.eligible:
             lines.append(f"{len(sel.eligible)} brokers ready. Run: optout campaign --send")
+
+    from .engine.inbox import gmail_ready, run_sync
+
+    if gmail_ready(config) is None:
+        try:
+            rep = run_sync(config)
+            if rep.applied or rep.review:
+                lines.append(f"Replies: {len(rep.applied)} applied, {rep.review} to review")
+        except ValueError as exc:
+            lines.append(str(exc))
 
     drafts = _write_escalation_drafts(config, now)
     if drafts:

@@ -31,6 +31,7 @@ class Row:
     overdue: bool
     last_check: str
     drifted: bool
+    reply_from: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -68,6 +69,9 @@ def collect(
 
     newest_first = Submission.created_at.desc()  # type: ignore[attr-defined]
     subs = list(session.exec(select(Submission).order_by(newest_first)))
+    from ..engine.inbox import senders_by_broker
+
+    reply_from = senders_by_broker(session)
     seen: set[str] = set()
     for sub in subs:  # newest first: keep one row per broker, the latest attempt
         if sub.broker_slug in seen:
@@ -92,6 +96,7 @@ def collect(
             overdue=overdue,
             last_check=f"{v.outcome.replace('_', ' ')} {_date(v.checked_at)}" if v else "—",
             drifted=drift,
+            reply_from=reply_from.get(sub.broker_slug, []),
         )
         dash.rows.append(row)
         dash.counts[row.label] = dash.counts.get(row.label, 0) + 1
