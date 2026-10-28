@@ -44,11 +44,10 @@ FLASH = {
     "reply": "Reply recorded.",
     "toggle": "Saved.",
     "sent": "Marked as sent.",
-    "drafts": "Checked. Any new drafts are listed below.",
+    "drafts": "Checked. New drafts are listed under “Saved drafts”.",
     "started": "Batch started.",
     "err": "That didn't work. Check the details and try again.",
     "busy": "A batch is already running.",
-    "confirm": "The confirmation didn't match, so nothing was sent.",
     "nocfg": "No config found. Run optout init first.",
 }
 _BROKER_MAX = 80
@@ -118,7 +117,8 @@ def _make_handler(app: App):
             self.send_header("X-Frame-Options", "DENY")
             self.send_header(
                 "Content-Security-Policy",
-                "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; "
+                "default-src 'none'; style-src 'unsafe-inline'; img-src data:; "
+                "form-action 'self'; "
                 "base-uri 'none'; frame-ancestors 'none'",
             )
             for k, v in (headers or {}).items():
@@ -183,9 +183,42 @@ def _make_handler(app: App):
                     config = None
                 status = query.get("status", [None])[0]
                 status = status if status in STATUS_LABEL.values() else None
+                draft_files = actions.list_drafts()
+                ui = render.UI(
+                    csrf=app.csrf,
+                    drafts=[p.name for p in draft_files],
+                    job=dict(app.job),
+                    flash=flash,
+                    query=query.get("q", [""])[0][:80],
+                    configured=config is not None,
+                )
+                if (want := query.get("draft", [""])[0]) and (
+                    match := next((p for p in draft_files if p.name == want), None)
+                ):
+                    kind = query.get("dk", [""])[0]
+                    ui.open_draft = (
+                        match.name,
+                        match.read_text(),
+                        query.get("ds", [""])[0][:_BROKER_MAX],
+                        kind if kind in actions.ESCALATION_KINDS else "",
+                    )
                 with get_session() as session:
-                    d = collect(session, config, now, drafts=len(actions.list_drafts()))
-                return self._send(200, render.dashboard(d, interactive=True, status_filter=status))
+                    d = collect(session, config, now, drafts=len(draft_files))
+                    if config is not None:
+                        sel = select_brokers(all_brokers(), session, now=now)
+                        ui.used = sent_today(session, now)
+                        ui.limit = config.email.daily_limit
+                        room = max(0, ui.limit - ui.used)
+                        batch = sel.eligible[: min(room, 40)]
+                        ui.previews = [
+                            (b.name, b.opt_out_email or "", *_email_for(config, b)) for b in batch
+                        ]
+                        ui.sender = config.email.from_address or (
+                            config.email.smtp.username if config.email.smtp else "your account"
+                        )
+                return self._send(
+                    200, render.dashboard(d, interactive=True, status_filter=status, ui=ui)
+                )
 
             if path == "/campaign":
                 try:
@@ -306,12 +339,37 @@ def _make_handler(app: App):
             except Exception:
                 self._redirect("/?m=err")
 
+        def _row_action(self, slug: str, action: str) -> None:
+            kind, _, arg = action.partition(":")
+            if kind == "reply":
+                with get_session() as session:
+                    actions.record_reply(session, slug, arg, None)
+                return self._redirect("/?m=reply")
+            if kind == "draft":
+                out = actions.write_draft_now(load_config(), slug, arg, datetime.now(UTC))
+                return self._redirect(
+                    f"/?draft={quote(out.name, safe='')}&ds={quote(slug, safe='')}"
+                    f"&dk={quote(arg, safe='')}#draft"
+                )
+            if kind == "sent":
+                with get_session() as session:
+                    actions.record_escalation_sent(session, slug, arg)
+                return self._redirect("/?m=sent")
+            if action == "toggle:off":
+                if slug not in {b.slug for b in all_brokers()}:
+                    raise ValueError("unknown broker")
+                set_enabled(slug, False)
+                return self._redirect("/?m=toggle")
+            raise ValueError("unknown action")
+
         def _route_post(self, path: str, form: dict[str, str]) -> None:
             init_db()
             load_registry()
             slug = form.get("slug", "")[:_BROKER_MAX]
             back = f"/broker/{quote(slug, safe='')}"
             try:
+                if path == "/act/row":
+                    return self._row_action(slug, form.get("action", ""))
                 if path == "/act/reply":
                     with get_session() as session:
                         actions.record_reply(
@@ -334,18 +392,16 @@ def _make_handler(app: App):
                     return self._redirect(f"/draft/{quote(out.name, safe='')}")
                 if path == "/act/make-drafts":
                     actions.write_escalation_drafts(load_config(), datetime.now(UTC))
-                    return self._redirect("/drafts?m=drafts")
+                    return self._redirect("/?m=drafts")
                 if path == "/act/campaign":
                     try:
                         config = load_config()
                     except FileNotFoundError:
-                        return self._redirect("/campaign?m=nocfg")
+                        return self._redirect("/?m=nocfg#send")
                     count = int(form.get("count", "0"))
                     if not 1 <= count <= min(40, config.email.daily_limit):
                         raise ValueError("count out of range")
-                    if form.get("confirm", "").strip() != f"SEND {count}":
-                        return self._redirect("/campaign?m=confirm")
-                    return self._redirect(f"/campaign?m={app.start_campaign(count)}")
+                    return self._redirect(f"/?m={app.start_campaign(count)}#send")
             except ValueError:
                 return self._redirect("/?m=err")
             self._fail(404, "Not found.")
@@ -392,6 +448,40 @@ def make_server(port: int = 8765) -> tuple[ThreadingHTTPServer, App]:
     raise OSError(f"no free port near {port}: {last}")
 
 
+def _is_wsl() -> bool:
+    try:
+        return "microsoft" in open("/proc/version").read().lower()
+    except OSError:
+        return False
+
+
+def open_in_browser(url: str) -> bool:
+    """Open *url* in the user's browser, including from WSL (xdg-open has no browser there)."""
+    import shutil
+    import subprocess
+
+    quiet = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+    if _is_wsl():
+        if shutil.which("wslview"):
+            return subprocess.run(["wslview", url], **quiet).returncode == 0
+        ps = (
+            shutil.which("powershell.exe")
+            or "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
+        )
+        # The URL is ours (127.0.0.1 + url-safe token); quote it for PowerShell anyway.
+        safe = url.replace("'", "''")
+        try:
+            return (
+                subprocess.run(
+                    [ps, "-NoProfile", "-Command", f"Start-Process '{safe}'"], timeout=20, **quiet
+                ).returncode
+                == 0
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+    return webbrowser.open(url)
+
+
 def serve(port: int = 8765, open_browser: bool = True) -> None:
     httpd, app = make_server(port)
     url = f"http://127.0.0.1:{app.port}/?t={app.token}"
@@ -401,7 +491,7 @@ def serve(port: int = 8765, open_browser: bool = True) -> None:
     )
     print("Press Ctrl+C to stop.", flush=True)
     if open_browser:
-        webbrowser.open(url)
+        open_in_browser(url)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

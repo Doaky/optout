@@ -140,7 +140,7 @@ def test_security_headers(ui):
 
 
 def test_registry_text_is_escaped(ui):
-    for path in ("/campaign", "/preview", "/broker/evil"):
+    for path in ("/", "/campaign", "/preview", "/broker/evil"):
         r, body = ui.req("GET", path)
         assert r.status == 200, path
         assert "<script>alert(1)" not in body, path
@@ -181,23 +181,28 @@ def test_path_traversal_in_draft_names_is_blocked(ui):
 def test_preview_shows_exact_email_and_minimal_identifiers(ui):
     r, body = ui.req("GET", "/preview?count=5")
     assert r.status == 200
-    assert "Preview: 1 emails" in body and "SEND 1" in body
+    assert "Preview: 1 emails" in body and "Send these 1 emails" in body
     assert "1 Main St, Richmond, VA 23219" in body
     assert "1990" not in body and "5125550000" not in body
 
 
-def test_send_requires_exact_typed_confirmation(ui):
-    r, _ = ui.post("/act/campaign", {"count": "1", "confirm": "yes"})
-    assert r.status == 303 and r.getheader("Location") == "/campaign?m=confirm"
-    r, _ = ui.post("/act/campaign", {"count": "1", "confirm": "SEND 2"})
-    assert r.getheader("Location") == "/campaign?m=confirm"
-    with get_session() as s:
-        assert list_submissions(s) == []  # nothing was attempted
+def test_send_is_one_click_but_still_forgery_protected(ui, monkeypatch):
+    started = []
+    monkeypatch.setattr(
+        "optout.web.server.App.start_campaign", lambda self, n: started.append(n) or "started"
+    )
+    # forged: no CSRF / foreign origin -> nothing starts
+    assert ui.post("/act/campaign", {"count": "1"}, with_csrf=False)[0].status == 403
+    r, _ = ui.post("/act/campaign", {"count": "1"}, headers={"Origin": "https://evil.example"})
+    assert r.status == 403 and started == []
+    # the page's own button -> starts
+    r, _ = ui.post("/act/campaign", {"count": "1"})
+    assert r.getheader("Location") == "/?m=started#send" and started == [1]
 
 
 def test_count_out_of_range_is_refused(ui):
     for count in ("0", "-1", "999", "abc"):
-        r, _ = ui.post("/act/campaign", {"count": count, "confirm": f"SEND {count}"})
+        r, _ = ui.post("/act/campaign", {"count": count})
         assert r.getheader("Location") == "/?m=err", count
 
 
@@ -237,6 +242,79 @@ def test_reply_and_draft_flow(ui):
     assert "1990" not in body and "5125550000" not in body
 
     r, body = ui.req("GET", "/")
-    assert "Broker says done</td>" in body
-    assert "Removed ✓ verified</td>" not in body  # the footnote mentions it; no row may
-    assert "Follow up" in body
+    assert "Broker says done</span></td>" in body
+    assert "Removed (verified)</span></td>" not in body
+    assert "/act/row" in body
+
+
+def test_main_page_has_everything_without_clicking_in(ui):
+    r, body = ui.req("GET", "/")
+    assert r.status == 200
+    assert "Send a batch" in body and "Preview all 1 emails" in body
+    assert "Send emails" in body  # one-click send lives on the main page
+    assert "1 Main St, Richmond, VA 23219" in body  # the exact email text, inline
+    assert "1990" not in body and "5125550000" not in body
+
+
+def _sent_request(slug="evil"):
+    from optout.db import create_submission, mark_submitted
+
+    with get_session() as s:
+        sub = create_submission(
+            s,
+            broker_slug=slug,
+            method_used="email",
+            legal_basis_cited=["VCDPA"],
+            statutory_response_days=45,
+        )
+        mark_submitted(s, sub, {}, None, 45)
+        sub.status = "awaiting_broker_confirmation"
+        s.add(sub)
+        s.commit()
+
+
+def test_row_actions_work_from_the_main_page(ui):
+    _sent_request()
+    _, body = ui.req("GET", "/")
+    assert "/act/row" in body and "Automated reply only" in body
+
+    r, _ = ui.post("/act/row", {"slug": "evil", "action": "reply:auto-reply"})
+    assert r.getheader("Location") == "/?m=reply"
+    with get_session() as s:
+        assert list_submissions(s)[0].status == "awaiting_broker_confirmation"
+
+    r, _ = ui.post("/act/row", {"slug": "evil", "action": "draft:clarify"})
+    loc = r.getheader("Location")
+    assert loc.startswith("/?draft=") and "ds=evil" in loc and "dk=clarify" in loc
+    r, body = ui.req("GET", loc)
+    assert "not about ad preferences" in body and "I sent it" in body  # inline on the main page
+
+    r, _ = ui.post("/act/row", {"slug": "evil", "action": "reply:deleted"})
+    with get_session() as s:
+        assert list_submissions(s)[0].status == "confirmed"
+
+    r, _ = ui.post("/act/row", {"slug": "evil", "action": "toggle:off"})
+    _, body = ui.req("GET", "/")
+    assert "Preview all" not in body  # a skipped broker leaves the batch
+
+
+def test_row_actions_reject_unknown_input(ui):
+    _sent_request()
+    for action in ("rm:everything", "reply:maybe", "draft:../../x", "sent:nope", ""):
+        r, _ = ui.post("/act/row", {"slug": "evil", "action": action})
+        assert r.getheader("Location") == "/?m=err", action
+    r, _ = ui.post("/act/row", {"slug": "nobody", "action": "reply:deleted"})
+    assert r.getheader("Location") == "/?m=err"
+
+
+def test_draft_viewer_only_opens_real_draft_files(ui):
+    for q in ("..%2F..%2Fetc%2Fpasswd", "%2Fetc%2Fpasswd", "x.txt"):
+        r, body = ui.req("GET", f"/?draft={q}")
+        assert r.status == 200 and "Draft:" not in body
+
+
+def test_search_filters_the_table(ui):
+    _sent_request()
+    _, hit = ui.req("GET", "/?q=evil")
+    _, miss = ui.req("GET", "/?q=zzzz")
+    assert "Awaiting reply</span>" in hit and "No requests match" in miss

@@ -20,6 +20,7 @@ from ..brokers.schema import BrokerDef
 from ..config import UserConfig
 from ..db import Submission, create_submission
 from .dispatcher import run_submission
+from .methods import email as email_method
 
 ACTIVE = frozenset({"queued", "awaiting_user_input", "submitted", "awaiting_broker_confirmation"})
 MAX_CONSECUTIVE_FAILURES = 3
@@ -99,32 +100,33 @@ def run_campaign(
         return report
 
     consecutive = 0
-    for i, broker in enumerate(brokers[:budget]):
-        if i:
-            sleep(config.email.send_delay_seconds)
-        sub = create_submission(
-            session,
-            broker_slug=broker.slug,
-            method_used=broker.method,
-            legal_basis_cited=broker.legal_basis,
-            statutory_response_days=broker.statutory_response_days,
-        )
-        runner(session, sub, broker, config.profile, config)
-        if sub.status == "awaiting_broker_confirmation":
-            report.sent.append(broker.slug)
-            consecutive = 0
+    with email_method.batch_session(config):
+        for i, broker in enumerate(brokers[:budget]):
+            if i:
+                sleep(config.email.send_delay_seconds)
+            sub = create_submission(
+                session,
+                broker_slug=broker.slug,
+                method_used=broker.method,
+                legal_basis_cited=broker.legal_basis,
+                statutory_response_days=broker.statutory_response_days,
+            )
+            runner(session, sub, broker, config.profile, config)
+            if sub.status == "awaiting_broker_confirmation":
+                report.sent.append(broker.slug)
+                consecutive = 0
+                if on_progress:
+                    on_progress(broker.slug, "sent")
+                continue
+            reason = sub.failure_reason or sub.status
+            report.failed.append((broker.slug, reason))
             if on_progress:
-                on_progress(broker.slug, "sent")
-            continue
-        reason = sub.failure_reason or sub.status
-        report.failed.append((broker.slug, reason))
-        if on_progress:
-            on_progress(broker.slug, "failed")
-        if sub.status == "awaiting_user_input":  # SMTP auth problem: every send would fail
-            report.stopped_reason = reason
-            break
-        consecutive += 1
-        if consecutive >= MAX_CONSECUTIVE_FAILURES:
-            report.stopped_reason = f"{consecutive} failures in a row; last: {reason}"
-            break
+                on_progress(broker.slug, "failed")
+            if sub.status == "awaiting_user_input":  # SMTP auth problem: every send would fail
+                report.stopped_reason = reason
+                break
+            consecutive += 1
+            if consecutive >= MAX_CONSECUTIVE_FAILURES:
+                report.stopped_reason = f"{consecutive} failures in a row; last: {reason}"
+                break
     return report

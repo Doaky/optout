@@ -13,7 +13,7 @@ from sqlmodel import Session, select
 
 from ..brokers.registry import all_brokers
 from ..config import UserConfig
-from ..db import Submission, is_drifted, latest_verification
+from ..db import Submission, SubmissionEvent, is_drifted, latest_verification
 from ..engine.campaign import select_brokers, sent_today
 from ..labels import STATUS_LABEL
 
@@ -44,6 +44,8 @@ class Dashboard:
     sent_today: int = 0
     daily_limit: int = 0
     drafts: int = 0
+    # Daily cumulative progress: (ISO date, sent, broker replied, verified removed)
+    series: list[tuple[str, int, int, int]] = field(default_factory=list)
 
 
 def _aware(dt: datetime) -> datetime:
@@ -97,9 +99,51 @@ def collect(
         if drift:
             dash.attention.append((row.slug, row.name, "form may have changed (drift)"))
 
+    dash.series = progress_series(session, subs, now)
+
     if config is not None:
         sel = select_brokers(all_brokers(), session, now=now)
         dash.eligible, dash.skipped = len(sel.eligible), len(sel.skipped)
         dash.sent_today = sent_today(session, now)
         dash.daily_limit = config.email.daily_limit
     return dash
+
+
+_REPLY_EVENTS = {"confirmation_received", "rejection_received", "broker_acknowledged"}
+
+
+def progress_series(
+    session: Session, subs: list[Submission], now: datetime
+) -> list[tuple[str, int, int, int]]:
+    """Cumulative counts per day from the first request sent until today."""
+    from datetime import timedelta
+
+    sent_days = [_aware(s.submitted_at).date() for s in subs if s.submitted_at]
+    if not sent_days:
+        return []
+    ids = {s.id for s in subs}
+    first_reply: dict = {}
+    removed: dict = {}
+    for ev in session.exec(select(SubmissionEvent)):
+        if ev.submission_id not in ids:
+            continue
+        day = _aware(ev.created_at).date()
+        if ev.event_type in _REPLY_EVENTS:
+            first_reply[ev.submission_id] = min(day, first_reply.get(ev.submission_id, day))
+        elif ev.event_type == "removed_verified":
+            removed[ev.submission_id] = min(day, removed.get(ev.submission_id, day))
+
+    start, end = min(sent_days), now.date()
+    out: list[tuple[str, int, int, int]] = []
+    day = start
+    while day <= end:
+        out.append(
+            (
+                day.isoformat(),
+                sum(1 for d in sent_days if d <= day),
+                sum(1 for d in first_reply.values() if d <= day),
+                sum(1 for d in removed.values() if d <= day),
+            )
+        )
+        day += timedelta(days=1)
+    return out

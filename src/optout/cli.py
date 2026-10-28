@@ -1080,7 +1080,6 @@ def report(
 ) -> None:
     """Write a static status page (no server). Contains broker names and dates, not your details."""
     import os
-    import webbrowser
     from datetime import UTC, datetime
     from pathlib import Path
 
@@ -1106,7 +1105,10 @@ def report(
         fh.write(render.dashboard(d, interactive=False))
     console.print(f"Report written: {path}")
     if open_it:
-        webbrowser.open(path.as_uri())
+        from .web.server import open_in_browser
+
+        if not open_in_browser(path.as_uri()):
+            console.print("[dim]Open that file in your browser.[/dim]")
 
 
 @app.command()

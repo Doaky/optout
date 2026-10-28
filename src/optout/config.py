@@ -101,7 +101,7 @@ class EmailConfig(BaseModel):
     # Lets `optout daily` send without a typed confirmation. Off unless you turn it on.
     allow_unattended: bool = False
     daily_limit: int = 40  # max campaign emails per UTC day
-    send_delay_seconds: int = 30  # pause between campaign emails
+    send_delay_seconds: int = 5  # pause between campaign emails
 
     @model_validator(mode="after")
     def _label_is_plain(self) -> EmailConfig:

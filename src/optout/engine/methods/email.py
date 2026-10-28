@@ -6,6 +6,8 @@ import os
 import smtplib
 import ssl
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid
 from pathlib import Path
@@ -72,7 +74,11 @@ def run(
     _send(smtp_cfg, msg)
 
     artifact_path = _save_eml(submission.id, msg)
-    label_status = _try_label(config, smtp_cfg, msg["Message-ID"])
+    if _batch is not None:
+        _batch.message_ids.append(msg["Message-ID"])  # labelled together at the end
+        label_status = None
+    else:
+        label_status = _try_label(config, smtp_cfg, msg["Message-ID"])
 
     return SubmissionResult(
         payload={
@@ -180,6 +186,73 @@ def read_smtp_password(smtp_cfg: SmtpConfig) -> str:
     return os.environ.get(smtp_cfg.password_env, "")
 
 
+class _Batch:
+    """One SMTP login reused across a campaign; Gmail labels applied once at the end."""
+
+    def __init__(self) -> None:
+        self.conn: smtplib.SMTP | None = None
+        self.message_ids: list[str] = []
+
+
+_batch: _Batch | None = None
+
+
+@contextmanager
+def batch_session(config: UserConfig) -> Iterator[_Batch]:
+    """Use around a run of sends. Without it every email logs in separately."""
+    global _batch
+    batch = _batch = _Batch()
+    try:
+        yield batch
+    finally:
+        _batch = None
+        if batch.conn is not None:
+            _quit(batch.conn)
+        smtp_cfg = config.email.smtp
+        if batch.message_ids and smtp_cfg and config.email.gmail_label:
+            _label_many(config, smtp_cfg, batch.message_ids)
+
+
+def _label_many(config: UserConfig, smtp_cfg: SmtpConfig, message_ids: list[str]) -> None:
+    if not smtp_cfg.host.endswith("gmail.com"):
+        return
+    from ...gmail_label import GmailLabeler
+
+    try:
+        with GmailLabeler(
+            smtp_cfg.username, read_smtp_password(smtp_cfg), config.email.gmail_label or ""
+        ) as gmail:
+            gmail.label_message_ids(message_ids)
+    except Exception:
+        pass  # best effort; `optout label` catches up
+
+
+def _open(smtp_cfg: SmtpConfig, password: str) -> smtplib.SMTP:
+    """Connect, secure, and log in. Caller closes."""
+    if smtp_cfg.port == 465:
+        smtp: smtplib.SMTP = smtplib.SMTP_SSL(
+            smtp_cfg.host, smtp_cfg.port, context=ssl.create_default_context(), timeout=60
+        )
+        if password:
+            smtp.login(smtp_cfg.username, password)
+        return smtp
+    smtp = smtplib.SMTP(smtp_cfg.host, smtp_cfg.port, timeout=60)
+    smtp.ehlo()
+    if smtp.has_extn("STARTTLS"):
+        smtp.starttls(context=ssl.create_default_context())
+        smtp.ehlo()
+    if password and smtp.has_extn("AUTH"):
+        smtp.login(smtp_cfg.username, password)
+    return smtp
+
+
+def _quit(smtp: smtplib.SMTP) -> None:
+    try:
+        smtp.quit()
+    except Exception:
+        pass
+
+
 def _send(smtp_cfg: SmtpConfig, msg: EmailMessage) -> None:
     password = read_smtp_password(smtp_cfg)
     if not password and smtp_cfg.host != "localhost" and not smtp_cfg.host.startswith("127."):
@@ -188,21 +261,24 @@ def _send(smtp_cfg: SmtpConfig, msg: EmailMessage) -> None:
         )
 
     try:
-        if smtp_cfg.port == 465:
-            ctx = ssl.create_default_context()
-            with smtplib.SMTP_SSL(smtp_cfg.host, smtp_cfg.port, context=ctx) as smtp:
-                if password:
-                    smtp.login(smtp_cfg.username, password)
+        if _batch is None:
+            smtp = _open(smtp_cfg, password)
+            try:
                 smtp.send_message(msg)
+            finally:
+                _quit(smtp)
         else:
-            with smtplib.SMTP(smtp_cfg.host, smtp_cfg.port) as smtp:
-                smtp.ehlo()
-                if smtp.has_extn("STARTTLS"):
-                    smtp.starttls()
-                    smtp.ehlo()
-                if password and smtp.has_extn("AUTH"):
-                    smtp.login(smtp_cfg.username, password)
-                smtp.send_message(msg)
+            # Reuse the batch connection; if the server dropped it, log in again once.
+            for attempt in (1, 2):
+                if _batch.conn is None:
+                    _batch.conn = _open(smtp_cfg, password)
+                try:
+                    _batch.conn.send_message(msg)
+                    break
+                except smtplib.SMTPServerDisconnected:
+                    _batch.conn = None
+                    if attempt == 2:
+                        raise
     except smtplib.SMTPRecipientsRefused as exc:
         raise SubmissionFailed(f"SMTP server refused recipient {msg['To']}: {exc}") from exc
     except smtplib.SMTPServerDisconnected as exc:
