@@ -53,9 +53,16 @@ def run(
         raise SubmissionFailed("No SMTP configuration found. Run `optout init` to configure email.")
 
     subject = f"Data Deletion Request — {profile.legal_name}"  # type: ignore[attr-defined]
-    body = _render_body(broker, profile)
+    contact = _contact_email(config, broker, profile)
+    body = _render_body(
+        broker,
+        profile,
+        contact_email=contact,
+        minimal=bool(broker.source) and config.email.identifiers == "minimal",
+    )
     msg = _build_message(
-        from_addr=smtp_cfg.username,
+        from_addr=config.email.from_address or smtp_cfg.username,
+        reply_to=contact if config.email.alias_pattern else None,
         to_addr=broker.opt_out_email,
         subject=subject,
         body=body,
@@ -69,7 +76,7 @@ def run(
     return SubmissionResult(
         payload={
             "to": broker.opt_out_email,
-            "from": smtp_cfg.username,
+            "from": msg["From"],
             "subject": subject,
             "message_id": msg["Message-ID"],
         },
@@ -82,10 +89,29 @@ def run(
 # ---------------------------------------------------------------------------
 
 
-def _render_body(broker: BrokerDef, profile: object) -> str:
+def _contact_email(config: UserConfig, broker: BrokerDef, profile: object) -> str:
+    """The address the broker should write back to: a per-broker alias if configured."""
+    if config.email.alias_pattern:
+        return config.email.alias_pattern.format(slug=broker.slug)
+    emails = profile.emails.current  # type: ignore[attr-defined]
+    return emails[0] if emails else (config.email.from_address or "")
+
+
+def _render_body(
+    broker: BrokerDef,
+    profile: object,
+    *,
+    contact_email: str | None = None,
+    minimal: bool = False,
+) -> str:
     statutes = get_statutes(broker.legal_basis)
-    template = _env.get_template("opt_out_email.txt.j2")
-    return template.render(broker=broker, profile=profile, statutes=statutes)
+    name = "opt_out_email_minimal.txt.j2" if minimal else "opt_out_email.txt.j2"
+    return _env.get_template(name).render(
+        broker=broker,
+        profile=profile,
+        statutes=statutes,
+        contact_email=contact_email or "",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -100,10 +126,13 @@ def _build_message(
     subject: str,
     body: str,
     submission_id: uuid.UUID,
+    reply_to: str | None = None,
 ) -> EmailMessage:
     msg = EmailMessage()
     msg["From"] = from_addr
     msg["To"] = to_addr
+    if reply_to:
+        msg["Reply-To"] = reply_to
     msg["Subject"] = subject
     msg["Date"] = formatdate(localtime=False)
     msg["Message-ID"] = make_msgid(domain=from_addr.split("@")[-1])

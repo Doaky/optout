@@ -73,6 +73,22 @@ class SmtpConfig(BaseModel):
 class EmailConfig(BaseModel):
     method: Literal["smtp", "gmail_oauth"]
     smtp: SmtpConfig | None = None
+    # Address shown in From. Defaults to the SMTP username (which reveals it to brokers).
+    from_address: str | None = None
+    # Per-broker masked alias, e.g. "optout-{slug}@example.com" (needs a catch-all or
+    # alias service). Used as Reply-To and as the contact address inside the request.
+    alias_pattern: str | None = None
+    # "minimal": name + address + contact email only (for bulk-imported brokers).
+    # "full" adds date of birth, phones, and previous addresses.
+    identifiers: Literal["minimal", "full"] = "minimal"
+    daily_limit: int = 40  # max campaign emails per UTC day
+    send_delay_seconds: int = 30  # pause between campaign emails
+
+    @model_validator(mode="after")
+    def _alias_pattern_has_slug(self) -> EmailConfig:
+        if self.alias_pattern and "{slug}" not in self.alias_pattern:
+            raise ValueError("email.alias_pattern must contain {slug}")
+        return self
 
     @model_validator(mode="after")
     def _smtp_required_when_method_is_smtp(self) -> EmailConfig:

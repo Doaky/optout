@@ -96,13 +96,35 @@ def _fmt_date(dt) -> str:
 @brokers_app.command("list")
 def brokers_list(
     category: str | None = typer.Option(None, "--category", "-c", help="Filter by category."),
+    method: str | None = typer.Option(None, "--method", "-m", help="Filter by method."),
+    disabled: bool = typer.Option(False, "--disabled", help="Only show disabled brokers."),
+    show_all: bool = typer.Option(False, "--all", "-a", help="List every row, however many."),
 ) -> None:
     """Show all known brokers."""
-    from .brokers.registry import all_brokers
+    from collections import Counter
+
+    from .brokers.registry import all_brokers, load_errors
 
     brokers = all_brokers()
     if category:
         brokers = [b for b in brokers if b.category == category]
+    if method:
+        brokers = [b for b in brokers if b.method == method]
+    if disabled:
+        brokers = [b for b in brokers if not b.enabled]
+    if load_errors:
+        console.print(
+            f"[yellow]{len(load_errors)} broker file(s) skipped; first: {load_errors[0]}[/yellow]"
+        )
+    if len(brokers) > 40 and not show_all:
+        by = Counter((b.method, "on" if b.enabled else "off") for b in brokers)
+        console.print(f"[bold]{len(brokers)} brokers[/bold]")
+        for (m, st), n in sorted(by.items()):
+            console.print(f"  {m:<9} {st:<4} {n}")
+        console.print(
+            "[dim]Use --all to list them, or filter with --category/--method/--disabled.[/dim]"
+        )
+        raise typer.Exit(code=0)
 
     if not brokers:
         msg = (
@@ -114,6 +136,7 @@ def brokers_list(
         raise typer.Exit(code=0)
 
     table = Table(show_header=True, header_style="bold", box=box.SIMPLE_HEAD)
+    table.add_column("On", justify="center")
     table.add_column("Name", style="bold", min_width=16)
     table.add_column("Slug", style="dim")
     table.add_column("Category")
@@ -125,6 +148,7 @@ def brokers_list(
     for b in brokers:
         ms = _method_style(b.method)
         table.add_row(
+            "[green]✓[/green]" if b.enabled else "[red]✗[/red]",
             b.name,
             b.slug,
             b.category,
@@ -231,6 +255,164 @@ def brokers_probe(
     out = out_dir / f"{broker.slug}-{stamp}.json"
     out.write_text(json.dumps(asdict(plan), indent=2))
     console.print(f"\nReport saved to {out}")
+
+
+_CA_REGISTRY_URL = "https://cppa.ca.gov/data_broker_registry/registry.csv"
+_MAX_REGISTRY_BYTES = 20_000_000
+
+
+@brokers_app.command("import")
+def brokers_import(
+    csv_path: str | None = typer.Argument(
+        None, help="Registry CSV file. Omit to download California's from cppa.ca.gov."
+    ),
+) -> None:
+    """Generate email-method broker definitions from the California registry CSV."""
+    import urllib.request
+    from datetime import date
+    from pathlib import Path
+
+    from .brokers.importer import parse_ca_registry, write_yaml_dir
+    from .brokers.registry import imported_dir
+    from .db import db_path
+
+    if csv_path:
+        path = Path(csv_path).expanduser()
+        if not path.is_file():
+            console.print(f"[red]No such file: {path}[/red]")
+            raise typer.Exit(code=1)
+    else:
+        # Fixed allowlisted URL only; nothing from inside the registry is ever fetched.
+        path = db_path().parent / "registry-cache" / "ca-registry.csv"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        console.print(f"Downloading {_CA_REGISTRY_URL}")
+        req = urllib.request.Request(_CA_REGISTRY_URL, headers={"User-Agent": "optout/0.2"})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:  # noqa: S310 (fixed https URL)
+                data = resp.read(_MAX_REGISTRY_BYTES + 1)
+        except OSError as exc:
+            console.print(f"[red]Download failed: {exc}[/red]")
+            raise typer.Exit(code=1)
+        if len(data) > _MAX_REGISTRY_BYTES:
+            console.print("[red]Registry file is unexpectedly large; aborting.[/red]")
+            raise typer.Exit(code=1)
+        path.write_bytes(data)
+
+    result = parse_ca_registry(path)
+    if not result.brokers:
+        console.print("[red]No usable brokers found; is this a registry CSV?[/red]")
+        raise typer.Exit(code=1)
+    n = write_yaml_dir(result, imported_dir(), "ca-registry", date.today().isoformat())
+    exempt = sum(1 for b in result.brokers if b.exemptions)
+    merged = sum(len(b.covers) for b in result.brokers)
+    console.print(
+        f"[green]Imported {n} brokers[/green] to {imported_dir()}\n"
+        f"  {exempt} disabled by default (FCRA/GLBA/HIPAA-regulated)\n"
+        f"  {merged} more entities merged into a shared contact\n"
+        f"  {len(result.skipped)} skipped (no valid email)\n"
+        "Nothing has been sent. Next: [cyan]optout campaign[/cyan] previews what would go out."
+    )
+
+
+def _toggle(slug: str, enabled: bool) -> None:
+    from .brokers.registry import get_broker, set_enabled
+
+    try:
+        get_broker(slug)
+    except KeyError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+    set_enabled(slug, enabled)
+    console.print(f"{slug}: {'[green]enabled[/green]' if enabled else '[red]disabled[/red]'}")
+
+
+@brokers_app.command("disable")
+def brokers_disable(slug: str = typer.Argument(..., help="Broker slug to skip.")) -> None:
+    """Never contact this broker (e.g. a site you want to stay listed on)."""
+    _toggle(slug, False)
+
+
+@brokers_app.command("enable")
+def brokers_enable(slug: str = typer.Argument(..., help="Broker slug to include.")) -> None:
+    """Include this broker again (also overrides the FCRA/GLBA default-off)."""
+    _toggle(slug, True)
+
+
+@app.command()
+def campaign(
+    limit: int = typer.Option(25, "--limit", "-n", help="Max emails this run."),
+    only: list[str] = typer.Option(None, "--only", help="Restrict to these broker slugs."),
+    send: bool = typer.Option(False, "--send", help="Actually send. Default is preview only."),
+) -> None:
+    """Email deletion requests to every eligible broker, within daily limits."""
+    from datetime import UTC, datetime
+
+    from .brokers.registry import all_brokers
+    from .config import load_config
+    from .db import get_session, init_db
+    from .engine.campaign import run_campaign, select_brokers, sent_today
+    from .engine.methods.email import _contact_email, _render_body
+    from .wizard import assert_own_identity
+
+    try:
+        config = load_config()
+    except FileNotFoundError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+    assert_own_identity(config.profile.legal_name)
+    init_db()
+    now = datetime.now(UTC)
+
+    with get_session() as session:
+        sel = select_brokers(all_brokers(), session, now=now, only=only or None)
+        used = sent_today(session, now)
+        quota = max(0, config.email.daily_limit - used)
+        batch = sel.eligible[: min(limit, quota)]
+
+        console.print(
+            f"[bold]{len(sel.eligible)}[/bold] brokers eligible, "
+            f"{len(sel.skipped)} skipped. Daily quota: {used}/{config.email.daily_limit} used."
+        )
+        if not batch:
+            console.print("[yellow]Nothing to send right now.[/yellow]")
+            raise typer.Exit(code=0)
+
+        sender = config.email.from_address or (
+            config.email.smtp.username if config.email.smtp else "?"
+        )
+        console.print(f"This run would email [bold]{len(batch)}[/bold] brokers from {sender}:")
+        console.print(
+            "  " + ", ".join(b.slug for b in batch[:15]) + (" …" if len(batch) > 15 else "")
+        )
+
+        if not send:
+            sample = batch[0]
+            minimal = bool(sample.source) and config.email.identifiers == "minimal"
+            body = _render_body(
+                sample,
+                config.profile,
+                contact_email=_contact_email(config, sample, config.profile),
+                minimal=minimal,
+            )
+            console.print(f"\n[dim]Sample, to {sample.opt_out_email}:[/dim]\n{body}")
+            console.print("[yellow]Preview only.[/yellow] Re-run with [cyan]--send[/cyan] to send.")
+            raise typer.Exit(code=0)
+
+        typed = typer.prompt(f"Type SEND {len(batch)} to send these emails now")
+        if typed.strip() != f"SEND {len(batch)}":
+            console.print("Cancelled.")
+            raise typer.Exit(code=1)
+
+        def progress(slug: str, state: str) -> None:
+            colour = "green" if state == "sent" else "red"
+            console.print(f"  [{colour}]{state:<6}[/{colour}] {slug}")
+
+        report = run_campaign(session, config, batch, limit=limit, on_progress=progress)
+
+    console.print(f"\n[bold]{len(report.sent)} sent, {len(report.failed)} failed.[/bold]")
+    if report.stopped_reason:
+        console.print(f"[yellow]Stopped early: {report.stopped_reason}[/yellow]")
+    console.print("Track them with [cyan]optout status[/cyan]. Sent does not mean removed.")
 
 
 @brokers_app.command("info")
@@ -505,7 +687,11 @@ def queue(
     init_db()
 
     try:
-        brokers_to_queue = [get_broker(broker)] if broker else all_brokers()
+        brokers_to_queue = (
+            [get_broker(broker)]
+            if broker
+            else [b for b in all_brokers() if b.enabled and not b.source]
+        )
     except KeyError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1)

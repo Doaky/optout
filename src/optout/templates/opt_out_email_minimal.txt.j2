@@ -1,0 +1,25 @@
+Dear {{ broker.name }} Privacy Team,
+
+I am a resident of {{ profile.current_address.state }} requesting the deletion of all personal information
+that {{ broker.name }}{% if broker.covers %} and its affiliated registered entities ({{ broker.covers | join("; ") }}){% endif %} holds about me, and to opt me out of any sale or sharing of that information.
+
+To locate my records:
+
+Name:     {{ profile.legal_name }}
+{% if profile.aliases %}
+Also known as: {{ profile.aliases | join(", ") }}
+{% endif %}
+Address:  {{ profile.current_address.street }}, {{ profile.current_address.city }}, {{ profile.current_address.state }} {{ profile.current_address.zip }}
+Email:    {{ contact_email }}
+
+{% for s in statutes %}
+Basis: {{ s.citation }} ({{ s.name }}): "{{ s.right_text }}"
+{% endfor %}
+Where the law requires it, I ask that you respond within {{ broker.statutory_response_days }} days. If you need
+more information to verify this request, reply to this email and I will
+provide it. Please confirm in writing when deletion is complete.
+
+I am making this request myself, not through an agent or a service.
+
+Sincerely,
+{{ profile.legal_name }}

@@ -189,6 +189,12 @@ class BrokerDef(BaseModel):
     requires_id_upload: bool = False
     requires_notarization: bool = False
 
+    enabled: bool = True
+    source: str | None = None  # set for bulk-imported brokers, e.g. "ca-registry-2025"
+    privacy_url: str | None = None  # where the broker says to exercise privacy rights
+    covers: list[str] = []  # other registered entities that share this contact email
+    exemptions: list[str] = []  # e.g. ["FCRA"]: deletion right may not apply
+
     legal_basis: list[str]
     statutory_response_days: int
     re_add_window_days: int | None = None
