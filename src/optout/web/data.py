@@ -66,7 +66,8 @@ def collect(
     dash = Dashboard(generated=now.strftime("%Y-%m-%d %H:%M UTC"), drafts=drafts)
     drift_cache: dict[str, bool] = {}
 
-    subs = list(session.exec(select(Submission).order_by(Submission.created_at.desc())))
+    newest_first = Submission.created_at.desc()  # type: ignore[attr-defined]
+    subs = list(session.exec(select(Submission).order_by(newest_first)))
     for sub in subs:
         drift = drift_cache.setdefault(sub.broker_slug, is_drifted(session, sub.broker_slug))
         v = latest_verification(session, sub.id)
@@ -90,7 +91,7 @@ def collect(
         )
         dash.rows.append(row)
         dash.counts[row.label] = dash.counts.get(row.label, 0) + 1
-        if overdue:
+        if overdue and days is not None:
             dash.attention.append((row.slug, row.name, f"overdue by {-days} day(s)"))
         elif sub.status == "rejected":
             dash.attention.append((row.slug, row.name, "refused: consider an appeal"))

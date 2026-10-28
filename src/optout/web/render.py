@@ -295,29 +295,33 @@ def progress_chart(series: list[tuple[str, int, int, int]]) -> str:
         f"{e(_fmt_day(series[i][0]))}</text>"
         for i in xi
     )
-    lines, dots, ends = [], [], []
+    values = [(r[1], r[2], r[3]) for r in series]
+    lines: list[str] = []
+    dots: list[str] = []
+    ends: list[tuple[float, str, int, str]] = []
     for k, (name, var) in enumerate(_SERIES):
-        pts = " ".join(f"{x(i):.1f},{y(r[k + 1]):.1f}" for i, r in enumerate(series))
+        pts = " ".join(f"{x(i):.1f},{y(v[k]):.1f}" for i, v in enumerate(values))
         lines.append(
             f"<polyline points='{pts}' fill='none' stroke='var({var})' stroke-width='2' "
             "stroke-linejoin='round' stroke-linecap='round'/>"
         )
-        lv = series[-1][k + 1]
+        lv = values[-1][k]
         dots.append(
             f"<circle cx='{x(n - 1):.1f}' cy='{y(lv):.1f}' r='4' fill='var({var})' "
             "stroke='var(--chart-surface)' stroke-width='2'/>"
         )
-        ends.append([y(lv), name, lv, var])
+        ends.append((y(lv), name, lv, var))
     # Direct labels at the line ends, nudged apart so they never collide.
     ends.sort(key=lambda t: t[0])
-    for i in range(1, len(ends)):
-        ends[i][0] = max(ends[i][0], ends[i - 1][0] + 16)
-    shift = max(0.0, ends[-1][0] - (mt + ph + 4))
+    placed: list[float] = []
+    for end in ends:
+        placed.append(max(end[0], placed[-1] + 16) if placed else end[0])
+    shift = max(0.0, placed[-1] - (mt + ph + 4))
     labels = "".join(
         f"<g><circle cx='{x(n - 1) + 14:.1f}' cy='{ly - shift:.1f}' r='3.5' "
         f"fill='var({var})'/><text class='lbl' x='{x(n - 1) + 22:.1f}' "
         f"y='{ly - shift + 4:.1f}'>{e(name)} {v}</text></g>"
-        for ly, name, v, var in ends
+        for ly, (_, name, v, var) in zip(placed, ends, strict=True)
     )
     colw = pw / (n - 1)
     cols = "".join(
@@ -575,7 +579,9 @@ def dashboard(
     status_filter: str | None = None,
     ui: UI | None = None,
 ) -> str:
-    with_actions = interactive and ui is not None
+    act = ui if interactive else None  # the interactive UI, when there is one
+    with_actions = act is not None
+    csrf = act.csrf if act else ""
     query = (ui.query if ui else "").strip()
     needle = query.lower()
     rows = [
@@ -590,7 +596,7 @@ def dashboard(
     if d.attention:
         items = "".join(
             f"<li><span><b>{e(name)}</b> <span class='muted'>· {e(why)}</span></span>"
-            f"{row_form(slug, ui.csrf, name) if with_actions else ''}</li>"
+            f"{row_form(slug, csrf, name) if with_actions else ''}</li>"
             for slug, name, why in d.attention[:40]
         )
         attn = (
@@ -604,7 +610,7 @@ def dashboard(
         f"<td>{_days_cell(r)}<div class='muted small'>{_due(r)}</div></td>"
         f"<td class='small'>{e(r.last_check)}"
         f"{' ' + pill('failed', 'Form changed') if r.drifted else ''}</td>"
-        f"{('<td>' + row_form(r.slug, ui.csrf, r.name) + '</td>') if with_actions else ''}</tr>"
+        f"{('<td>' + row_form(r.slug, csrf, r.name) + '</td>') if with_actions else ''}</tr>"
         for r in shown
     )
     more = (
@@ -646,8 +652,8 @@ def dashboard(
         "<section class='card' aria-labelledby='chart-h'>"
         f"<h2 id='chart-h'>Progress over time</h2>{progress_chart(d.series)}</section>"
     )
-    if with_actions:
-        top = ui.flash + f"<div class='grid'>{chart}{_send_panel(ui)}</div>" + _draft_panel(ui)
+    if act is not None:
+        top = act.flash + f"<div class='grid'>{chart}{_send_panel(act)}</div>" + _draft_panel(act)
     else:
         top = chart
 
@@ -658,7 +664,7 @@ def dashboard(
     requests = (
         "<section class='card' aria-labelledby='req-h'><h2 id='req-h'>Requests</h2>"
         f"{toolbar}{table}{note}"
-        f"{_drafts_line(ui) if with_actions else ''}</section>"
+        f"{_drafts_line(act) if act is not None else ''}</section>"
     )
     refresh = 3 if ui and ui.job.get("state") == "running" else None
     return page(

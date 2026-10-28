@@ -141,7 +141,9 @@ def _make_handler(app: App):
         def _authed(self) -> bool:
             jar = SimpleCookie(self.headers.get("Cookie", ""))
             morsel = jar.get(COOKIE)
-            return bool(morsel) and hmac.compare_digest(morsel.value.encode(), app.token.encode())
+            if morsel is None:
+                return False
+            return hmac.compare_digest(morsel.value.encode(), app.token.encode())
 
         def _host_ok(self) -> bool:
             return self.headers.get("Host", "") in app.hosts
@@ -282,7 +284,7 @@ def _make_handler(app: App):
                 slug = unquote(path[len("/broker/") :])
                 if not slug or len(slug) > _BROKER_MAX or any(ord(c) < 32 for c in slug):
                     return self._fail(404, "No such broker.")
-                names = {b.slug: b for b in all_brokers()}
+                by_slug = {b.slug: b for b in all_brokers()}
                 with get_session() as session:
                     subs = list_submissions(session, broker_slug=slug)
                     events = [
@@ -293,9 +295,9 @@ def _make_handler(app: App):
                         )
                         for _sub, ev in list_all_events(session, broker_slug=slug)
                     ]
-                if slug not in names and not subs:
+                if slug not in by_slug and not subs:
                     return self._fail(404, "No such broker.")
-                broker = names.get(slug)
+                broker = by_slug.get(slug)
                 return self._send(
                     200,
                     render.broker_page(
@@ -460,10 +462,11 @@ def open_in_browser(url: str) -> bool:
     import shutil
     import subprocess
 
-    quiet = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+    devnull = subprocess.DEVNULL
     if _is_wsl():
         if shutil.which("wslview"):
-            return subprocess.run(["wslview", url], **quiet).returncode == 0
+            done = subprocess.run(["wslview", url], stdout=devnull, stderr=devnull)
+            return done.returncode == 0
         ps = (
             shutil.which("powershell.exe")
             or "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
@@ -471,12 +474,13 @@ def open_in_browser(url: str) -> bool:
         # The URL is ours (127.0.0.1 + url-safe token); quote it for PowerShell anyway.
         safe = url.replace("'", "''")
         try:
-            return (
-                subprocess.run(
-                    [ps, "-NoProfile", "-Command", f"Start-Process '{safe}'"], timeout=20, **quiet
-                ).returncode
-                == 0
+            done = subprocess.run(
+                [ps, "-NoProfile", "-Command", f"Start-Process '{safe}'"],
+                timeout=20,
+                stdout=devnull,
+                stderr=devnull,
             )
+            return done.returncode == 0
         except (OSError, subprocess.TimeoutExpired):
             return False
     return webbrowser.open(url)
