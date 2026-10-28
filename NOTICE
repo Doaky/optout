@@ -1,0 +1,8 @@
+This project is derived from Blake104/OptOut (declared AGPL-3.0-only),
+upstream commit 7a310242eca38517a483d75a6a3832bc9424c01b. Provenance note:
+upstream pyproject.toml lists author "gr8p3"; repo owner is "Blake104".
+
+Ideas (no code copied) from:
+- stephenlthorn/auto-identity-remove (MIT), audited at 99fb638d31ff
+- kevinl95/Privotron (MIT), audited at 1609be98b03f
+- da-toolkit 0.1.0 (GPL-3.0): ideas only, no code

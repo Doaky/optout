@@ -133,5 +133,9 @@ def load_config() -> UserConfig:
 def save_config(cfg: UserConfig) -> None:
     path = config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(yaml.dump(cfg.model_dump(by_alias=True, mode="json"), allow_unicode=True))
-    path.chmod(0o600)  # restrict to owner only
+    text = yaml.dump(cfg.model_dump(by_alias=True, mode="json"), allow_unicode=True)
+    # Create with 0600 from the start so PII is never briefly world-readable.
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        fh.write(text)
+    path.chmod(0o600)  # also tighten a pre-existing file

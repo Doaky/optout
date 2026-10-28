@@ -200,6 +200,15 @@ class BrokerDef(BaseModel):
     steps: list[BrokerStep] = []
 
     @model_validator(mode="after")
+    def _legal_basis_known(self) -> BrokerDef:
+        from optout.utils.statutes import STATUTES
+
+        unknown = [k for k in self.legal_basis if k not in STATUTES]
+        if unknown:
+            raise ValueError(f"unknown legal_basis key(s): {', '.join(unknown)}")
+        return self
+
+    @model_validator(mode="after")
     def _method_fields_consistent(self) -> BrokerDef:
         if self.method == "email" and not self.opt_out_email:
             raise ValueError(

@@ -103,3 +103,22 @@ class TestLoadAllBrokers:
         )
         with pytest.raises(ValueError, match="failed validation"):
             load_all_brokers(tmp_path)
+
+
+def test_unknown_legal_basis_rejected():
+    import pytest
+    from pydantic import ValidationError
+
+    from optout.brokers.schema import BrokerDef
+
+    with pytest.raises(ValidationError, match="unknown legal_basis"):
+        BrokerDef(
+            slug="x", name="X", domain="x.example", category="people_search",
+            method="manual", legal_basis=["NOPE"], statutory_response_days=45,
+        )
+
+
+def test_vcdpa_is_known():
+    from optout.utils.statutes import STATUTES
+
+    assert STATUTES["VCDPA"].citation == "Va. Code § 59.1-577(A)(3)"

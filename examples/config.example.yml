@@ -1,0 +1,22 @@
+# PLACEHOLDERS ONLY. Copy to ~/.config/optout/config.yml and fill in locally.
+# Never commit a real config.
+profile:
+  legal_name: "Jane Q Example"
+  aliases: []
+  dob: "1990-01-01"
+  current_address:
+    street: "123 Example St"
+    city: "Richmond"
+    state: "VA"
+    zip: "23219"
+  phones:
+    current: ["+1-555-010-0100"]
+  emails:
+    current: ["alias-spokeo@example.invalid"]   # per-broker masked alias, not your real address
+email:
+  method: smtp
+  smtp:
+    host: smtp.example.invalid
+    port: 587
+    username: "user@example.invalid"
+    password_env: OPTOUT_SMTP_PASSWORD
