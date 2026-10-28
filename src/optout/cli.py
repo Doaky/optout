@@ -146,6 +146,12 @@ def brokers_probe(
         "--channel",
         help="Browser: 'chrome', 'chromium' (bundled), or 'config' to use your config.",
     ),
+    pause: bool = typer.Option(
+        True, "--pause/--no-pause", help="Wait for Enter after each page load."
+    ),
+    settle: float = typer.Option(
+        8.0, "--settle", help="With --no-pause, seconds to let each page render."
+    ),
 ) -> None:
     """Check a broker's selectors against the live site. Never fills or submits."""
     import json
@@ -187,12 +193,17 @@ def brokers_probe(
                 probe_page.load_error = str(exc).splitlines()[0][:200]
                 console.print(f"  [red]load failed:[/red] {probe_page.load_error}")
                 continue
-            typer.prompt(
-                "  Clear any CAPTCHA/Cloudflare check in the browser (don't submit "
-                "anything), then press Enter",
-                default="",
-                show_default=False,
-            )
+            if pause:
+                typer.prompt(
+                    "  Clear any CAPTCHA/Cloudflare check in the browser (don't submit "
+                    "anything), then press Enter",
+                    default="",
+                    show_default=False,
+                )
+            else:
+                page.wait_for_timeout(settle * 1000)
+            probe_page.final_url = page.url
+            probe_page.title = page.title()
             run_checks(page, probe_page)
             for c in probe_page.checks:
                 colour = {"found": "green", "missing": "red", "error": "yellow"}[c.status]
@@ -670,6 +681,101 @@ def _deadline_cell(submission) -> str:
 # ---------------------------------------------------------------------------
 # optout status
 # ---------------------------------------------------------------------------
+
+
+@app.command("log")
+def log_cmd(
+    broker: str = typer.Argument(..., help="Broker slug, or any name for an unlisted company."),
+    on: str = typer.Option(
+        None, "--date", "-d", help="Date you contacted them (YYYY-MM-DD). Default: today."
+    ),
+    method: str = typer.Option(
+        "email", "--method", "-m", help="email, web_form, phone, postal, or manual."
+    ),
+    days: int = typer.Option(
+        None, "--days", help="Response deadline in days (default: broker's, or 45)."
+    ),
+    note: str = typer.Option(
+        None, "--note", "-n", help="Short note, e.g. a ticket number. Don't put PII here."
+    ),
+) -> None:
+    """Record an opt-out request you made yourself, so its deadline is tracked."""
+    from datetime import UTC, date, datetime
+
+    from .brokers.registry import get_broker
+    from .db import get_session, init_db, log_outreach
+
+    if method not in ("email", "web_form", "phone", "postal", "manual"):
+        console.print(f"[red]Unknown method '{method}'.[/red]")
+        raise typer.Exit(code=1)
+    try:
+        when = date.fromisoformat(on) if on else date.today()
+    except ValueError:
+        console.print(f"[red]Bad date '{on}', expected YYYY-MM-DD.[/red]")
+        raise typer.Exit(code=1)
+    if when > date.today():
+        console.print("[red]Date is in the future.[/red]")
+        raise typer.Exit(code=1)
+
+    try:
+        b = get_broker(broker)
+        slug, legal, default_days = b.slug, b.legal_basis, b.statutory_response_days
+    except KeyError:
+        slug, legal, default_days = broker.strip().lower(), [], 45
+        console.print(f"[dim]'{slug}' isn't a known broker; logging it as unlisted.[/dim]")
+
+    init_db()
+    with get_session() as session:
+        sub = log_outreach(
+            session,
+            broker_slug=slug,
+            method_used=method,
+            legal_basis_cited=legal,
+            statutory_response_days=days or default_days,
+            submitted_at=datetime(when.year, when.month, when.day, 12, tzinfo=UTC),
+            note=note,
+        )
+    console.print(
+        f"[green]Logged[/green] {slug} ({method}) on {when}. Deadline {sub.deadline_at:%Y-%m-%d}."
+    )
+
+
+@app.command("history")
+def history_cmd(
+    broker: str | None = typer.Option(None, "--broker", "-b", help="Filter by broker slug."),
+) -> None:
+    """Timeline of every request and event, oldest first."""
+    import json
+
+    from .db import db_path, get_session, list_all_events
+
+    if not db_path().exists():
+        console.print("[yellow]No history yet.[/yellow]")
+        raise typer.Exit(code=0)
+    with get_session() as session:
+        rows = list_all_events(session, broker_slug=broker)
+    if not rows:
+        console.print("[yellow]No history yet.[/yellow]")
+        raise typer.Exit(code=0)
+
+    table = Table(show_header=True, header_style="bold", box=box.SIMPLE_HEAD)
+    table.add_column("When")
+    table.add_column("Broker", style="bold")
+    table.add_column("Event")
+    table.add_column("Method")
+    table.add_column("Note", style="dim")
+    for sub, ev in rows:
+        # A logged request's event time is when it was recorded; show the real date.
+        payload = json.loads(ev.payload_json or "{}")
+        when = sub.submitted_at if ev.event_type == "submitted" else ev.created_at
+        table.add_row(
+            _fmt_date(when),
+            sub.broker_slug,
+            ev.event_type.replace("_", " "),
+            sub.method_used,
+            payload.get("note", "") if payload.get("source") == "manual_log" else "",
+        )
+    console.print(table)
 
 
 @app.command()

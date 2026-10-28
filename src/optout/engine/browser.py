@@ -9,6 +9,8 @@ broker, not every time.
 Using launch_persistent_context (not launch + new_context) is deliberate:
 it is the only Playwright API that retains cookies, localStorage, and the
 full browser fingerprint between sessions.
+
+No stealth flags or fingerprint changes: the browser identifies as automated.
 """
 
 from __future__ import annotations
@@ -33,7 +35,6 @@ def launch_browser(config: PlaywrightConfig) -> Generator[BrowserContext, None, 
             channel=config.channel,
             headless=config.headless,
             viewport=None,
-            args=["--disable-blink-features=AutomationControlled"],
             slow_mo=config.slow_mo_ms,
         )
         try:

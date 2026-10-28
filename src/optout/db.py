@@ -195,14 +195,63 @@ def mark_submitted(
     payload: dict[str, Any],
     artifact_path: str | None,
     statutory_response_days: int,
+    *,
+    submitted_at: datetime | None = None,
 ) -> None:
-    now = _now()
+    now = submitted_at or _now()
     submission.submitted_at = now
     submission.deadline_at = now + timedelta(days=statutory_response_days)
     submission.payload_json = json.dumps(payload)
     submission.artifact_path = artifact_path
     update_status(session, submission, "submitted")
     record_event(session, submission, "submitted", payload)
+
+
+def log_outreach(
+    session: Session,
+    *,
+    broker_slug: str,
+    method_used: str,
+    legal_basis_cited: list[str],
+    statutory_response_days: int,
+    submitted_at: datetime,
+    note: str | None = None,
+) -> Submission:
+    """Record a request the user made outside the tool (by hand, by email, etc.).
+
+    It starts the same deadline clock as an automated submission. It is never
+    treated as removal: that still needs a verifying re-search.
+    """
+    sub = create_submission(
+        session,
+        broker_slug=broker_slug,
+        method_used=method_used,
+        legal_basis_cited=legal_basis_cited,
+        statutory_response_days=statutory_response_days,
+    )
+    payload: dict[str, Any] = {"source": "manual_log"}
+    if note:
+        payload["note"] = note
+    mark_submitted(
+        session,
+        sub,
+        payload,
+        None,
+        statutory_response_days,
+        submitted_at=submitted_at,
+    )
+    return sub
+
+
+def list_all_events(
+    session: Session, broker_slug: str | None = None
+) -> list[tuple[Submission, SubmissionEvent]]:
+    """Every event joined to its submission, oldest first."""
+    stmt = select(Submission, SubmissionEvent).where(SubmissionEvent.submission_id == Submission.id)
+    if broker_slug:
+        stmt = stmt.where(Submission.broker_slug == broker_slug)
+    stmt = stmt.order_by(SubmissionEvent.created_at)
+    return list(session.exec(stmt))
 
 
 def get_submission(session: Session, submission_id: uuid.UUID) -> Submission | None:

@@ -50,6 +50,8 @@ class ProbePage:
     source: str  # "scan", "search:<step id>", "navigate:<step id>"
     checks: list[SelectorCheck] = field(default_factory=list)
     load_error: str | None = None
+    final_url: str | None = None  # after redirects; a block page often shows here
+    title: str | None = None
 
 
 @dataclass
