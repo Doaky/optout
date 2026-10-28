@@ -39,6 +39,7 @@ class ParsedMail:
     date: datetime | None
     text: str
     raw_ids: list[str] = field(default_factory=list)  # every Message-ID seen (bounces)
+    from_name: str = ""  # display name, e.g. "ActivImpact Privacy Team" via OneTrust
 
 
 _QUOTE_START = re.compile(
@@ -81,6 +82,14 @@ def strip_quoted(text: str) -> str:
     if m and m.start() > 0:
         text = text[: m.start()]
     lines = [ln for ln in text.splitlines() if not ln.lstrip().startswith(">")]
+    return tidy("\n".join(lines))
+
+
+def tidy(text: str) -> str:
+    """Readable plain text: trimmed lines, single spaces, at most one blank line in a row.
+    HTML mail (OneTrust and friends) otherwise turns into hundreds of blank lines."""
+    text = text.replace("\r", "").replace("\u00a0", " ").replace("\u200b", "").replace("\ufeff", "")
+    lines = [re.sub(r"[ \t]{2,}", " ", ln).strip() for ln in text.split("\n")]
     return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
 
 
@@ -99,6 +108,7 @@ def parse_message(raw: bytes) -> ParsedMail:
         message_id=str(msg.get("Message-ID", "")).strip(),
         in_reply_to=_MSGID.findall(refs),
         from_addr=(sender[0][1] if sender else "").lower(),
+        from_name=(sender[0][0] if sender else "")[:200],
         to_addrs=[a.lower() for _, a in to if a],
         subject=str(msg.get("Subject", ""))[:300],
         date=date,
@@ -115,7 +125,8 @@ def parse_message(raw: bytes) -> ParsedMail:
 
 _I = re.IGNORECASE
 RULES: list[tuple[str, str, re.Pattern[str]]] = [
-    # (kind, rule name, pattern), checked against subject + text
+    # (kind, rule name, pattern), checked against subject + text. Tuned on real replies:
+    # see tests/test_inbox.py::test_real_reply_wording.
     (
         "bounced",
         "delivery failure",
@@ -130,10 +141,11 @@ RULES: list[tuple[str, str, re.Pattern[str]]] = [
         "denied",
         "refusal",
         re.compile(
-            r"\b(unable|not able) to (process|honou?r|comply with|fulfil?l)\b|"
+            r"\b(unable|not able) to (process|honou?r|comply with|fulfil?l|assist)\b|"
             r"\b(cannot|can't|can not|will not|won't) (process|honou?r|comply|delete|"
-            r"fulfil?l)\b|\bnot subject to\b|\bexempt(ion)?\b|\b(we )?(must )?decline\b|"
-            r"\b(request|it) (is|was|has been) denied\b|\bdoes not apply to\b",
+            r"fulfil?l|assist)\b|\bnot subject to\b|\bexempt(ion)?\b|"
+            r"\b(we )?(must )?decline\b|\b(request|it) (is|was|has been) denied\b|"
+            r"\bdoes not apply to\b|\bwe do not process\b[^.]{0,40}\brequests?\b",
             _I,
         ),
     ),
@@ -142,9 +154,13 @@ RULES: list[tuple[str, str, re.Pattern[str]]] = [
         "asks for something",
         re.compile(
             r"\bverify (your|the) (identity|request|email)\b|\bidentity verification\b|"
-            r"\bclick (on )?(the|this) link\b|\bconfirm (your|this) (email|request)\b|"
-            r"\b(additional|more|further) information\b|\bplease (provide|submit|complete|"
-            r"fill out|reply with|send us)\b|\b(web ?form|online form|portal)\b",
+            r"\bclick(ing)? (on )?(the|this) (link|button)\b|"
+            r"\bconfirm (your|this) (email|request)\b|"
+            r"\b(further|additional|more) information (is )?(needed|required)\b|"
+            r"\b(we|will) (need|require)\b[^.]{0,50}\b(information|identifiers?|details|"
+            r"verification)\b|\binsufficient\b|\bplease (provide|submit|complete|fill out|"
+            r"reply with|send us)\b|\b(web ?form|online form|portal)\b|\bnot monitored\b|"
+            r"\b(do|does) not accept\b[^.]{0,40}\b(e-?mail|requests?)\b",
             _I,
         ),
     ),
@@ -166,7 +182,7 @@ RULES: list[tuple[str, str, re.Pattern[str]]] = [
             r"\b(has|have|had) been (deleted|removed|erased|suppressed|purged|opted out)\b|"
             r"\bwe (have )?(deleted|removed|erased|suppressed|purged)\b|"
             r"\bsuccessfully (deleted|removed|processed|opted)\b|"
-            r"\b(request|deletion) (has been|was|is) (completed|processed|fulfilled|"
+            r"\brequest[^.]{0,60}\b(has been|was|is) (completed|processed|fulfilled|"
             r"honou?red)\b|\b(you are|you've been|you have been) opted out\b",
             _I,
         ),
@@ -178,7 +194,9 @@ RULES: list[tuple[str, str, re.Pattern[str]]] = [
             r"\bauto(matic|mated)?[- ]?(reply|response|generated)\b|\bdo not reply\b|"
             r"\bno-?reply\b|\bthank(s| you) for (contacting|reaching out|your (email|"
             r"message|request|inquiry))\b|\bwe(('ve| have))? received your (request|"
-            r"message|email)\b|\bticket (number|#)|\bwithin \d+ (business )?days\b",
+            r"message|email|submission)\b|\bticket (number|#)|\bwithin \d+ (business )?days\b|"
+            r"\b(request|it) (has been|was) (successfully )?(submitted|logged|received)\b|"
+            r"\brequest logged\b",
             _I,
         ),
     ),
@@ -269,12 +287,69 @@ def is_confident(kinds: list[str]) -> bool:
 # --- matching ----------------------------------------------------------------
 
 
+_GENERIC = {
+    "data",
+    "marketing",
+    "solutions",
+    "media",
+    "group",
+    "digital",
+    "technologies",
+    "technology",
+    "services",
+    "systems",
+    "global",
+    "america",
+    "american",
+    "national",
+    "consumer",
+    "direct",
+    "partners",
+    "holdings",
+    "network",
+    "networks",
+    "analytics",
+    "insights",
+    "company",
+    "labs",
+    "privacy",
+    "online",
+    "interactive",
+    "information",
+    "international",
+    "management",
+}
+_SUFFIX = re.compile(r"\b(inc|llc|l\.l\.c|corp|corporation|co|ltd|lp|llp|limited|company)\b\.?", _I)
+
+
+def _name_keys(name: str) -> set[str]:
+    """Distinctive forms of a broker name: the whole name squashed, and a rare first word."""
+    words = re.findall(r"[a-z0-9]+", _SUFFIX.sub(" ", name.lower()))
+    keys = set()
+    whole = "".join(words)
+    if len(whole) >= 6:
+        keys.add(whole)
+    if words and len(words[0]) >= 6 and words[0] not in _GENERIC:
+        keys.add(words[0])
+    return keys
+
+
+def _match_by_name(mail: ParsedMail, idx: MatchIndex) -> Submission | None:
+    """Third-party privacy platforms (OneTrust etc.) send from their own domain but name the
+    broker. Only a name that points at exactly one contacted broker counts."""
+    squashed = re.sub(r"[^a-z0-9]+", "", f"{mail.from_name} {mail.subject} {mail.text}".lower())
+    hits = {s.broker_slug: s for key, subs in idx.by_name.items() if key in squashed for s in subs}
+    return next(iter(hits.values())) if len(hits) == 1 else None
+
+
 @dataclass
 class MatchIndex:
     by_message_id: dict[str, Submission]
     by_alias: dict[str, Submission]
     by_domain: dict[str, list[Submission]]
     by_sender: dict[str, Submission] = field(default_factory=dict)  # learned reply addresses
+    by_name: dict[str, list[Submission]] = field(default_factory=dict)  # name key -> requests
+    latest: dict[str, Submission] = field(default_factory=dict)  # slug -> latest sent request
 
 
 def build_index(
@@ -309,7 +384,13 @@ def build_index(
         for d in domains:
             by_domain.setdefault(d, []).append(s)
     by_sender = {addr: latest[slug] for addr, slug in (senders or {}).items() if slug in latest}
-    return MatchIndex(by_mid, by_alias, by_domain, by_sender)
+    by_name: dict[str, list[Submission]] = {}
+    for slug, s in latest.items():
+        b = brokers.get(slug)
+        for name in [b.name, *b.covers] if b else []:
+            for key in _name_keys(name):
+                by_name.setdefault(key, []).append(s)
+    return MatchIndex(by_mid, by_alias, by_domain, by_sender, by_name, latest)
 
 
 def match(
@@ -323,6 +404,9 @@ def match(
             return idx.by_alias[addr], "alias"
     if mail.from_addr in idx.by_sender:
         return idx.by_sender[mail.from_addr], "known-sender"
+    by_name = _match_by_name(mail, idx)
+    if by_name is not None:
+        return by_name, "name"
     if known and known.broker:
         hits = [s for subs in idx.by_domain.values() for s in subs if s.broker_slug == known.broker]
         if hits:
@@ -336,6 +420,37 @@ def match(
     if len(found) == 1:
         return next(iter(found.values())), "domain"
     return None, ""  # no match, or several brokers share the domain: ask a person
+
+
+_ABOUT_REQUEST = re.compile(
+    r"data deletion request|\bdelet(e|ed|ion)\b|\bprivacy\b|personal (data|information)|"
+    r"\bopt[- ]?out\b|\byour request\b|\bdata (subject|rights)\b",
+    _I,
+)
+_OPEN = {"submitted", "awaiting_broker_confirmation", "awaiting_user_input"}
+
+
+def only_open_request(mail: ParsedMail, idx: MatchIndex) -> Submission | None:
+    """A suggestion when nothing matched: the single request still waiting for a reply.
+
+    Only when exactly one request is open, it was sent before this email arrived, and the
+    email is about a request like ours. It is never applied automatically.
+    """
+    if not _ABOUT_REQUEST.search(f"{mail.subject}\n{mail.text}"):
+        return None
+    received = mail.date.astimezone(UTC) if mail.date else None
+    open_ = [
+        s
+        for s in idx.latest.values()
+        if s.status in _OPEN
+        and s.submitted_at is not None
+        and (received is None or _utc(s.submitted_at) <= received)
+    ]
+    return open_[0] if len(open_) == 1 else None
+
+
+def _utc(dt: datetime) -> datetime:
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
 # --- applying ----------------------------------------------------------------
@@ -374,11 +489,17 @@ def process(
         seen.add(mail.message_id)
         kr = known_reply(mail, known)
         sub, how = match(mail, idx, kr)
+        if sub is None and (guess := only_open_request(mail, idx)) is not None:
+            sub, how = guess, "only-request"
         if kr is not None:
             kind, rule, kinds = kr.outcome, f"known reply ({kr.sender})", [kr.outcome]
         else:
             kind, rule, kinds = classify(mail.subject, mail.text)
-        auto = sub is not None and kind != "unknown" and is_confident(kinds)
+        # A guessed match ("only-request") is shown with the broker filled in, but a person
+        # confirms it: a wrong guess must never change a request's status.
+        auto = (
+            sub is not None and how != "only-request" and kind != "unknown" and is_confident(kinds)
+        )
         row = InboxMessage(
             message_id=mail.message_id[:300],
             submission_id=sub.id if sub else None,
@@ -501,20 +622,39 @@ def run_sync(config, *, dry_run: bool = False) -> SyncReport:
     return report
 
 
+def _sender_rows(session: Session) -> list[tuple[str, str, str]]:
+    return [
+        (addr, slug, how)
+        for addr, slug, how in session.exec(
+            select(InboxMessage.from_addr, InboxMessage.broker_slug, InboxMessage.matched_by).where(
+                InboxMessage.broker_slug != None,  # noqa: E711 (SQL IS NOT NULL)
+                InboxMessage.kind != "bounced",
+                InboxMessage.state != "ignored",
+            )
+        ).all()
+        if addr and slug
+    ]
+
+
+# Matches strong enough to teach us "this address belongs to that broker". A reply matched
+# only by name or domain may come from a platform many brokers share (OneTrust etc.).
+_STRONG = {"message-id", "alias", "assigned", "known-sender"}
+
+
 def reply_senders(session: Session) -> dict[str, str]:
-    """Every address a broker has replied from (address -> slug), from settled replies."""
-    rows = session.exec(
-        select(InboxMessage.from_addr, InboxMessage.broker_slug).where(
-            InboxMessage.broker_slug != None,  # noqa: E711 (SQL IS NOT NULL)
-            InboxMessage.kind != "bounced",
-            InboxMessage.state != "ignored",
-        )
-    ).all()
-    return {addr: slug for addr, slug in rows if addr and slug}
+    """Addresses that reliably mean one broker (address -> slug), for matching."""
+    seen: dict[str, set[str]] = {}
+    strong: dict[str, str] = {}
+    for addr, slug, how in _sender_rows(session):
+        seen.setdefault(addr, set()).add(slug)
+        if how in _STRONG:
+            strong[addr] = slug
+    return {addr: slug for addr, slug in strong.items() if len(seen[addr]) == 1}
 
 
 def senders_by_broker(session: Session) -> dict[str, list[str]]:
+    """Every address each broker has replied from (for display)."""
     out: dict[str, set[str]] = {}
-    for addr, slug in reply_senders(session).items():
+    for addr, slug, _how in _sender_rows(session):
         out.setdefault(slug, set()).add(addr)
     return {slug: sorted(addrs) for slug, addrs in out.items()}

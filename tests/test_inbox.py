@@ -408,7 +408,8 @@ def test_injected_instructions_only_affect_their_own_reply(session, world):
     assert "removed_verified" not in events
 
 
-def test_learned_entries_carry_no_personal_details(session, world, me):
+def test_learned_entries_carry_no_personal_details(session, world, me, monkeypatch):
+    monkeypatch.setattr("optout.brokers.registry.all_brokers", lambda: list(world[0].values()))
     row = InboxMessage(
         message_id="<l1>",
         broker_slug="acme",
@@ -481,3 +482,226 @@ def test_fetch_replies_reads_new_messages_only():
     fetches = [c for c in fake.calls if c[0] == "FETCH"]
     assert all("PEEK" in c[2] for c in fetches)  # never marks anything read
     assert not any(c[0] == "STORE" and "-X-GM-LABELS" in c for c in fake.calls)
+
+
+# Real replies (lightly anonymised) that shaped the rules.
+@pytest.mark.parametrize(
+    "subject,body,kind",
+    [
+        (
+            "Confirmation: Your request has been completed",
+            "We are writing to confirm that your request to exercise your right has been "
+            "completed. "
+            "If you have any further questions or require additional information, please do not "
+            "hesitate to contact us.",
+            "deleted",
+        ),
+        (
+            "(Request ID: 6R87NG6MTL) Request logged successfully",
+            "Your request has been successfully submitted. Your Request ID is 6R87NG6MTL.",
+            "auto-reply",
+        ),
+        (
+            "Re: Data Deletion Request",
+            "We have received your request. Our system only processes company emails. Therefore, "
+            "we do not process privacy requests that do not contain a company email.",
+            "denied",
+        ),
+        (
+            "Thank you for your Privacy Request",
+            "In these cases, we cannot assist you directly with requests related to information in "
+            "client records. Please contact your bank.",
+            "denied",
+        ),
+        (
+            "Automatic reply: Data Deletion Request",
+            "Affinity does not accept privacy requests via email. You can submit a privacy request "
+            "via our interactive web form.",
+            "need-info",
+        ),
+        (
+            "Request Received",
+            "Please note that this mailbox is not monitored for requests. "
+            "Please submit your request through our Privacy Center web form.",
+            "need-info",
+        ),
+        (
+            "Data Deletion Request",
+            "The information provided is insufficient. We require additional identifiers.",
+            "need-info",
+        ),
+        (
+            "(Request ID: 76HH) Your Privacy Request",
+            "One more step is required. Please confirm your email by clicking on the button below.",
+            "need-info",
+        ),
+    ],
+)
+def test_real_reply_wording(subject, body, kind):
+    got, _, kinds = classify(subject, body)
+    assert got == kind
+    if kind == "deleted":
+        assert is_confident(kinds)  # a polite sign-off must not block a confirmation
+
+
+def test_third_party_platform_matched_by_broker_name(session):
+    brokers = {
+        "aggknowledge": _broker("aggknowledge", "aggknowledge.example"),
+        "ror-partners": _broker("ror-partners", "rorpartners.example"),
+        "data-axle": _broker("data-axle", "dataaxle.example"),
+    }
+    brokers["aggknowledge"] = brokers["aggknowledge"].model_copy(update={"name": "AggKnowledge"})
+    brokers["ror-partners"] = brokers["ror-partners"].model_copy(
+        update={"name": "ROR Partners LLC"}
+    )
+    brokers["data-axle"] = brokers["data-axle"].model_copy(update={"name": "Data Axle, Inc."})
+    subs = {k: _sent(session, k) for k in brokers}
+    idx = build_index(subs.values(), brokers, None)
+    agg = _mail(
+        from_addr="noreply@trustsuperset.com", text="Best regards, AggKnowledge Privacy Team"
+    )
+    assert match(agg, idx) == (subs["aggknowledge"], "name")
+    ror = _mail(from_addr="noreply@m.onetrust.com", text="ROR Partners. Dear [MY NAME], ...")
+    assert match(ror, idx) == (subs["ror-partners"], "name")
+    # a generic first word alone ("Data") must not match anything
+    assert match(_mail(from_addr="x@y.example", text="Your data request"), idx) == (None, "")
+    # two brokers named: don't guess
+    both = _mail(from_addr="x@y.example", text="AggKnowledge and ROR Partners")
+    assert match(both, idx) == (None, "")
+
+
+def test_html_mail_text_is_tidy():
+    from optout.engine.inbox import tidy
+
+    messy = "ROR Partners" + " " * 200 + "\n\n\n\n   \n\n\nDear [MY NAME],   hello\n\n\n\nBye"
+    assert tidy(messy) == "ROR Partners\n\nDear [MY NAME], hello\n\nBye"
+
+
+def test_learning_skips_echoed_subjects_and_shared_platforms(session, world, me, monkeypatch):
+    brokers, _ = world
+    monkeypatch.setattr("optout.brokers.registry.all_brokers", lambda: list(brokers.values()))
+    for i, (sender, subject, slug) in enumerate(
+        [
+            ("privacy@acme.example", "Re: Data Deletion Request — Jane Q Example", "acme"),
+            (
+                "noreply@trustsuperset.example",
+                "Confirmation: your request has been completed",
+                "beta",
+            ),
+            ("privacy@acme.example", "Your privacy request is complete", "acme"),
+        ]
+    ):
+        session.add(
+            InboxMessage(
+                message_id=f"<l{i}>",
+                broker_slug=slug,
+                from_addr=sender,
+                subject=subject,
+                kind="deleted",
+                state="applied",
+            )
+        )
+    session.commit()
+    entries = assist.learned_entries(session, me)
+    assert {
+        "from": "@acme.example",
+        "phrase": "your privacy request is complete",
+        "outcome": "deleted",
+        "broker": "acme",
+    } in entries
+    platform = next(e for e in entries if e["from"] == "@trustsuperset.example")
+    assert "broker" not in platform  # a shared platform never pins a broker
+    assert not any("data deletion request" in e["phrase"] for e in entries)
+
+
+def test_only_strong_single_broker_matches_teach_sender_addresses(session, world):
+    from optout.engine.inbox import reply_senders, senders_by_broker
+
+    rows = [
+        ("help@acme.example", "acme", "message-id"),
+        ("noreply@platform.example", "beta", "name"),  # weak: shared platform
+        ("shared@x.example", "beta", "alias"),
+        ("shared@x.example", "gamma", "alias"),  # same address, two brokers: ambiguous
+    ]
+    for i, (addr, slug, how) in enumerate(rows):
+        session.add(
+            InboxMessage(
+                message_id=f"<s{i}>",
+                broker_slug=slug,
+                from_addr=addr,
+                matched_by=how,
+                kind="auto-reply",
+                state="applied",
+            )
+        )
+    session.commit()
+    assert reply_senders(session) == {"help@acme.example": "acme"}
+    assert senders_by_broker(session)["beta"] == ["noreply@platform.example", "shared@x.example"]
+
+
+def _lone(session):
+    brokers = {"solo": _broker("solo", "solo.example")}
+    sub = _sent(session, "solo")
+    return brokers, sub
+
+
+def test_single_open_request_is_suggested_not_applied(session):
+    brokers, sub = _lone(session)
+    idx = build_index([sub], brokers, None)
+    mail = parse_message(
+        raw(
+            "Your request",
+            "We have deleted your personal data.",
+            sender="help@vendor-platform.example",
+            mid="<lone1@x>",
+        )
+    )
+    rep = process(session, [mail], idx, known=[])
+    row = session.exec(select(InboxMessage)).one()
+    assert (row.broker_slug, row.matched_by, row.state) == ("solo", "only-request", "review")
+    assert sub.status == "awaiting_broker_confirmation" and rep.applied == []
+
+
+@pytest.mark.parametrize(
+    "why,mail_kw,second_open",
+    [
+        ("two requests open", {}, True),
+        ("not about a request", {"subject": "Our spring sale", "body": "20% off shoes"}, False),
+        ("arrived before we sent", {"date": "Mon, 20 Oct 2026 10:00:00 +0000"}, False),
+    ],
+)
+def test_single_open_request_guard_rails(session, why, mail_kw, second_open):
+    brokers, sub = _lone(session)
+    subs = [sub]
+    if second_open:
+        brokers["other"] = _broker("other", "other.example")
+        subs.append(_sent(session, "other"))
+    idx = build_index(subs, brokers, None)
+    m = EmailMessage()
+    m["From"], m["To"] = "a@unrelated.example", "me@gmail.com"
+    m["Subject"] = mail_kw.get("subject", "Re: your request")
+    m["Message-ID"] = f"<g-{why}>"
+    m["Date"] = mail_kw.get("date", "Tue, 28 Oct 2026 10:00:00 +0000")
+    m.set_content(mail_kw.get("body", "We received your privacy request."))
+    process(session, [parse_message(m.as_bytes())], idx, known=[])
+    row = session.exec(select(InboxMessage)).one()
+    assert row.broker_slug is None, why
+
+
+def test_display_name_identifies_broker_behind_a_shared_platform(session):
+    brokers = {
+        "activimpact": _broker("activimpact", "activimpact.example"),
+        "other": _broker("other", "other.example"),
+    }
+    brokers["activimpact"] = brokers["activimpact"].model_copy(update={"name": "ActivImpact, LLC"})
+    subs = {k: _sent(session, k) for k in brokers}
+    idx = build_index(subs.values(), brokers, None)
+    mail = parse_message(
+        raw(
+            "(Request ID: 6R87) Request logged successfully",
+            "ROR Partners\n\nYour request has been successfully submitted.",
+            sender="ActivImpact Privacy Team <noreply@m.onetrust.example>",
+        )
+    )
+    assert mail.from_name == "ActivImpact Privacy Team"
+    assert match(mail, idx) == (subs["activimpact"], "name")

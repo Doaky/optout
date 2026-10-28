@@ -100,7 +100,8 @@ h2{font-size:16px;margin:0 0 12px;letter-spacing:-.01em}
   font-size:12.5px;font-weight:600;line-height:20px;white-space:nowrap;color:var(--text);
   background:color-mix(in srgb,var(--tone) 14%,transparent);
   border:1px solid color-mix(in srgb,var(--tone) 35%,transparent)}
-.pill .i{color:var(--tone);font-size:11px;line-height:1}
+.pill .i{color:var(--tone);font-size:11px;line-height:1;display:inline-flex;align-items:center}
+.pill .pd{width:7px;height:7px;border-radius:50%;background:var(--tone);flex:none}
 .t-good{--tone:var(--good)}.t-warning{--tone:var(--warning)}.t-serious{--tone:var(--serious)}
 .t-critical{--tone:var(--critical)}.t-info{--tone:var(--info)}.t-neutral{--tone:var(--neutral)}
 .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
@@ -136,6 +137,7 @@ form.inline{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
 form.inline.rowform{flex-wrap:nowrap}
 .rowform select{width:150px;padding:5px 8px;font-size:13px}.rowform button{padding:5px 12px;font-size:13px}
 .search{display:flex;gap:6px}.search input{width:220px}
+input.combo{width:240px}
 .sendrow{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-top:12px}
 .sendrow label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--text-2)}
 details.emails>summary,details.more>summary{cursor:pointer;font-weight:600;color:var(--accent);margin:8px 0}
@@ -267,13 +269,17 @@ def _clean(label: str, status: str = "") -> str:
     return _SHORT.get(status) or label.replace("✓", "").replace("⚡", "").strip()
 
 
+def _icon(icon: str) -> str:
+    # A text "●" sits on the font baseline and looks off-centre; draw dots with CSS.
+    if icon == "●":
+        return "<span class='pd' aria-hidden='true'></span>"
+    return f"<span class='i' aria-hidden='true'>{icon}</span>"
+
+
 def pill(status: str, label: str) -> str:
     tone, icon = _PILL.get(status, ("neutral", "●"))
     text = _clean(label, status) if status in _SHORT and label in _STATUS_LABELS else _clean(label)
-    return (
-        f"<span class='pill t-{tone}'><span class='i' aria-hidden='true'>{icon}</span>"
-        f"{e(text)}</span>"
-    )
+    return f"<span class='pill t-{tone}'>{_icon(icon)}{e(text)}</span>"
 
 
 def _tone_var(status: str) -> str:
@@ -572,10 +578,7 @@ _REVIEW_OPTIONS = [
 
 def _guess_pill(kind: str) -> str:
     tone, icon, text = _GUESS.get(kind, _GUESS["unknown"])
-    return (
-        f"<span class='pill t-{tone}'><span class='i' aria-hidden='true'>{icon}</span>"
-        f"{e(text)}</span>"
-    )
+    return f"<span class='pill t-{tone}'>{_icon(icon)}{e(text)}</span>"
 
 
 def _replies_panel(ui: UI) -> str:
@@ -594,14 +597,22 @@ def _replies_panel(ui: UI) -> str:
     if not ui.replies:
         body = "<p class='muted'>No replies need a look. Clear answers are applied for you.</p>"
     else:
-        brokers = "".join(f"<option value='{e(s)}'>{e(n)}</option>" for s, n in ui.contacted)
+        # A searchable list: type part of a name, pick from the matches (no script needed).
+        datalist = (
+            "<datalist id='contacted-brokers'>"
+            + "".join(
+                f"<option value='{e(s)}' label='{e(n)}'>{e(n)}</option>" for s, n in ui.contacted
+            )
+            + "</datalist>"
+        )
         items = []
         for rid, ref, name, sender, subject, when, guess, text in ui.replies:
             pick = (
                 ""
                 if name
-                else f"<select name='broker' required aria-label='Which broker sent this'>"
-                f"<option value='' disabled selected>Which broker?</option>{brokers}</select>"
+                else "<input name='broker' list='contacted-brokers' required autocomplete='off' "
+                "placeholder='Which broker? Type to search' aria-label='Which broker sent this' "
+                "class='combo'>"
             )
             opts = "".join(f"<option value='{v}'>{t}</option>" for v, t in _REVIEW_OPTIONS)
             items.append(
@@ -636,7 +647,7 @@ def _replies_panel(ui: UI) -> str:
         )
         body = (
             f"<p>{n} repl{'y' if n == 1 else 'ies'} the tool wasn't sure about:</p>"
-            f"<ul class='replies'>{''.join(items)}</ul>{claude}"
+            f"<ul class='replies'>{''.join(items)}</ul>{datalist}{claude}"
         )
     share = ""
     if ui.learned_yaml:
