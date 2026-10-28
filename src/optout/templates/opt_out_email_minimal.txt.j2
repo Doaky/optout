@@ -9,7 +9,7 @@ Name:     {{ profile.legal_name }}
 {% if profile.aliases %}
 Also known as: {{ profile.aliases | join(", ") }}
 {% endif %}
-Address:  {{ profile.current_address.street }}, {{ profile.current_address.city }}, {{ profile.current_address.state }} {{ profile.current_address.zip }}
+Address:  {{ profile.current_address.street_line }}, {{ profile.current_address.city }}, {{ profile.current_address.state }} {{ profile.current_address.zip }}
 Email:    {{ contact_email }}
 
 {% for s in statutes %}

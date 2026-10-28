@@ -159,7 +159,7 @@ steps:
         use_type: true
       street:
         selector: "input[id='street']"
-        value: "{profile.current_address.street}"
+        value: "{profile.current_address.street_line}"
         use_type: true
       city:
         selector: "input[id='city']"

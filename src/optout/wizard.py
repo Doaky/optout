@@ -140,6 +140,7 @@ def _collect_address(label: str) -> Address:
     console.print(f"\n[italic]{label}[/italic]")
     return Address(
         street=Prompt.ask("  Street"),
+        street2=Prompt.ask("  Apt / Suite / Unit [dim](optional)[/dim]", default="").strip(),
         city=Prompt.ask("  City"),
         state=Prompt.ask("  State [dim](2-letter)[/dim]").strip().upper(),
         zip=Prompt.ask("  ZIP code"),
@@ -157,6 +158,9 @@ def _collect_previous_addresses() -> list[PreviousAddress]:
         addrs.append(
             PreviousAddress(
                 street=Prompt.ask("    Street"),
+                street2=Prompt.ask(
+                    "    Apt / Suite / Unit [dim](optional)[/dim]", default=""
+                ).strip(),
                 city=Prompt.ask("    City"),
                 state=Prompt.ask("    State [dim](2-letter)[/dim]").strip().upper(),
                 zip=Prompt.ask("    ZIP code"),

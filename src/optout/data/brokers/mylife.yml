@@ -89,7 +89,7 @@ steps:
         value: "{birth_year}"
       street:
         selector: "input[id='input_11_addr_line1']"
-        value: "{profile.current_address.street}"
+        value: "{profile.current_address.street_line}"
       city:
         selector: "input[id='input_11_city']"
         value: "{profile.current_address.city}"

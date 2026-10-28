@@ -17,19 +17,30 @@ from pydantic import BaseModel, Field, model_validator
 
 class Address(BaseModel):
     street: str
+    street2: str = ""  # apartment, suite, unit (optional)
     city: str
     state: str
     zip: str
 
+    @property
+    def street_line(self) -> str:
+        """Street plus line 2 as one string, for single-field forms and emails."""
+        return f"{self.street} {self.street2}".strip()
+
 
 class PreviousAddress(BaseModel):
     street: str
+    street2: str = ""
     city: str
     state: str
     zip: str
     # "from" and "to" are reserved words; use aliases for YAML round-trip
     from_year: int | None = Field(None, validation_alias="from", serialization_alias="from")
     to_year: int | None = Field(None, validation_alias="to", serialization_alias="to")
+
+    @property
+    def street_line(self) -> str:
+        return f"{self.street} {self.street2}".strip()
 
 
 # ---------------------------------------------------------------------------

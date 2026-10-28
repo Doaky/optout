@@ -148,6 +148,12 @@ def _build_message(
 
 def _send(smtp_cfg: SmtpConfig, msg: EmailMessage) -> None:
     password = os.environ.get(smtp_cfg.password_env, "")
+    if not password and smtp_cfg.host != "localhost" and not smtp_cfg.host.startswith("127."):
+        raise UserInputRequired(
+            f"Environment variable {smtp_cfg.password_env} is not set, so there is nothing to "
+            f"log in to {smtp_cfg.host} with. "
+            f"Run: export {smtp_cfg.password_env}='your app password'"
+        )
 
     try:
         if smtp_cfg.port == 465:
@@ -167,6 +173,11 @@ def _send(smtp_cfg: SmtpConfig, msg: EmailMessage) -> None:
                 smtp.send_message(msg)
     except smtplib.SMTPRecipientsRefused as exc:
         raise SubmissionFailed(f"SMTP server refused recipient {msg['To']}: {exc}") from exc
+    except smtplib.SMTPServerDisconnected as exc:
+        raise SubmissionFailed(
+            f"{smtp_cfg.host} closed the connection ({exc}). For Gmail this usually means the "
+            "app password is wrong or missing, or the account blocked the sign-in."
+        ) from exc
     except smtplib.SMTPAuthenticationError as exc:
         raise UserInputRequired(
             f"SMTP authentication failed. Check that {smtp_cfg.password_env!r} "

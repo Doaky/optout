@@ -335,3 +335,23 @@ def test_campaign_circuit_breaker_on_repeated_failures(session, config):
         now=lambda: NOW,
     )
     assert len(calls) == 3 and "3 failures in a row" in report.stopped_reason
+
+
+def test_address_line_two_flows_into_emails_and_forms(config):
+    profile = Profile(
+        legal_name="Jane Q Public",
+        dob=date(1990, 5, 14),
+        current_address=Address(
+            street="123 Main St", street2="Apt 4B", city="Richmond", state="VA", zip="23219"
+        ),
+        phones=PhoneSet(),
+        emails=EmailSet(current=["jane@example.invalid"]),
+    )
+    assert profile.current_address.street_line == "123 Main St Apt 4B"
+    body = _render_body(_broker(), profile, contact_email="a@x.invalid", minimal=True)
+    assert "123 Main St Apt 4B, Richmond, VA 23219" in body
+    full = _render_body(_broker(), profile, contact_email="a@x.invalid", minimal=False)
+    assert "123 Main St Apt 4B, Richmond" in full
+    # no line 2: unchanged output, no stray space or comma
+    plain = Address(street="9 Oak Rd", city="X", state="VA", zip="1")
+    assert plain.street_line == "9 Oak Rd"

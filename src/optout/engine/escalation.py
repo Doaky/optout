@@ -33,7 +33,7 @@ def _aware(dt: datetime) -> datetime:
 
 def _who(profile: Profile) -> str:
     a = profile.current_address
-    return f"{profile.legal_name}\n{a.street}, {a.city}, {a.state} {a.zip}"
+    return f"{profile.legal_name}\n{a.street_line}, {a.city}, {a.state} {a.zip}"
 
 
 def stage_for(sub: Submission, escalations_sent: list[str], now: datetime) -> str | None:

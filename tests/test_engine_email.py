@@ -333,3 +333,15 @@ class TestSendViaSmtp:
         assert result.payload["to"] == "optout@radaris.com"
         assert result.payload["from"] == "jane@example.com"
         assert "message_id" in result.payload
+
+
+def test_missing_password_fails_before_connecting(monkeypatch):
+    from optout.engine import UserInputRequired
+    from optout.engine.methods.email import _send
+
+    monkeypatch.delenv("OPTOUT_TEST_NOPW", raising=False)
+    cfg = SmtpConfig(
+        host="smtp.gmail.com", port=587, username="a@b.example", password_env="OPTOUT_TEST_NOPW"
+    )
+    with pytest.raises(UserInputRequired, match="OPTOUT_TEST_NOPW is not set"):
+        _send(cfg, None)  # must raise before touching the message or the network

@@ -13,9 +13,9 @@ Full legal name:  {{ profile.legal_name }}
 Also known as:    {{ profile.aliases | join(", ") }}
 {% endif %}
 Date of birth:    {{ profile.dob }}
-Current address:  {{ profile.current_address.street }}, {{ profile.current_address.city }}, {{ profile.current_address.state }} {{ profile.current_address.zip }}
+Current address:  {{ profile.current_address.street_line }}, {{ profile.current_address.city }}, {{ profile.current_address.state }} {{ profile.current_address.zip }}
 {% for addr in profile.previous_addresses %}
-Previous address: {{ addr.street }}, {{ addr.city }}, {{ addr.state }} {{ addr.zip }}{% if addr.from_year %} ({{ addr.from_year }}–{{ addr.to_year if addr.to_year else "present" }}){% endif %}
+Previous address: {{ addr.street_line }}, {{ addr.city }}, {{ addr.state }} {{ addr.zip }}{% if addr.from_year %} ({{ addr.from_year }}–{{ addr.to_year if addr.to_year else "present" }}){% endif %}
 {% endfor %}
 {% if profile.phones.current %}
 Current phone:    {{ profile.phones.current | join(", ") }}
