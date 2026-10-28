@@ -72,6 +72,7 @@ def run(
     _send(smtp_cfg, msg)
 
     artifact_path = _save_eml(submission.id, msg)
+    label_status = _try_label(config, smtp_cfg, msg["Message-ID"])
 
     return SubmissionResult(
         payload={
@@ -79,9 +80,25 @@ def run(
             "from": msg["From"],
             "subject": subject,
             "message_id": msg["Message-ID"],
+            **({"label": label_status} if label_status else {}),
         },
         artifact_path=str(artifact_path),
     )
+
+
+def _try_label(config: UserConfig, smtp_cfg: SmtpConfig, message_id: str) -> str | None:
+    """Add the Gmail label to the sent message. Never raises: sending already succeeded."""
+    if not config.email.gmail_label or not smtp_cfg.host.endswith("gmail.com"):
+        return None
+    from ...gmail_label import GmailLabeler
+
+    try:
+        with GmailLabeler(
+            smtp_cfg.username, read_smtp_password(smtp_cfg), config.email.gmail_label
+        ) as gmail:
+            return "labeled" if gmail.label_message_ids([message_id]) else "label-not-found"
+    except Exception as exc:
+        return f"label-failed: {type(exc).__name__}"
 
 
 # ---------------------------------------------------------------------------

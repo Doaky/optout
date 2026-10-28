@@ -20,6 +20,27 @@ Derived from [Blake104/OptOut](https://github.com/Blake104/OptOut) (AGPL-3.0). S
 | `optout daily` | One cron entry point: capped sends (if you allow it), escalation drafts, webhook summary. |
 | `optout brokers probe/enable/disable` | Check selectors against the live site; skip brokers you want to stay listed on. |
 
+## Web interface
+
+```
+uv run optout ui          # prints a link; open it
+uv run optout report      # or: a static status page, no server
+```
+
+The UI lets you preview the exact emails, confirm a send by typing `SEND n`, see everything
+you've sent, record a broker's reply (including "automated reply only"), and write a
+follow-up, appeal, or complaint draft with one click. It listens on 127.0.0.1 only, needs the
+one-time link it prints, checks the Host and Origin headers, uses a CSRF token on every action,
+sends a strict Content-Security-Policy, and escapes all registry text. Anything else running as
+your user can still read your files; that's true of the CLI too. Drafts and previews show your
+name and address, so don't screen-share them.
+
+## Gmail label
+
+Add `gmail_label: OPTOUT` under `email:` and sent opt-out emails get that label automatically
+(over IMAP, using the same app password; add-only, no message bodies are read). Run
+`optout label` once to label what you already sent and the replies brokers sent back.
+
 ## Quick start
 
 ```bash

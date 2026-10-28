@@ -63,6 +63,9 @@ optout = ["data/brokers/*.yml"]
 line-length = 100
 target-version = "py312"
 
+[tool.ruff.lint.per-file-ignores]
+"src/optout/web/render.py" = ["E501"]
+
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
 

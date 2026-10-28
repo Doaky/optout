@@ -72,6 +72,20 @@ def make_draft(
         return Draft(
             kind, broker.opt_out_email or "", f"Follow-up: deletion request of {sent}", body
         )
+    if kind == "clarify":
+        body = (
+            f"Dear {broker.name} Privacy Team,\n\n"
+            f"Thank you for your automated reply to my request of {sent}. It points me to "
+            "an advertising opt-out page, but my request was not about ad preferences. It "
+            "is a request under Va. Code § 59.1-577(A)(3) to delete any personal data you "
+            "hold about me, such as my name, address, and email address, wherever it is "
+            "stored.\n\n"
+            "Please confirm in writing either that you have deleted that data, or that you "
+            f"hold none. You may reply to {contact_email}.\n\n{_who(profile)}\n"
+        )
+        return Draft(
+            kind, broker.opt_out_email or "", f"Clarification: deletion request of {sent}", body
+        )
     if kind == "appeal":
         body = (
             f"Dear {broker.name} Privacy Team,\n\n"

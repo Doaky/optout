@@ -66,17 +66,7 @@ def _status_style(status: str) -> str:
     }.get(status, "white")
 
 
-_STATUS_LABEL: dict[str, str] = {
-    "queued": "Queued",
-    "awaiting_user_input": "⚡ Needs input",
-    "submitted": "Submitted",
-    "awaiting_broker_confirmation": "Submitted, awaiting reply",
-    "confirmed": "Broker says done",
-    "removed": "Removed ✓ verified",
-    "rejected": "Rejected",
-    "expired": "Expired",
-    "failed": "Failed",
-}
+from .labels import STATUS_LABEL as _STATUS_LABEL  # noqa: E402
 
 
 def _status_label(status: str) -> str:
@@ -1035,37 +1025,118 @@ def verify(
 
 
 @app.command()
+def label(
+    replies: bool = typer.Option(
+        True, "--replies/--no-replies", help="Also label inbox replies from contacted brokers."
+    ),
+) -> None:
+    """Catch up: add your Gmail label to opt-out emails already sent, and to broker replies."""
+    from .brokers.registry import get_broker, load_registry
+    from .config import load_config
+    from .db import get_session, init_db, list_submissions
+    from .engine.methods.email import read_smtp_password
+    from .gmail_label import GmailLabeler
+
+    try:
+        config = load_config()
+    except FileNotFoundError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+    name = config.email.gmail_label
+    smtp = config.email.smtp
+    if not name or smtp is None or not smtp.host.endswith("gmail.com"):
+        console.print(
+            "Set [bold]gmail_label: OPTOUT[/bold] under email: in your config (Gmail only)."
+        )
+        raise typer.Exit(code=1)
+    load_registry()
+    init_db()
+    domains: set[str] = set()
+    with get_session() as session:
+        for sub in list_submissions(session):
+            try:
+                b = get_broker(sub.broker_slug)
+            except KeyError:
+                continue
+            domains.add(b.domain)
+            if b.opt_out_email:
+                domains.add(b.opt_out_email.rsplit("@", 1)[1])
+    try:
+        with GmailLabeler(smtp.username, read_smtp_password(smtp), name) as gmail:
+            sent = gmail.label_all_sent()
+            got = gmail.label_replies(domains) if replies else 0
+    except Exception as exc:
+        console.print(f"[red]Could not reach Gmail over IMAP: {type(exc).__name__}[/red]")
+        raise typer.Exit(code=1)
+    console.print(
+        f"Labeled [bold]{sent}[/bold] sent email(s) and [bold]{got}[/bold] repl(ies) as {name}."
+    )
+
+
+@app.command()
+def report(
+    out: str = typer.Option(None, "--out", "-o", help="Where to write the HTML file."),
+    open_it: bool = typer.Option(True, "--open/--no-open", help="Open it in your browser."),
+) -> None:
+    """Write a static status page (no server). Contains broker names and dates, not your details."""
+    import os
+    import webbrowser
+    from datetime import UTC, datetime
+    from pathlib import Path
+
+    from .actions import list_drafts
+    from .brokers.registry import load_registry
+    from .config import load_config
+    from .db import db_path, get_session, init_db
+    from .web import render
+    from .web.data import collect
+
+    try:
+        config = load_config()
+    except FileNotFoundError:
+        config = None
+    load_registry()
+    init_db()
+    with get_session() as session:
+        d = collect(session, config, datetime.now(UTC), drafts=len(list_drafts()))
+    path = Path(out).expanduser() if out else db_path().parent / "report.html"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        fh.write(render.dashboard(d, interactive=False))
+    console.print(f"Report written: {path}")
+    if open_it:
+        webbrowser.open(path.as_uri())
+
+
+@app.command()
+def ui(
+    port: int = typer.Option(8765, "--port", help="Port on 127.0.0.1."),
+    open_it: bool = typer.Option(True, "--open/--no-open", help="Open your browser."),
+) -> None:
+    """Start the local web interface (127.0.0.1 only; open the link it prints)."""
+    from .web.server import serve
+
+    serve(port=port, open_browser=open_it)
+
+
+@app.command()
 def reply(
     broker: str = typer.Argument(..., help="Broker slug."),
-    outcome: str = typer.Argument(..., help="deleted | denied | need-info"),
+    outcome: str = typer.Argument(..., help="deleted | denied | need-info | auto-reply"),
     note: str = typer.Option(None, "--note", "-n", help="Short note. Don't put PII here."),
 ) -> None:
     """Record what a broker answered. 'deleted' is the broker's word, not verified removal."""
-    from .db import get_session, init_db, list_submissions, record_event, update_status
+    from .actions import record_reply
+    from .db import get_session, init_db
 
-    mapping = {
-        "deleted": ("confirmed", "confirmation_received"),
-        "denied": ("rejected", "rejection_received"),
-        "need-info": ("awaiting_user_input", "broker_acknowledged"),
-    }
-    if outcome not in mapping:
-        console.print("[red]Outcome must be: deleted, denied, or need-info.[/red]")
-        raise typer.Exit(code=1)
     init_db()
-    with get_session() as session:
-        subs = list_submissions(session, broker_slug=broker)
-        if not subs:
-            console.print(f"[red]No request on record for '{broker}'. Try optout history.[/red]")
-            raise typer.Exit(code=1)
-        sub = max(subs, key=lambda x: x.created_at)
-        status, event = mapping[outcome]
-        update_status(session, sub, status, failure_reason=note if outcome != "deleted" else None)
-        record_event(session, sub, event, {"source": "user_reported", "note": note or ""})
-    msg = {
-        "deleted": "Recorded as the broker's word. Shown as removed only after a re-search.",
-        "denied": "Recorded as refused. Run optout escalate for an appeal draft.",
-        "need-info": "Recorded. They want more information; reply to them directly.",
-    }[outcome]
+    try:
+        with get_session() as session:
+            msg = record_reply(session, broker, outcome, note)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
     console.print(f"[green]{broker}[/green]: {msg}")
 
 
@@ -1197,62 +1268,18 @@ def drift_check(
 
 
 def _write_escalation_drafts(config, now) -> list[tuple[str, str, str]]:
-    """Write drafts for overdue/refused requests. Returns (kind, broker name, path)."""
-    import json
-    import os
+    from .actions import write_escalation_drafts
 
-    from .brokers.registry import get_broker
-    from .db import db_path, get_session, list_events, list_submissions
-    from .engine.escalation import make_draft, stage_for
-    from .engine.methods.email import _contact_email
-
-    drafts_dir = db_path().parent / "drafts"
-    drafts_dir.mkdir(parents=True, exist_ok=True)
-    written: list[tuple[str, str, str]] = []
-    with get_session() as session:
-        for sub in list_submissions(session):
-            sent_kinds = [
-                json.loads(e.payload_json).get("kind", "")
-                for e in list_events(session, sub.id)
-                if e.event_type == "escalation_sent"
-            ]
-            kind = stage_for(sub, sent_kinds, now)
-            if not kind:
-                continue
-            try:
-                broker = get_broker(sub.broker_slug)
-            except KeyError:
-                # Logged by hand and not in any list: draft against a bare stand-in.
-                from .brokers.schema import BrokerDef
-
-                broker = BrokerDef(
-                    slug=sub.broker_slug,
-                    name=sub.broker_slug.title(),
-                    domain=sub.broker_slug,
-                    category="unlisted",
-                    method="manual",
-                    legal_basis=[],
-                    statutory_response_days=45,
-                )
-            draft = make_draft(
-                kind,
-                sub,
-                broker,
-                config.profile,
-                contact_email=_contact_email(config, broker, config.profile),
-            )
-            path = drafts_dir / f"{broker.slug}-{kind}-{now:%Y%m%d}.txt"
-            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            with os.fdopen(fd, "w") as fh:
-                fh.write(f"To: {draft.to}\nSubject: {draft.subject}\n\n{draft.body}")
-            written.append((kind, broker.name, str(path)))
-    return written
+    return write_escalation_drafts(config, now)
 
 
 @app.command()
 def escalate(
     mark_sent: str | None = typer.Option(
         None, "--mark-sent", help="Record that you sent/filed this draft: SLUG:KIND."
+    ),
+    draft: str | None = typer.Option(
+        None, "--draft", help="Write a draft now: SLUG:followup|appeal|complaint|clarify."
     ),
 ) -> None:
     """Write follow-up / appeal / complaint drafts for unanswered requests. Never sends."""
@@ -1271,10 +1298,22 @@ def escalate(
     init_db()
     now = datetime.now(UTC)
 
+    if draft:
+        from .actions import write_draft_now
+
+        slug, _, kind = draft.partition(":")
+        try:
+            path = write_draft_now(config, slug, kind, now)
+        except ValueError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(code=1)
+        console.print(f"Draft written: {path}")
+        raise typer.Exit(code=0)
+
     if mark_sent:
         slug, _, kind = mark_sent.partition(":")
-        if kind not in ("followup", "appeal", "complaint"):
-            console.print("[red]Use --mark-sent SLUG:followup|appeal|complaint[/red]")
+        if kind not in ("followup", "appeal", "complaint", "clarify"):
+            console.print("[red]Use --mark-sent SLUG:followup|appeal|complaint|clarify[/red]")
             raise typer.Exit(code=1)
         with get_session() as session:
             subs = list_submissions(session, broker_slug=slug)
