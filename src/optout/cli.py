@@ -1034,6 +1034,41 @@ def verify(
     console.print("\nNothing is marked removed unless a re-search rendered without your listing.")
 
 
+@app.command()
+def reply(
+    broker: str = typer.Argument(..., help="Broker slug."),
+    outcome: str = typer.Argument(..., help="deleted | denied | need-info"),
+    note: str = typer.Option(None, "--note", "-n", help="Short note. Don't put PII here."),
+) -> None:
+    """Record what a broker answered. 'deleted' is the broker's word, not verified removal."""
+    from .db import get_session, init_db, list_submissions, record_event, update_status
+
+    mapping = {
+        "deleted": ("confirmed", "confirmation_received"),
+        "denied": ("rejected", "rejection_received"),
+        "need-info": ("awaiting_user_input", "broker_acknowledged"),
+    }
+    if outcome not in mapping:
+        console.print("[red]Outcome must be: deleted, denied, or need-info.[/red]")
+        raise typer.Exit(code=1)
+    init_db()
+    with get_session() as session:
+        subs = list_submissions(session, broker_slug=broker)
+        if not subs:
+            console.print(f"[red]No request on record for '{broker}'. Try optout history.[/red]")
+            raise typer.Exit(code=1)
+        sub = max(subs, key=lambda x: x.created_at)
+        status, event = mapping[outcome]
+        update_status(session, sub, status, failure_reason=note if outcome != "deleted" else None)
+        record_event(session, sub, event, {"source": "user_reported", "note": note or ""})
+    msg = {
+        "deleted": "Recorded as the broker's word. Shown as removed only after a re-search.",
+        "denied": "Recorded as refused. Run optout escalate for an appeal draft.",
+        "need-info": "Recorded. They want more information; reply to them directly.",
+    }[outcome]
+    console.print(f"[green]{broker}[/green]: {msg}")
+
+
 @app.command("smtp-password")
 def smtp_password() -> None:
     """Save your email app password to a private file (typed hidden, never on a command line)."""

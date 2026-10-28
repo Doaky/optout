@@ -118,3 +118,25 @@ def test_escalate_drafts_for_unlisted_company_logged_by_hand(isolated_db, tmp_pa
     result = runner.invoke(app, ["escalate"])
     assert result.exit_code == 0, result.output
     assert "followup" in result.output
+
+
+def test_reply_deleted_is_confirmed_not_removed(isolated_db):
+    runner.invoke(app, ["log", "test-email-broker"])
+    result = runner.invoke(app, ["reply", "test-email-broker", "deleted"])
+    assert result.exit_code == 0, result.output
+    with get_session(isolated_db) as s:
+        (sub,) = list_submissions(s)
+        assert sub.status == "confirmed"  # the broker's word; never "removed"
+
+
+def test_reply_denied_enables_appeal_stage(isolated_db):
+    runner.invoke(app, ["log", "test-email-broker"])
+    runner.invoke(app, ["reply", "test-email-broker", "denied", "-n", "not a consumer"])
+    with get_session(isolated_db) as s:
+        (sub,) = list_submissions(s)
+        assert sub.status == "rejected"
+
+
+def test_reply_rejects_unknown_outcome_and_broker(isolated_db):
+    assert runner.invoke(app, ["reply", "x", "maybe"]).exit_code == 1
+    assert runner.invoke(app, ["reply", "never-contacted", "deleted"]).exit_code == 1

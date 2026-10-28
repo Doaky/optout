@@ -335,10 +335,11 @@ class TestSendViaSmtp:
         assert "message_id" in result.payload
 
 
-def test_missing_password_fails_before_connecting(monkeypatch):
+def test_missing_password_fails_before_connecting(monkeypatch, tmp_path):
     from optout.engine import UserInputRequired
     from optout.engine.methods.email import _send
 
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))  # not the real password file
     monkeypatch.delenv("OPTOUT_TEST_NOPW", raising=False)
     cfg = SmtpConfig(
         host="smtp.gmail.com", port=587, username="a@b.example", password_env="OPTOUT_TEST_NOPW"
