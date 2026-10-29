@@ -6,6 +6,7 @@ file can sit on disk or be shared without leaking identity.
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, tzinfo
@@ -309,11 +310,7 @@ def _with_reply(session: Session, sub: Submission, a: Attention) -> Attention:
     a.link_host = urlsplit(a.link).hostname or "" if a.link else ""
     from ..brokers.registry import get_broker
 
-    try:
-        contacted = get_broker(sub.broker_slug).opt_out_email or ""
-    except KeyError:
-        contacted = ""
-    a.alt_emails = alternate_addresses(row.text, row.from_addr, contacted)
+    a.alt_emails = alternate_addresses(row.text, row.from_addr, sent_to(sub, get_broker))
     if a.kind == "need-info":
         a.why = action_label(row.text, has_link=bool(a.link), has_other_email=bool(a.alt_emails))
     return a
@@ -362,6 +359,21 @@ def action_label(text: str, *, has_link: bool, has_other_email: bool) -> str:
         return "Action needed"
     first, second = found[0], (found[1].lower() if len(found) > 1 else "")
     return f"Action needed: {first}" + (f" or {second}" if second else "")
+
+
+def sent_to(sub: Submission, get_broker) -> str:
+    """The address this request actually went to. Not the broker's current contact: that may
+    have been corrected since, and the old request still needs to go to the new address."""
+    try:
+        to = json.loads(sub.payload_json or "{}").get("to")
+    except ValueError:
+        to = None
+    if to:
+        return str(to).lower()
+    try:
+        return (get_broker(sub.broker_slug).opt_out_email or "").lower()
+    except KeyError:
+        return ""
 
 
 _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")

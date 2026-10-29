@@ -1069,3 +1069,56 @@ def test_coverage_reaches_the_attention_prompt_on_the_dashboard(ui):
     _, body = ui.req("GET", "/")
     prompt = body.split("id='attn-prompt'")[1].split("</textarea>")[0]
     assert "Covers only a specific group: educators" in prompt
+
+
+def test_corrections_are_offered_for_sharing_without_repeating_shared_ones(ui):
+    from optout.brokers.contacts import save_local
+
+    _sent_request()
+    save_local("evil", "optout@evil.example", "Their reply named it.")
+    save_local("6sense-insights", "datasubjectrequests@6sense.com", "same as shipped")
+    _, body = ui.req("GET", "/")
+    share = body.split("# add to data/contact_overrides.yml")[1].split("</pre>")[0]
+    assert "optout@evil.example" in share
+    assert "6sense" not in share  # already in the shared list: not offered again
+
+
+def test_resend_offer_compares_with_where_the_request_actually_went(ui, monkeypatch):
+    from optout.brokers.contacts import save_local
+    from optout.db import InboxMessage, create_submission, mark_submitted
+
+    started: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "optout.web.server.App.start_resend",
+        lambda self, slug, addr: started.append((slug, addr)) or "started",
+    )
+    with get_session() as s:
+        sub = create_submission(
+            s,
+            broker_slug="evil",
+            method_used="email",
+            legal_basis_cited=[],
+            statutory_response_days=45,
+        )
+        mark_submitted(s, sub, {"to": "old@evil.example"}, None, 45)
+        sub.status = "awaiting_user_input"
+        s.add(sub)
+        s.add(
+            InboxMessage(
+                message_id="<o1>",
+                submission_id=sub.id,
+                broker_slug="evil",
+                from_addr="auto@evil.example",
+                subject="Re",
+                kind="need-info",
+                text="Not monitored. Please email privacy-new@evil.example.",
+                state="applied",
+            )
+        )
+        s.commit()
+    # the shared list has since corrected this broker's contact to the very address they named
+    save_local("evil", "privacy-new@evil.example", "corrected")
+    _, body = ui.req("GET", "/")
+    assert "Send my request there" in body  # the old request still needs to go there
+    r, _ = ui.post("/act/resend-to", {"slug": "evil", "address": "privacy-new@evil.example"})
+    assert started == [("evil", "privacy-new@evil.example")]

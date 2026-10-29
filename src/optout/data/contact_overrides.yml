@@ -1,0 +1,15 @@
+# Corrections to a broker's contact email: where its own reply says to send requests.
+#
+# The generated broker list comes from California's registry, and some registry mailboxes
+# answer "not monitored; use this address instead". Entries here are applied on top, for
+# everyone, and survive re-importing the registry. An entry should come from the broker's
+# own reply and be an address on the broker's own domain.
+#
+# Add your own in ~/.config/optout/contact_overrides.yml (the dashboard's "Send my request
+# there" button does this), or contribute them: "Share what you've learned" prints new ones.
+- broker: 6sense-insights
+  email: datasubjectrequests@6sense.com
+  note: privacy@6sense.com is not monitored for data subject requests; their reply names this mailbox.
+- broker: baron-app
+  email: dataprotection@cameo.com
+  note: The registry's safety@ alias is no longer an intake channel; their reply directs personal-data requests here.

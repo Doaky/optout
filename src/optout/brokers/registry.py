@@ -98,6 +98,10 @@ def load_registry(brokers_dir: Path | None = None) -> None:
     for layer in (imported_dir(), user_dir()):
         merged.update({b.slug: b for b in _load_lenient(layer)})
 
+    from .contacts import apply_contact_overrides
+
+    merged = apply_contact_overrides(merged)
+
     ov = load_overrides()
     for slug, broker in list(merged.items()):
         if slug in ov["disabled"]:

@@ -723,16 +723,22 @@ def _make_handler(app: App):
                         raise ValueError("unknown broker")
                     # Only an address that the broker's own stored reply names, on its own
                     # domain. The form value is never trusted by itself.
+                    from .data import sent_to
+
                     with get_session() as session:
                         replies = session.exec(
                             select(InboxMessage).where(InboxMessage.broker_slug == slug)
                         ).all()
+                        subs = list_submissions(session, broker_slug=slug)
+                    went_to = (
+                        sent_to(max(subs, key=lambda x: x.created_at), lambda s_: broker)
+                        if subs
+                        else ""
+                    )
                     allowed = {
                         a
                         for r in replies
-                        for a in alternate_addresses(
-                            r.text, r.from_addr, broker.opt_out_email or ""
-                        )
+                        for a in alternate_addresses(r.text, r.from_addr, went_to)
                     }
                     if address not in allowed:
                         raise ValueError("that address isn't in their reply")
@@ -835,7 +841,10 @@ def _fill_replies(ui, session, config) -> None:
     from ..engine.assist import learned_coverage
 
     coverage = learned_coverage()
-    if learned or coverage:
+    from ..brokers.contacts import learned_contacts
+
+    contacts = learned_contacts()
+    if learned or coverage or contacts:
         import yaml
 
         parts = []
@@ -849,8 +858,13 @@ def _fill_replies(ui, session, config) -> None:
                 "# add to data/broker_audiences.yml\n"
                 + yaml.safe_dump(coverage, sort_keys=False, allow_unicode=True)
             )
+        if contacts:
+            parts.append(
+                "# add to data/contact_overrides.yml\n"
+                + yaml.safe_dump(contacts, sort_keys=False, allow_unicode=True)
+            )
         ui.learned_yaml = "\n".join(parts)
-        ui.learned_count = len(learned) + len(coverage)
+        ui.learned_count = len(learned) + len(coverage) + len(contacts)
 
 
 def code_opens_settings(query: dict) -> bool:

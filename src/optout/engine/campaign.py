@@ -255,6 +255,13 @@ def resend_to(
             runner(session, sub, target, config.profile, config)
         if sub.status == "awaiting_broker_confirmation":
             report.sent.append(broker.slug)
+            # Remember the address, so a later batch doesn't go back to the old one.
+            from ..brokers.contacts import save_local
+
+            try:
+                save_local(broker.slug, address, "Their own reply named this address.")
+            except ValueError:
+                pass
             for prev in old:
                 if prev.id != sub.id and prev.status in ACTIVE | {"awaiting_user_input"}:
                     update_status(session, prev, "closed")

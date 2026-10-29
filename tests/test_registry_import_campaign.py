@@ -529,3 +529,68 @@ def test_resend_respects_the_lock_and_the_limit(session, config, tmp_path, monke
     mark_submitted(session, sub, {}, None, 45, submitted_at=NOW)
     rep = resend_to(session, config, _broker("x"), "a@x.example", runner=runner, now=lambda: NOW)
     assert calls == [] and "limit" in rep.stopped_reason
+
+
+def test_a_correction_is_applied_over_the_registry_and_survives_reimport(tmp_path, monkeypatch):
+    import optout.brokers.registry as reg
+    from optout.brokers.contacts import load_contacts, save_local, shared_contacts
+
+    monkeypatch.delenv("OPTOUT_BROKERS_DIR", raising=False)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    res = parse_ca_registry(
+        _write_csv(tmp_path / "r.csv", [_row("6sense Insights, Inc.", "privacy@6sense.example")])
+    )
+    write_yaml_dir(res, reg.imported_dir(), "ca-registry", "2026-10-29")
+
+    reg.load_registry()
+    assert reg.get_broker("6sense-insights").opt_out_email == "datasubjectrequests@6sense.com"
+    assert "6sense-insights" in shared_contacts()  # shipped for everyone
+
+    save_local("6sense-insights", "other@6sense.com", "mine")  # the user's own wins
+    write_yaml_dir(res, reg.imported_dir(), "ca-registry", "2026-10-30")  # re-import
+    reg.load_registry()
+    assert reg.get_broker("6sense-insights").opt_out_email == "other@6sense.com"
+    assert load_contacts()["6sense-insights"]["note"] == "mine"
+    for bad in (("../etc", "a@b.com"), ("ok-slug", "not an email"), ("ok-slug", "a@b")):
+        with pytest.raises(ValueError):
+            save_local(*bad)
+    reg._registry.clear()
+    reg._loaded = False
+
+
+def test_resend_leaves_attention_returns_to_awaiting_reply_and_remembers_the_address(
+    session, config, tmp_path, monkeypatch
+):
+    from optout.brokers.contacts import load_contacts
+    from optout.engine.campaign import resend_to
+    from optout.web.data import collect
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    b = _broker("experian")
+    old = create_submission(
+        session,
+        broker_slug="experian",
+        method_used="email",
+        legal_basis_cited=[],
+        statutory_response_days=45,
+    )
+    mark_submitted(session, old, {}, None, 45, submitted_at=NOW - timedelta(days=2))
+    old.status = "awaiting_user_input"
+    session.add(old)
+    session.commit()
+    before = collect(session, config, NOW)
+    assert [a.slug for a in before.attention] == ["experian"]
+
+    def runner(session, sub, broker, profile, cfg):
+        sub.status = "awaiting_broker_confirmation"
+        sub.submitted_at = NOW
+        session.add(sub)
+        session.commit()
+
+    resend_to(session, config, b, "optout@experian.example", runner=runner, now=lambda: NOW)
+    after = collect(session, config, NOW)
+    assert after.attention == []  # no longer asking for your attention
+    (row,) = [r for r in after.rows if r.slug == "experian"]
+    assert row.status == "awaiting_broker_confirmation"  # back to awaiting a reply
+    assert load_contacts()["experian"]["email"] == "optout@experian.example"
