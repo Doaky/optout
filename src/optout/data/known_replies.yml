@@ -2,7 +2,8 @@
 #
 # Checked before the generic rules, so a broker with unusual wording (or a reply that
 # comes from a ticketing system instead of the broker's own domain) still sorts itself.
-# A known "auto-reply" never hides a real answer in the same email.
+# A known "auto-reply" never hides a real answer in the same email, unless the entry says
+# `override: true` (use it only for a phrase specific enough to settle the matter).
 #
 #   from:    "@domain.com" (any address there) or one exact address
 #   phrase:  text that appears in the subject or body (case doesn't matter)
@@ -24,16 +25,19 @@
 - {from: '@belardiwong.com', phrase: this email inbox is not monitored regularly, outcome: need-info, broker: belardi-ostroy-alc}
 - {from: '@bookyourdata.com', phrase: we have received your request to remove your information from our database, and we are acting on it, outcome: auto-reply, broker: a-direct-marketing}
 - {from: '@broadridge.com', phrase: we cannot assist you directly with requests related to information in client records, outcome: denied, broker: advisortarget}
+- {from: '@01advertising.com', phrase: our team is now working on your request, outcome: auto-reply, broker: 01advertising}
 - {from: '@catalist.us', phrase: thank you for contacting the privacy team at catalist, outcome: auto-reply, broker: catalist}
 - {from: '@circana.com', phrase: you must submit a privacy rights request through our privacy rights web, outcome: need-info, broker: circana}
 - {from: '@clarivate.com', phrase: please submit it through the clarivate privacy center, outcome: need-info, broker: dr-decision-resources}
 - {from: '@completemedicallists.com', phrase: without a full address we will be unable to locate your record, outcome: need-info, broker: complete-medical-lists}
 - {from: '@connatix.com', phrase: the only way to do this is through our web form, outcome: need-info, broker: connatix-native-exchange}
+- {from: '@consumercanvas.net', phrase: no further action is needed from you, outcome: auto-reply, broker: consumer-canvas, override: true}
 - {from: '@convergemarketing.com', phrase: please use our secure online form, outcome: need-info, broker: converge-marketing}
 - {from: '@convexlabs.io', phrase: thank you for contacting convex, outcome: auto-reply, broker: convex-labs}
 - {from: '@costar.com', phrase: this mailbox is not monitored for privacy requests, outcome: need-info, broker: costar-realty-information}
 - {from: '@datafy.com', phrase: we have received your email, outcome: auto-reply, broker: datafy}
 - {from: '@evorra.com', phrase: thank you for your email to, outcome: auto-reply, broker: evorra}
+- {from: '@experian.com', phrase: this inbox is not monitored and cannot process or respond to requests, outcome: need-info, broker: experian-marketing-solutions}
 - {from: '@forager.ai', phrase: thank you for reaching out to forager's privacy team, outcome: auto-reply, broker: forager-ai}
 - {from: '@loopme.com', phrase: thanks for reaching out to us, outcome: auto-reply, broker: chartboost}
 - {from: '@missionwired.com', phrase: thanks for reaching out, outcome: auto-reply, broker: anne-lewis-strategies}

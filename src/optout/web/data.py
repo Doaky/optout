@@ -207,12 +207,6 @@ def collect(
                 )
             )
 
-    if config is not None and any(a.kind in ("need-info", "refused") for a in dash.attention):
-        from ..engine.assist import build_attention_prompt, describe_redactions
-
-        wanted = [a for a in dash.attention if a.kind in ("need-info", "refused")]
-        dash.attention_prompt, counts = build_attention_prompt(wanted, config.profile)
-        dash.attention_redactions = describe_redactions(counts)
     for item in dash.attention:
         cov = coverage.get(item.slug)
         if cov is not None:
@@ -226,6 +220,14 @@ def collect(
                 item.slug, item.name, redact(item.email, config.profile)
             )
 
+    if config is not None and any(a.kind in ("need-info", "refused") for a in dash.attention):
+        from ..engine.assist import build_attention_prompt, describe_redactions
+
+        wanted = [a for a in dash.attention if a.kind in ("need-info", "refused")]
+        dash.attention_prompt, counts = build_attention_prompt(
+            wanted, config.profile, config.my_groups
+        )
+        dash.attention_redactions = describe_redactions(counts)
     dash.series = progress_series(session, subs, now)
     scannable = {b.slug for b in all_brokers() if b.scan}
     dash.verifiable = len({s.broker_slug for s in subs if s.submitted_at} & scannable)

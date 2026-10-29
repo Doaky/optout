@@ -26,7 +26,7 @@ from ..db import InboxMessage, Submission, update_status
 
 MAX_TEXT = 8000
 # Bump when matching or classification changes: saved replies are re-checked once.
-RULES_VERSION = 6
+RULES_VERSION = 8
 PARSER_VERSION = 2  # bump when parsing changes: saved replies are re-read from Gmail once
 
 # --- parsing -----------------------------------------------------------------
@@ -166,9 +166,10 @@ RULES: list[tuple[str, str, re.Pattern[str]]] = [
             r"\bclick(ing)? (on )?(the|this) (link|button)\b|"
             r"\bconfirm (your|this) (email|request)\b|"
             r"\b(further|additional|more) information (is )?(needed|required)\b|"
-            r"\b(we|will) (need|require)\b[^.]{0,50}\b(information|identifiers?|details|"
-            r"verification)\b|\binsufficient\b|\bplease (provide|submit|complete|fill out|"
-            r"reply with|send us)\b|\b(web ?form|online form|portal)\b|\bnot monitored\b|"
+            r"(?<!if )(?<!should )(?<!in case )\b(we|will) (need|require)\b[^.]{0,50}"
+            r"\b(information|identifiers?|details|verification)\b|\binsufficient\b|"
+            r"\bplease (provide|submit|complete|fill out|reply with|send us)\b|"
+            r"\b(web ?form|online form|portal)\b|\bnot monitored\b|"
             r"\b(do|does) not accept\b[^.]{0,40}\b(e-?mail|requests?)\b|"
             r"\b(you )?(must|need to|will need to) (fill out|fill in|complete|submit|use)\b|"
             r"\bfill (out|in) (the|our|this|a) (following )?form\b",
@@ -208,7 +209,9 @@ RULES: list[tuple[str, str, re.Pattern[str]]] = [
             r"message|request|inquiry))\b|\bwe(('ve| have))? received your (request|"
             r"message|email|submission)\b|\bticket (number|#)|\bwithin \d+ (business )?days\b|"
             r"\b(request|it) (has been|was) (successfully )?(submitted|logged|received)\b|"
-            r"\brequest logged\b",
+            r"\brequest logged\b|\b(we|you) will (hear|be in touch|be contacted)\b|"
+            r"\b(we are|team is|we're) (now )?(working on|reviewing|processing) your (request|"
+            r"submission)\b|\byour request is being (processed|reviewed)\b",
             _I,
         ),
     ),
@@ -225,6 +228,7 @@ class KnownReply:
     phrase: str  # case-insensitive text in the subject or body
     outcome: str  # a kind: deleted | no-data | denied | need-info | auto-reply
     broker: str | None = None  # slug, lets a known sender match a request
+    override: bool = False  # beats the general rules even for an acknowledgement
 
 
 def load_known_replies() -> list[KnownReply]:
@@ -250,6 +254,7 @@ def load_known_replies() -> list[KnownReply]:
                 phrase=str(item.get("phrase", "")).lower().strip(),
                 outcome=str(item.get("outcome", "")),
                 broker=item.get("broker"),
+                override=item.get("override") is True,
             )
             if kr.sender and kr.phrase and kr.outcome in _PRIORITY:
                 out.append(kr)
@@ -272,11 +277,28 @@ def known_reply(mail: ParsedMail, known: list[KnownReply]) -> KnownReply | None:
     return None
 
 
+_CONDITION = re.compile(r"\b(if|unless|without|should|in case|in the event|provided that)\b", re.I)
+_SETTLING = {"denied", "no-data", "deleted"}
+
+
+def _firm_match(kind: str, rx: re.Pattern[str], blob: str) -> bool:
+    """Does the pattern match somewhere that isn't a condition? "If an email address was not
+    provided, we are unable to process your opt-out" is not a refusal, and "if your record is
+    found we will delete it" is not a deletion."""
+    if kind not in _SETTLING:
+        return rx.search(blob) is not None
+    for m in rx.finditer(blob):
+        start = max(blob.rfind(ch, 0, m.start()) for ch in ".!?") + 1
+        if not _CONDITION.search(blob[start : m.start()]):
+            return True
+    return False
+
+
 def classify(subject: str, text: str) -> tuple[str, str, list[str]]:
     """Returns (kind, rule, every kind that matched). 'unknown' if nothing matched."""
     # Mail wraps lines mid-sentence ("we do not\nprocess"); patterns see single spaces.
     blob = re.sub(r"\s+", " ", f"{subject}\n{text}")
-    hits = [(kind, name) for kind, name, rx in RULES if rx.search(blob)]
+    hits = [(kind, name) for kind, name, rx in RULES if _firm_match(kind, rx, blob)]
     kinds = [k for k, _ in hits]
     if not hits:
         return "unknown", "", []
@@ -291,7 +313,7 @@ def verdict(mail: ParsedMail, kr: KnownReply | None) -> tuple[str, str, list[str
     kind, rule, kinds = classify(mail.subject, mail.text)
     if kr is None:
         return kind, rule, kinds
-    if kr.outcome == "auto-reply" and kind not in ("unknown", "auto-reply"):
+    if kr.outcome == "auto-reply" and kind not in ("unknown", "auto-reply") and not kr.override:
         return kind, rule, kinds
     return kr.outcome, f"known reply ({kr.sender})", [kr.outcome]
 

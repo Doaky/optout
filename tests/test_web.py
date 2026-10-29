@@ -1041,3 +1041,31 @@ def test_only_privacy_mailboxes_are_offered_as_a_new_address():
         "datasubjectrequests@clearview.example",
         "optout@clearview.example",
     ]
+
+
+def test_coverage_reaches_the_attention_prompt_on_the_dashboard(ui):
+    from optout.audiences import save_local
+    from optout.db import InboxMessage, list_submissions
+
+    _sent_request()
+    save_local("evil", ["educators"], "Teachers only.")
+    with get_session() as s:
+        sub = list_submissions(s)[0]
+        sub.status = "awaiting_user_input"
+        s.add(sub)
+        s.add(
+            InboxMessage(
+                message_id="<c9>",
+                submission_id=sub.id,
+                broker_slug="evil",
+                from_addr="p@evil.example",
+                subject="Re",
+                kind="need-info",
+                text="Please use our web form here: https://f.evil.example/x.",
+                state="applied",
+            )
+        )
+        s.commit()
+    _, body = ui.req("GET", "/")
+    prompt = body.split("id='attn-prompt'")[1].split("</textarea>")[0]
+    assert "Covers only a specific group: educators" in prompt

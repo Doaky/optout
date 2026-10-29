@@ -26,6 +26,7 @@ PLACEHOLDERS = {
     "[MY NAME]": "your name",
     "[MY STREET]": "your street address",
     "[MY OLD STREET]": "a previous address",
+    "[MY CITY]": "your city",
     "[MY ZIP]": "your ZIP code",
     "[MY EMAIL]": "your email address",
     "[MY PHONE]": "your phone number",
@@ -62,6 +63,7 @@ def redact_report(text: str, profile: Profile) -> tuple[str, Counter[str]]:
     pairs += [(n, "[MY NAME]") for n in profile.aliases]
     pairs += [(a.street_line, "[MY STREET]"), (a.street, "[MY STREET]")]
     pairs += [(p.street, "[MY OLD STREET]") for p in profile.previous_addresses]
+    pairs += [(a.city, "[MY CITY]")] + [(p.city, "[MY CITY]") for p in profile.previous_addresses]
     pairs += [(e, "[MY EMAIL]") for e in profile.emails.current + profile.emails.previous]
     pairs += [(p, "[MY PHONE]") for p in profile.phones.current + profile.phones.previous]
     pairs += [(r, "[RELATIVE]") for r in profile.relatives]
@@ -79,7 +81,7 @@ def redact_report(text: str, profile: Profile) -> tuple[str, Counter[str]]:
         for e in profile.emails.current + profile.emails.previous
         if "@" in e
     ]
-    word_marks = {"[MY NAME]", "[RELATIVE]", "[MY EMAIL]"}
+    word_marks = {"[MY NAME]", "[RELATIVE]", "[MY EMAIL]", "[MY CITY]"}
     for value, mark in sorted(pairs, key=lambda p: -len(p[0])):
         value = value.strip()
         if value and len(value) >= 4:
@@ -174,7 +176,7 @@ def build_prompt_report(
             f"Date: {when}\n"
             f"Broker: {broker}\n"
             f"My tool's guess: {r.kind or 'unknown'}\n\n"
-            f"{clean(r.text)[:3000]}\n"
+            f"{clean(trim_for_prompt(r.text, 3500))}\n"
             "</reply>"
         )
     unmatched = any(it.row.broker_slug is None for it in items)
@@ -493,7 +495,33 @@ def learned_entries(session: Session, profile: Profile) -> list[dict[str, str]]:
     return sorted(fresh, key=lambda e: (e["from"], e["phrase"]))
 
 
-def build_attention_prompt(items: list, profile: Profile) -> tuple[str, Counter[str]]:
+_OUR_ECHO = re.compile(
+    r"(?is)(\[THIS IS AN EXTERNAL EMAIL\]\s*)?\bDear [^\n]{0,120}Privacy Team,?"
+    r"\s*I am a resident of"
+)
+_BOILERPLATE = re.compile(
+    r"(?is)\n\s*(disclaimer\s*:|confidentiality note|privileged/confidential|"
+    r"this e-?mail (message )?\(?(including|and any attachments)|the contents of this e-?mail|"
+    r"this message and any accompanying files|the information contained in this e-?mail)"
+)
+
+
+def trim_for_prompt(text: str, limit: int = 4500) -> str:
+    """What Claude needs from a reply: not our own request quoted back, not the legal
+    disclaimer, and enough room that the useful ending isn't cut off."""
+    text = text.strip()
+    m = _OUR_ECHO.search(text)
+    if m and m.start() > 40:
+        text = text[: m.start()].rstrip()
+    m = _BOILERPLATE.search(text)
+    if m and m.start() > 400:
+        text = text[: m.start()].rstrip()
+    return text[:limit]
+
+
+def build_attention_prompt(
+    items: list, profile: Profile, my_groups: list[str] | None = None
+) -> tuple[str, Counter[str]]:
     """A prompt asking Claude what to do about each item in "Needs your attention".
     Advisory only: the answer is read by the user, not applied by the tool."""
     counts: Counter[str] = Counter()
@@ -511,10 +539,17 @@ def build_attention_prompt(items: list, profile: Profile) -> tuple[str, Counter[
             f"Status: {a.why}\n"
             f"Key sentence: {clean(a.quote) if a.quote else '(none found)'}\n"
             f"Covers only a specific group: {a.coverage or 'no / unknown'}\n\n"
-            f"{clean(a.email)[:2500] if a.email else '(no reply text saved)'}\n"
+            f"{clean(trim_for_prompt(a.email)) if a.email else '(no reply text saved)'}\n"
             "</item>"
         )
+    from ..audiences import TITLES
+
     n = len(items)
+    mine = (
+        "I haven't said which groups I belong to, so judge only from the reply."
+        if my_groups is None
+        else "Groups I belong to: " + (", ".join(TITLES[g] for g in my_groups) or "none") + "."
+    )
     some = "1 broker needs" if n == 1 else f"{n} brokers need"
     prompt = f"""I emailed data brokers asking them to delete my personal data. {some} something \
 from me. For each one below, tell me exactly what to do next, in plain words.
@@ -525,7 +560,7 @@ For each broker, give:
 and address; click the confirm button in their email; reply to them).
 3. **Worth doing?** Say "close it" if the broker only holds data on a group I may not belong to \
 (for example only teachers, or only financial advisors) or the request clearly doesn't \
-apply to me. Otherwise say "do it".
+apply to me. Otherwise say "do it". {mine}
 4. If a reply email is needed, write a short, polite draft. Keep my details as the placeholders \
 shown ([MY NAME], [MY EMAIL], [MY STREET]); I'll fill them in.
 

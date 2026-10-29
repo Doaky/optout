@@ -1114,3 +1114,93 @@ def test_share_skips_coverage_that_matches_the_shared_list(tmp_path, monkeypatch
 )
 def test_vague_patterns_are_not_offered_for_sharing(phrase, ok):
     assert assist._specific_enough(phrase) is ok
+
+
+def test_a_conditional_request_is_not_a_request():
+    ack = (
+        "Our team is now working on your request, and we will be in touch if we need any "
+        "additional information from you or once all necessary actions have been completed."
+    )
+    assert classify("Re: Data Deletion Request", ack)[0] == "auto-reply"
+    for conditional in (
+        "if we need more details",
+        "should we need further information",
+        "in case we need verification",
+    ):
+        assert classify("Re", f"We will contact you {conditional}.")[0] != "need-info"
+    assert classify("Re", "We need additional information from you to proceed.")[0] == "need-info"
+
+
+def test_override_entry_corrects_a_form_link_that_isnt_really_a_request():
+    from optout.engine.inbox import load_known_replies, verdict
+
+    text = (
+        "THIS IS AN AUTOMATIC REPLY. If you provided all requested information to our "
+        "webform or mailbox, no further action is needed from you. To help us expedite "
+        "your request please fill out the form found via https://forms.example/x."
+    )
+    mail = _mail(from_addr="privacy@consumercanvas.net", subject="Auto response", text=text)
+    assert classify(mail.subject, mail.text)[0] == "need-info"  # the general rules misread it
+    known = next(k for k in load_known_replies() if k.sender == "@consumercanvas.net")
+    assert known.override and verdict(mail, known)[0] == "auto-reply"
+    # an ordinary acknowledgement entry still can't hide a real answer
+    plain = KnownReply(sender="@acme.example", phrase="thank you", outcome="auto-reply")
+    real = _mail(from_addr="p@acme.example", text="Thank you. Your data has been deleted.")
+    assert verdict(real, plain)[0] == "deleted"
+
+
+def test_a_conditional_refusal_is_not_a_refusal():
+    bdex = (
+        "Your email has been received and if an email address was provided then the opt-out "
+        "has been processed. Please note that if an email address was not provided, we are "
+        "unable to process your opt-out since our platform tracks consumers by email."
+    )
+    assert classify("Re: request", bdex)[0] != "denied"
+    assert classify("Re", "We are unable to process your request.")[0] == "denied"
+    assert (
+        classify(
+            "Re", "Unless you verify, we cannot process your request. Your data has been deleted."
+        )[0]
+        == "deleted"
+    )  # the unconditional sentence still counts
+
+
+def test_prompts_drop_our_own_echo_and_boilerplate_and_hide_the_city(me):
+    me2 = me.model_copy(
+        update={"current_address": me.current_address.model_copy(update={"city": "Springfield"})}
+    )
+    reply = (
+        "Please use our form. " * 30 + "\n\nWe will process it.\n\n"
+        "Dear BDEX, LLC Privacy Team, I am a resident of VA requesting the deletion... "
+        "Address: 1 Oak, Springfield, IL 62701"
+    )
+    trimmed = assist.trim_for_prompt(reply)
+    assert "I am a resident" not in trimmed and trimmed.endswith("We will process it.")
+    disclaimer = (
+        "Real answer here. " * 40
+    ) + "\n\nDisclaimer : This e-mail message is confidential."
+    assert "Disclaimer" not in assist.trim_for_prompt(disclaimer)
+    out, counts = assist.redact_report("Address: 1 Oak, Springfield, IL 62701", me2)
+    assert "Springfield" not in out and "[MY CITY]" in out and counts["[MY CITY]"] == 1
+    assert "your city" in assist.describe_redactions(counts)
+    long_tail = "x " * 1500 + "KEEP-THE-ENDING-SENTENCE-HERE."
+    assert "KEEP-THE-ENDING" in assist.trim_for_prompt(long_tail)  # the old 2,500 cut lost this
+
+
+def test_attention_prompt_knows_coverage_and_my_groups(me):
+    from optout.web.data import Attention
+
+    item = Attention(
+        "agile",
+        "Agile",
+        "need-info",
+        "Action needed",
+        "",
+        email="Use our form.",
+        coverage="educators",
+    )
+    prompt, _ = assist.build_attention_prompt([item], me, ["students"])
+    assert "Covers only a specific group: educators" in prompt
+    assert "Groups I belong to: Student." in prompt
+    unset, _ = assist.build_attention_prompt([item], me, None)
+    assert "haven't said which groups" in unset
