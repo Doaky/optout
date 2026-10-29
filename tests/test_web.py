@@ -903,3 +903,141 @@ def test_resend_to_button_and_route_are_guarded(ui, monkeypatch):
         r, _ = ui.post("/act/resend-to", {"slug": "evil", "address": bad})
         assert r.getheader("Location") == "/?m=err", bad
     assert len(started) == 1
+
+
+@pytest.mark.parametrize(
+    "text,link,other_email,expected",
+    [
+        (
+            "One more step is required before we can start working on your request. Please "
+            "confirm your email by clicking on the button below.",
+            True,
+            False,
+            "Action needed: Confirm your email",
+        ),
+        (
+            "You can submit a privacy request via our interactive web form here.",
+            True,
+            False,
+            "Action needed: Form submission",
+        ),
+        (
+            "Please email optout@x.example. To exercise all other privacy rights, visit our "
+            "Privacy Rights Portal.",
+            False,
+            True,
+            "Action needed: Form submission or new email",
+        ),
+        (
+            "Please write to privacy@x.example with your full details.",
+            False,
+            True,
+            "Action needed: New email",
+        ),
+        (
+            "The information provided is insufficient to verify a matching record.",
+            False,
+            False,
+            "Action needed: More information",
+        ),
+        (
+            "Call us toll-free at 800-555-0100 or write to our P.O. Box.",
+            False,
+            False,
+            "Action needed: Phone or mail",
+        ),
+        ("Thanks. We need something from you.", False, False, "Action needed"),
+    ],
+)
+def test_action_label_says_what_to_do(text, link, other_email, expected):
+    from optout.web.data import action_label
+
+    assert action_label(text, has_link=link, has_other_email=other_email) == expected
+
+
+def test_show_email_toggles_to_hide_email(ui):
+    from optout.db import InboxMessage, list_submissions
+
+    _sent_request()
+    with get_session() as s:
+        sub = list_submissions(s)[0]
+        sub.status = "awaiting_user_input"
+        s.add(sub)
+        s.add(
+            InboxMessage(
+                message_id="<t1>",
+                submission_id=sub.id,
+                broker_slug="evil",
+                from_addr="p@evil.example",
+                subject="Re",
+                kind="need-info",
+                text="Please confirm your email by clicking https://x.evil.example/c.",
+                state="applied",
+            )
+        )
+        s.commit()
+    _, body = ui.req("GET", "/")
+    assert (
+        "<span class='on-closed'>Show email</span><span class='on-open'>Hide email</span>" in body
+    )
+    assert "Action needed: Confirm your email" in body
+    for label in ("Show as table",):
+        assert f"<span class='on-closed'>{label}</span>" in body or label not in body
+
+
+def test_hide_label_appears_in_a_real_browser(ui):
+    from optout.db import InboxMessage, list_submissions
+
+    sync_api = pytest.importorskip("playwright.sync_api")
+    _sent_request()
+    with get_session() as s:
+        sub = list_submissions(s)[0]
+        sub.status = "awaiting_user_input"
+        s.add(sub)
+        s.add(
+            InboxMessage(
+                message_id="<t2>",
+                submission_id=sub.id,
+                broker_slug="evil",
+                from_addr="p@evil.example",
+                subject="Re",
+                kind="need-info",
+                text="Please use our web form here: https://f.evil.example/x.",
+                state="applied",
+            )
+        )
+        s.commit()
+    try:
+        pw = sync_api.sync_playwright().start()
+        browser = pw.chromium.launch()
+    except Exception as exc:
+        pytest.skip(f"no browser: {type(exc).__name__}")
+    try:
+        page = browser.new_page()
+        page.goto(f"http://127.0.0.1:{ui.port}/?t={ui.token}")
+        summary = page.locator("details.mini > summary").first
+        assert summary.inner_text().strip() == "Show email"
+        summary.click()
+        assert summary.inner_text().strip() == "Hide email"
+        summary.click()
+        assert summary.inner_text().strip() == "Show email"
+    finally:
+        browser.close()
+        pw.stop()
+
+
+def test_only_privacy_mailboxes_are_offered_as_a_new_address():
+    from optout.web.data import alternate_addresses
+
+    text = (
+        "Questions? security@clearview.example, bugbounty@clearview.example, "
+        "abadurina@clearview.example, sales@clearview.example. For privacy requests use "
+        "privacy@clearview.example or datasubjectrequests@clearview.example "
+        "or optout@clearview.example."
+    )
+    got = alternate_addresses(text, "auto@clearview.example", "x@clearview.example", limit=5)
+    assert got == [
+        "privacy@clearview.example",
+        "datasubjectrequests@clearview.example",
+        "optout@clearview.example",
+    ]

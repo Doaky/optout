@@ -191,7 +191,7 @@ def collect(
                         row.slug,
                         row.name,
                         "need-info",
-                        "Wants something from you",
+                        "Action needed",
                         "Do what their reply asks, then mark it done so the deadline restarts.",
                     ),
                 )
@@ -312,10 +312,63 @@ def _with_reply(session: Session, sub: Submission, a: Attention) -> Attention:
     except KeyError:
         contacted = ""
     a.alt_emails = alternate_addresses(row.text, row.from_addr, contacted)
+    if a.kind == "need-info":
+        a.why = action_label(row.text, has_link=bool(a.link), has_other_email=bool(a.alt_emails))
     return a
 
 
+_CONFIRM = re.compile(
+    r"confirm (your|this) (email|e-mail|request)|verify (your )?(email|e-mail)|"
+    r"click (on )?(the )?(button|link)|one more step",
+    re.I,
+)
+_FORM = re.compile(
+    r"web ?form|online form|webform|portal|privacy (center|choices|rights)|fill (out|in)|"
+    r"submit (your|a|the) (request|form)|complete (the|our|this) (form|request)|"
+    r"(form|portal) (below|here|at)",
+    re.I,
+)
+_EMAIL_US = re.compile(
+    r"\b(e-?mail|write|send|direct)\b[^.\n]{0,60}[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.", re.I
+)
+_MORE_INFO = re.compile(
+    r"verify (your|the) identity|identity verification|additional (information|identifiers)|"
+    r"insufficient|more information|proof of|full address|date of birth",
+    re.I,
+)
+_PHONE_MAIL = re.compile(
+    r"\b(call|telephone|toll-free|phone)\b|\b(u\.?s\.? mail|postal|p\.?o\.? box)", re.I
+)
+
+
+def action_label(text: str, *, has_link: bool, has_other_email: bool) -> str:
+    """A specific pill for a reply that wants something: 'Action needed: Form submission'.
+    Up to two things are named when the reply offers a choice."""
+    flat = re.sub(r"\s+", " ", text)
+    found: list[str] = []
+    if _CONFIRM.search(flat) and has_link:
+        found.append("Confirm your email")
+    if _FORM.search(flat) or (has_link and not found):
+        found.append("Form submission")
+    if has_other_email and _EMAIL_US.search(flat):
+        found.append("New email")
+    if _MORE_INFO.search(flat) and not found:
+        found.append("More information")
+    if _PHONE_MAIL.search(flat) and len(found) < 2:
+        found.append("Phone or mail")
+    if not found:
+        return "Action needed"
+    first, second = found[0], (found[1].lower() if len(found) > 1 else "")
+    return f"Action needed: {first}" + (f" or {second}" if second else "")
+
+
 _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")
+_PRIVACY_MAILBOX = re.compile(
+    r"privacy|dsar|dsr|optout|opt-out|opt_out|datasubject|subjectrequest|dataprotection|"
+    r"data-protection|data_protection|dpo|gdpr|ccpa|cpra|rights|delet|remov|suppress|"
+    r"compliance|consumer|requests?$",
+    re.I,
+)
 _NOT_A_MAILBOX = re.compile(
     r"^(no-?reply|do-?not-?reply|donotreply|mailer-daemon|postmaster)", re.I
 )
@@ -340,7 +393,8 @@ def alternate_addresses(text: str, sender: str, contacted: str, *, limit: int = 
         local, _, domain = addr.partition("@")
         if addr in (sender, contacted) or addr in found or _NOT_A_MAILBOX.match(local):
             continue
-        if same_company(domain):
+        # A privacy mailbox, not security@, bugbounty@, a named person, or sales@.
+        if same_company(domain) and _PRIVACY_MAILBOX.search(local):
             found.append(addr)
     return found[:limit]
 

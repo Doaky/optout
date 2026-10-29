@@ -169,7 +169,7 @@ form.inline.pwform{align-items:flex-end;flex-wrap:nowrap}
 .pwform input,.pwform button{height:38px}
 .pwform button{white-space:nowrap}
 .how{margin:0 0 4px;color:var(--muted);font-size:13px}
-.att{display:flex;gap:16px;justify-content:space-between;align-items:center;padding:12px 0;
+.att{display:flex;gap:16px;justify-content:space-between;align-items:flex-start;padding:12px 0;
   border-bottom:1px solid var(--line)}
 .att:last-child{border-bottom:0}
 .att-main{flex:1;min-width:0}
@@ -177,6 +177,9 @@ form.inline.pwform{align-items:flex-end;flex-wrap:nowrap}
 .att .quote{margin:4px 0 0;color:var(--text-2);font-size:14px;line-height:1.45;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .att p{margin:4px 0 0}
+summary .on-open{display:none}
+details[open]>summary .on-closed{display:none}
+details[open]>summary .on-open{display:inline}
 details.mini{margin-top:2px}
 details.mini>summary{cursor:pointer;color:var(--accent);font-size:12.5px;width:max-content;
   list-style:none}
@@ -466,6 +469,35 @@ fillZone();
 LIVE_JS_HASH = "sha256-" + base64.b64encode(hashlib.sha256(LIVE_JS.encode()).digest()).decode()
 
 
+_TOGGLES = {
+    "Show email": "Hide email",
+    "Show the email": "Hide the email",
+    "Show as table": "Hide table",
+    "See exactly what will be copied": "Hide what will be copied",
+    "How does this work?": "Hide explanation",
+}
+_SUMMARY = re.compile(r"<summary>([^<]{1,80})</summary>")
+
+
+def _toggle_labels(html: str) -> str:
+    """Make a <details> summary say Hide while it's open. Pure CSS: both labels are in the
+    page, and whether the panel is open decides which one shows."""
+
+    def swap(m: re.Match[str]) -> str:
+        closed = m.group(1)
+        opened = _TOGGLES.get(closed)
+        if opened is None and re.fullmatch(r"Preview all \d+ emails", closed):
+            opened = "Hide previews"
+        if opened is None:
+            return m.group(0)
+        return (
+            f"<summary><span class='on-closed'>{closed}</span>"
+            f"<span class='on-open'>{opened}</span></summary>"
+        )
+
+    return _SUMMARY.sub(swap, html)
+
+
 def page(title: str, body: str, *, nav: bool, refresh: int | None = None, updated: str = "") -> str:
     # No-script fallback. The target has no #fragment: a refresh to the same URL with a
     # fragment is treated as an in-page jump and never reloads.
@@ -500,7 +532,8 @@ def page(title: str, body: str, *, nav: bool, refresh: int | None = None, update
         f"<a class='brand' href='/' aria-label='optout home'>{_LOGO}<span>optout</span></a>"
         f"<span class='sub'>Data-broker opt-outs</span>{back}{upd}"
         f"{'' if nav else settings_link}</div></header>"
-        f"<main id='main' class='wrap'>{body}</main><script>{LIVE_JS}</script></body></html>"
+        f"<main id='main' class='wrap'>{_toggle_labels(body)}</main>"
+        f"<script>{LIVE_JS}</script></body></html>"
     )
 
 
@@ -726,7 +759,7 @@ ROW_ACTIONS = [
         [
             ("status:awaiting_broker_confirmation", "Awaiting reply"),
             ("status:confirmed", "Broker says done"),
-            ("status:awaiting_user_input", "Wants something from me"),
+            ("status:awaiting_user_input", "Action needed"),
             ("status:rejected", "Refused"),
             ("status:closed", "Closed"),
         ],
@@ -822,7 +855,7 @@ _GUESS = {
     "deleted": ("good", "✓", "Says deleted"),
     "no-data": ("good", "✓", "Says no data"),
     "denied": ("critical", "✕", "Refused"),
-    "need-info": ("warning", "!", "Wants something"),
+    "need-info": ("warning", "!", "Action needed"),
     "auto-reply": ("info", "●", "Automated reply"),
     "bounced": ("serious", "!", "Bounced"),
     "unknown": ("neutral", "?", "Not sure"),
