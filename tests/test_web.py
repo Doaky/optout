@@ -822,3 +822,31 @@ def test_bounced_or_sent_requests_have_no_resend_button(ui):
         not in body.split("<main")[1].split("</main>")[0].split("action='/act/settings'")[0]
     )
     assert ui.post("/act/retry", {"slug": "evil"})[0].getheader("Location") == "/?m=err"
+
+
+def test_attention_copy_prompt_and_honest_chart_label(ui):
+    from optout.db import InboxMessage, list_submissions
+
+    _sent_request()
+    with get_session() as s:
+        sub = list_submissions(s)[0]
+        sub.status = "awaiting_user_input"
+        s.add(sub)
+        s.add(
+            InboxMessage(
+                message_id="<p1>",
+                submission_id=sub.id,
+                broker_slug="evil",
+                from_addr="privacy@evil.example",
+                subject="Re",
+                kind="need-info",
+                text="Use the form: https://forms.evil.example/x/SECRETTOKEN. Dear Jane.",
+                state="applied",
+            )
+        )
+        s.commit()
+    _, body = ui.req("GET", "/")
+    assert "Not sure what to do? Ask Claude" in body and "data-copy='attn-prompt'" in body
+    assert "SECRETTOKEN" not in body.split("id='attn-prompt'")[1].split("</textarea>")[0]
+    assert ">Says done<" in body or "Says done" in body  # chart legend, not "Removed"
+    assert "Removed 0" not in body

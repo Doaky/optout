@@ -68,10 +68,12 @@ class Dashboard:
     sent_today: int = 0
     daily_limit: int = 0
     drafts: int = 0
-    # Daily cumulative progress: (ISO date, sent, broker replied, verified removed)
+    # Daily cumulative progress: (ISO date, sent, broker replied, broker says done)
     series: list[tuple[str, int, int, int]] = field(default_factory=list)
     verifiable: int = 0  # contacted brokers whose site we can re-search ourselves
     contributor_tools: bool = False
+    attention_prompt: str = ""
+    attention_redactions: str = ""
 
 
 def _aware(dt: datetime) -> datetime:
@@ -204,6 +206,12 @@ def collect(
                 )
             )
 
+    if config is not None and any(a.kind in ("need-info", "refused") for a in dash.attention):
+        from ..engine.assist import build_attention_prompt, describe_redactions
+
+        wanted = [a for a in dash.attention if a.kind in ("need-info", "refused")]
+        dash.attention_prompt, counts = build_attention_prompt(wanted, config.profile)
+        dash.attention_redactions = describe_redactions(counts)
     for item in dash.attention:
         cov = coverage.get(item.slug)
         if cov is not None:
@@ -250,7 +258,8 @@ def progress_series(
         day = _aware(ev.created_at).astimezone(_TZ).date()
         if ev.event_type in _REPLY_EVENTS:
             first_reply[ev.submission_id] = min(day, first_reply.get(ev.submission_id, day))
-        elif ev.event_type == "removed_verified":
+        if ev.event_type in ("confirmation_received", "removed_verified"):
+            # "Says done": the broker confirmed deletion, or a re-search verified it.
             removed[ev.submission_id] = min(day, removed.get(ev.submission_id, day))
 
     start, end = min(sent_days), now.astimezone(_TZ).date()

@@ -552,7 +552,7 @@ def _tone_var(status: str) -> str:
 
 # --- chart -------------------------------------------------------------------
 
-_SERIES = (("Sent", "--s1"), ("Replied", "--s2"), ("Removed", "--s3"))
+_SERIES = (("Sent", "--s1"), ("Replied", "--s2"), ("Says done", "--s3"))
 
 
 def _nice_max(v: int) -> tuple[int, int]:
@@ -588,13 +588,13 @@ def progress_chart(series: list[tuple[str, int, int, int]]) -> str:
     )
     table = (
         "<details class='more'><summary>Show as table</summary><div class='table-wrap'>"
-        "<table><thead><tr><th>Day</th><th>Sent</th><th>Replied</th><th>Removed (verified)</th>"
+        "<table><thead><tr><th>Day</th><th>Sent</th><th>Replied</th><th>Says done</th>"
         f"</tr></thead><tbody>{table_rows}</tbody></table></div></details>"
     )
     last = series[-1]
     summary = (
         f"Progress to {_fmt_day(last[0])}: {last[1]} requests sent, {last[2]} brokers replied, "
-        f"{last[3]} verified removed."
+        f"{last[3]} say it's done."
     )
     if len(series) < 2:
         # One day of data: a line needs two points, so compare the three totals as bars.
@@ -671,7 +671,7 @@ def progress_chart(series: list[tuple[str, int, int, int]]) -> str:
         f"<g class='col'><rect x='{x(i) - colw / 2:.1f}' y='{mt}' width='{colw:.1f}' "
         f"height='{ph}'/><line class='xh' x1='{x(i):.1f}' x2='{x(i):.1f}' y1='{mt}' "
         f"y2='{mt + ph}'/><title>{e(_fmt_day(r[0]))}: {r[1]} sent · {r[2]} replied · "
-        f"{r[3]} verified removed</title></g>"
+        f"{r[3]} say it's done</title></g>"
         for i, r in enumerate(series)
     )
     svg = (
@@ -1552,9 +1552,30 @@ def dashboard(
             if with_actions
             else ""
         )
+        ask = ""
+        if with_actions and d.attention_prompt:
+            ask = (
+                "<details class='more'><summary>Not sure what to do? Ask Claude</summary>"
+                "<p class='small'>Copy the prompt, paste it into "
+                "<a href='https://claude.ai/new' target='_blank' rel='noreferrer'>Claude</a>, "
+                "and it tells you what each broker wants and whether it's worth doing. "
+                "Your details are replaced with placeholders, and links keep only the site "
+                "name."
+                + (
+                    f"<div class='redacted'><b>Removed before copying:</b> "
+                    f"{e(d.attention_redactions)}</div>"
+                    if d.attention_redactions
+                    else ""
+                )
+                + "<button type='button' class='secondary' data-copy='attn-prompt'>Copy prompt"
+                "</button> <details class='peek'><summary>See exactly what will be copied"
+                f"</summary><pre>{e(d.attention_prompt)}</pre></details>"
+                f"<textarea id='attn-prompt' class='hidden-copy' readonly aria-hidden='true' "
+                f"tabindex='-1'>{e(d.attention_prompt)}</textarea></p></details>"
+            )
         attn = (
             "<section class='card' aria-labelledby='attn-h'>"
-            f"<h2 id='attn-h'>Needs your attention</h2>{how}<ul class='attn'>{items}</ul>"
+            f"<h2 id='attn-h'>Needs your attention</h2>{how}{ask}<ul class='attn'>{items}</ul>"
             "</section>"
         )
 

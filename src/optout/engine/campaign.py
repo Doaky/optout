@@ -36,6 +36,7 @@ class Selection:
 class CampaignReport:
     sent: list[str] = field(default_factory=list)
     failed: list[tuple[str, str]] = field(default_factory=list)
+    skipped: list[str] = field(default_factory=list)  # already contacted: left alone
     stopped_reason: str | None = None
 
 
@@ -114,6 +115,47 @@ def _retry_or_new(session: Session, broker: BrokerDef) -> Submission:
     return failed
 
 
+def already_contacted(session: Session, broker: BrokerDef, now: datetime, days: int = 90) -> bool:
+    """A fresh look, right before sending: is there a request to this broker that is in
+    flight or was sent recently? (A failed attempt that never left doesn't count.)"""
+    cutoff = now - timedelta(days=days)
+    for s in session.exec(select(Submission).where(Submission.broker_slug == broker.slug)):
+        if s.submitted_at is None:
+            continue
+        if s.status in ACTIVE or _aware(s.submitted_at) >= cutoff:
+            return True
+    return False
+
+
+class SendLock:
+    """One batch at a time on this machine, across the dashboard, the command line, and
+    the scheduled run. Two overlapping batches each pick 'who hasn't been emailed' before
+    either has recorded anything, which is how someone could get two emails."""
+
+    def __init__(self) -> None:
+        from ..db import db_path
+
+        self._path = db_path().parent / "send.lock"
+        self._fh = None
+
+    def __enter__(self) -> bool:
+        import fcntl
+
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._fh = open(self._path, "w")  # noqa: SIM115 (held for the whole batch)
+        try:
+            fcntl.flock(self._fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            self._fh.close()
+            self._fh = None
+            return False
+        return True
+
+    def __exit__(self, *exc) -> None:
+        if self._fh is not None:
+            self._fh.close()  # closing releases the lock
+
+
 def run_campaign(
     session: Session,
     config: UserConfig,
@@ -128,6 +170,16 @@ def run_campaign(
     report = CampaignReport()
     from ..config import user_tz
 
+    with SendLock() as got:
+        if not got:
+            report.stopped_reason = "another batch is already sending"
+            return report
+        return _run_locked(
+            session, config, brokers, limit, runner, sleep, now, on_progress, report, user_tz
+        )
+
+
+def _run_locked(session, config, brokers, limit, runner, sleep, now, on_progress, report, user_tz):
     quota = max(0, config.email.daily_limit - sent_today(session, now(), user_tz(config)))
     budget = min(limit, quota)
     if budget == 0:
@@ -137,6 +189,9 @@ def run_campaign(
     consecutive = 0
     with email_method.batch_session(config):
         for i, broker in enumerate(brokers[:budget]):
+            if already_contacted(session, broker, now()):
+                report.skipped.append(broker.slug)
+                continue
             if i:
                 sleep(config.email.send_delay_seconds)
             sub = _retry_or_new(session, broker)

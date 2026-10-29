@@ -435,3 +435,42 @@ def test_seeded_coverage_loads_and_user_entries_win(tmp_path, monkeypatch):
     assert load_coverage()["advisortarget"].niche is False
     with pytest.raises(ValueError):
         save_local("../etc", ["educators"], "")
+
+
+def test_two_batches_can_never_overlap(session, config, tmp_path, monkeypatch):
+    from optout.engine.campaign import SendLock
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    with SendLock() as first:
+        assert first
+        runner, calls = _fake_runner({})
+        # a second batch started while the first is running does nothing
+        report = run_campaign(
+            session,
+            config,
+            [_broker("b0")],
+            limit=5,
+            runner=runner,
+            sleep=lambda s: None,
+            now=lambda: NOW,
+        )
+        assert calls == [] and report.stopped_reason == "another batch is already sending"
+    with SendLock() as again:
+        assert again  # released when the first batch finishes
+
+
+def test_a_broker_contacted_a_moment_ago_is_never_emailed_again(session, config):
+    b = _broker("b0")
+    sub = create_submission(
+        session,
+        broker_slug="b0",
+        method_used="email",
+        legal_basis_cited=[],
+        statutory_response_days=45,
+    )
+    mark_submitted(session, sub, {}, None, 45, submitted_at=NOW - timedelta(minutes=1))
+    runner, calls = _fake_runner({})
+    report = run_campaign(
+        session, config, [b], limit=5, runner=runner, sleep=lambda s: None, now=lambda: NOW
+    )
+    assert calls == [] and report.skipped == ["b0"] and report.sent == []
