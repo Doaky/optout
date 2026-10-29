@@ -8,6 +8,7 @@ from datetime import date
 
 from pydantic import ValidationError
 
+from ..audiences import GROUPS
 from ..config import Address, PreviousAddress, UserConfig
 
 LIMITS = {"daily_limit": (1, 200), "send_delay_seconds": (0, 120)}
@@ -104,6 +105,11 @@ def apply_form(cfg: UserConfig, form: dict[str, str]) -> UserConfig:
         daily_send_time=form.get("daily_send_time", "").strip() or "10:00",
     )
     data["timezone"] = form.get("timezone", "").strip() or None
+    # Groups: only once the user has seen the section (the form says so), otherwise a save
+    # from an old page must not wipe the setting.
+    if form.get("groups_present") == "1":
+        data["my_groups"] = [g for g in GROUPS if form.get(f"group_{g}") == "on"]
+    data["contributor_tools"] = form.get("contributor_tools") == "on"
     try:
         return UserConfig.model_validate(data)
     except ValidationError as exc:

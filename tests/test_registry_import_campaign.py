@@ -417,3 +417,26 @@ def test_brokers_for_groups_you_are_not_in_are_skipped(session):
     assert not applies_to(educators, ["financial-advisors"])
     assert applies_to(educators, ["educators"])
     assert applies_to(None, [])  # unlisted brokers cover everyone
+
+
+def test_batches_skip_brokers_for_groups_you_are_not_in(session):
+    ok = _broker("everyone-co")
+    niche = _broker("agile-education-marketing")  # seeded: educators only
+    none_set = select_brokers([ok, niche], session, now=NOW, my_groups=None)
+    assert [b.slug for b in none_set.eligible] == ["everyone-co", "agile-education-marketing"]
+    outside = select_brokers([ok, niche], session, now=NOW, my_groups=["financial-advisors"])
+    assert [b.slug for b in outside.eligible] == ["everyone-co"]
+    assert outside.skipped == [("agile-education-marketing", "only covers educators")]
+    inside = select_brokers([ok, niche], session, now=NOW, my_groups=["educators"])
+    assert len(inside.eligible) == 2
+
+
+def test_seeded_coverage_loads_and_user_entries_win(tmp_path, monkeypatch):
+    from optout.audiences import load_coverage, save_local
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    assert load_coverage()["advisortarget"].audiences == ("financial-advisors",)
+    save_local("advisortarget", ["everyone"], "Actually covers everyone")
+    assert load_coverage()["advisortarget"].niche is False
+    with pytest.raises(ValueError):
+        save_local("../etc", ["educators"], "")

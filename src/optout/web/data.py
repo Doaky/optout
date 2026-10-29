@@ -34,6 +34,7 @@ class Row:
     last_check: str
     drifted: bool
     reply_from: list[str] = field(default_factory=list)
+    only_covers: str = ""  # e.g. "educators" when the broker serves a specific group
 
 
 @dataclass
@@ -48,6 +49,10 @@ class Attention:
     link: str = ""  # first web link in their reply (shown, never opened for you)
     link_host: str = ""
     gmail_url: str = ""  # opens this exact email in Gmail (search by Message-ID)
+    coverage: str = ""  # who the broker covers, if limited ("educators")
+    coverage_note: str = ""
+    coverage_groups: list[str] = field(default_factory=list)
+    coverage_prompt: str = ""  # redacted prompt for Claude (contributor tools only)
 
 
 @dataclass
@@ -64,6 +69,7 @@ class Dashboard:
     # Daily cumulative progress: (ISO date, sent, broker replied, verified removed)
     series: list[tuple[str, int, int, int]] = field(default_factory=list)
     verifiable: int = 0  # contacted brokers whose site we can re-search ourselves
+    contributor_tools: bool = False
 
 
 def _aware(dt: datetime) -> datetime:
@@ -95,7 +101,11 @@ def collect(
 
     _TZ = user_tz(config)
     names = {b.slug: b.name for b in all_brokers()}
-    dash = Dashboard(generated=friendly_time(now, _TZ), drafts=drafts)
+    dash = Dashboard(
+        generated=friendly_time(now, _TZ),
+        drafts=drafts,
+        contributor_tools=bool(config and config.contributor_tools),
+    )
     drift_cache: dict[str, bool] = {}
 
     newest_first = Submission.created_at.desc()  # type: ignore[attr-defined]
@@ -103,6 +113,9 @@ def collect(
     from ..engine.inbox import senders_by_broker
 
     reply_from = senders_by_broker(session)
+    from ..audiences import load_coverage
+
+    coverage = load_coverage()
     seen: set[str] = set()
     for sub in subs:  # newest first: keep one row per broker, the latest attempt
         if sub.broker_slug in seen:
@@ -128,6 +141,11 @@ def collect(
             last_check=f"{v.outcome.replace('_', ' ')} {_date(v.checked_at)}" if v else "—",
             drifted=drift,
             reply_from=reply_from.get(sub.broker_slug, []),
+            only_covers=(
+                coverage[sub.broker_slug].label()
+                if sub.broker_slug in coverage and coverage[sub.broker_slug].niche
+                else ""
+            ),
         )
         dash.rows.append(row)
         dash.counts[row.label] = dash.counts.get(row.label, 0) + 1
@@ -178,6 +196,19 @@ def collect(
                     "Their form may have changed",
                     "Automatic web-form submission may fail for this broker.",
                 )
+            )
+
+    for item in dash.attention:
+        cov = coverage.get(item.slug)
+        if cov is not None:
+            item.coverage, item.coverage_note = cov.label(), cov.note
+            item.coverage_groups = list(cov.audiences)
+        if config is not None and config.contributor_tools and item.email:
+            from ..audiences import coverage_prompt
+            from ..engine.assist import redact
+
+            item.coverage_prompt = coverage_prompt(
+                item.slug, item.name, redact(item.email, config.profile)
             )
 
     dash.series = progress_series(session, subs, now)

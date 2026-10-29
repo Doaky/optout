@@ -653,3 +653,88 @@ def test_time_zone_and_send_time_settings(ui):
     for bad in ({"timezone": "Mars/Olympus"}, {"daily_send_time": "25:00"}):
         r, _ = ui.post("/act/settings", {**base, "daily_send_time": "09:30", **bad})
         assert r.getheader("Location") == "/?m=settings_err#settings", bad
+
+
+def test_groups_and_contributor_tools_in_settings(ui):
+    from optout.config import load_config
+
+    base = {
+        "legal_name": "Jane Q Public",
+        "dob": "1990-05-14",
+        "street": "1 Main St",
+        "city": "Richmond",
+        "state": "VA",
+        "zip": "23219",
+        "daily_limit": "40",
+        "send_delay_seconds": "5",
+        "daily_send_time": "10:00",
+    }
+    _, body = ui.req("GET", "/")
+    assert "Groups you belong to" in body and "Not set yet" in body
+    assert "name='group_educators'" in body and "Contributor tools" in body
+    assert load_config().my_groups is None  # untouched until saved
+
+    # an old page (no groups_present) can't wipe the setting
+    ui.post("/act/settings", {**base, "groups_present": "1", "group_educators": "on"})
+    assert load_config().my_groups == ["educators"]
+    ui.post("/act/settings", base)
+    assert load_config().my_groups == ["educators"]
+    # saved with nothing ticked: set, and in no group
+    ui.post("/act/settings", {**base, "groups_present": "1"})
+    assert load_config().my_groups == []
+
+
+def test_coverage_panel_only_with_contributor_tools_and_is_strict(ui, tmp_path):
+    from optout.audiences import load_coverage
+    from optout.config import load_config, save_config
+    from optout.db import InboxMessage, list_submissions
+
+    _sent_request()
+    with get_session() as s:
+        sub = list_submissions(s)[0]
+        sub.status = "awaiting_user_input"
+        s.add(sub)
+        s.add(
+            InboxMessage(
+                message_id="<c1>",
+                submission_id=sub.id,
+                broker_slug="evil",
+                from_addr="privacy@evil.example",
+                subject="Re",
+                kind="need-info",
+                text="We only hold data on teachers. Dear Jane Q Public, use our form.",
+                state="applied",
+            )
+        )
+        s.commit()
+    _, body = ui.req("GET", "/")
+    assert "class='mini coverage'" not in body
+
+    cfg = load_config()
+    cfg.contributor_tools = True
+    save_config(cfg)
+    _, body = ui.req("GET", "/")
+    assert "class='mini coverage'" in body and "name='aud_educators'" in body
+    prompt = body[body.index("id='cov-evil'") :]
+    prompt = prompt[: prompt.index("</textarea>")]
+    assert "Jane" not in prompt and "[MY NAME]" in prompt  # redacted before copying
+
+    r, _ = ui.post("/act/coverage", {"slug": "evil", "aud_educators": "on", "note": "Teachers."})
+    assert r.getheader("Location") == "/?m=cov_ok"
+    assert load_coverage()["evil"].audiences == ("educators",)
+    _, body = ui.req("GET", "/")
+    assert "Only covers: educators" in body
+
+    good = "```yaml\n- broker: evil\n  audiences: [students]\n  note: Students.\n```"
+    ui.post("/act/coverage-claude", {"slug": "evil", "answer": good})
+    assert load_coverage()["evil"].audiences == ("students",)
+    for bad in (
+        "```yaml\n- broker: other\n  audiences: [educators]\n```",
+        "```yaml\n- broker: evil\n  audiences: [wizards]\n```",
+        "not yaml: [",
+    ):
+        r, _ = ui.post("/act/coverage-claude", {"slug": "evil", "answer": bad})
+        assert r.getheader("Location") == "/?m=err", bad
+    assert load_coverage()["evil"].audiences == ("students",)  # nothing bad was saved
+    r, _ = ui.post("/act/coverage", {"slug": "evil"})  # nothing picked
+    assert r.getheader("Location") == "/?m=err"

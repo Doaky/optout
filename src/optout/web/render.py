@@ -176,6 +176,15 @@ details.mini>summary{cursor:pointer;color:var(--accent);font-size:12.5px;width:m
   list-style:none}
 details.mini>summary::-webkit-details-marker{display:none}
 details.mini[open]>summary{margin-bottom:6px}
+.att:has(details.coverage[open]){align-items:flex-start}
+.coverage{max-width:760px}
+.coverage .checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
+  gap:2px 18px;margin:6px 0}
+.coverage .check{margin:0;font-size:13px;align-items:flex-start}
+.coverage .noterow{display:flex;gap:8px;margin-top:6px}
+.coverage .noterow input{flex:1;min-width:0}
+.coverage textarea{margin-top:8px}
+.coverage form + form{margin-top:6px}
 .att-actions{display:flex;gap:6px;align-items:center;flex:none}
 .att-actions button{padding:6px 14px;font-size:13px}
 a.ibtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;
@@ -936,6 +945,29 @@ _TZ_LIST = (
 )
 
 
+def _groups_fieldset(v: dict[str, str]) -> str:
+    from ..audiences import GROUPS
+
+    mine = set(v.get("my_groups", "").split(",")) if v.get("groups_set") else set()
+    boxes = "".join(
+        f"<label class='check'><input type='checkbox' name='group_{k}'"
+        f"{' checked' if k in mine else ''}> {e(text)}</label>"
+        for k, text in GROUPS.items()
+    )
+    status = (
+        "Brokers that only cover groups you're not in are left out of batches."
+        if v.get("groups_set")
+        else "Not set yet: every broker is included. Save once (even with nothing ticked) to "
+        "start skipping brokers that only cover other groups."
+    )
+    return (
+        "<fieldset><legend>Groups you belong to</legend>"
+        "<p class='muted small'>A few brokers only hold data on a specific group, like "
+        f"educators or financial advisors. {e(status)}</p>"
+        f"<input type='hidden' name='groups_present' value='1'>{boxes}</fieldset>"
+    )
+
+
 def _settings_panel(ui: UI) -> str:
     v = ui.settings
     if not v:
@@ -1052,6 +1084,15 @@ def _settings_panel(ui: UI) -> str:
         "<summary><h2>Settings</h2><span class='muted small'>Your details, sending, and "
         "Gmail</span></summary>"
         f"<form method='post' action='/act/settings'>{_hidden(ui.csrf)}{about}{sending}"
+        f"{_groups_fieldset(v)}"
+        "<fieldset><legend>Contributor tools</legend><label class='check'>"
+        "<input type='checkbox' name='contributor_tools'"
+        f"{' checked' if v.get('contributor_tools') == 'on' else ''}> Show coverage tools on "
+        "&ldquo;Needs your attention&rdquo;</label><p class='muted small'>Adds a panel to each "
+        "item for judging who a broker covers (educators only, financial advisors only, "
+        "&hellip;), with a prompt you can paste into Claude. What you save can be shared back "
+        "so other people skip brokers that don't apply to them. Limits: Claude can be wrong, "
+        "so check its answer; a broker's own reply is the best evidence.</p></fieldset>"
         "<button type='submit' class='big'>Save settings</button></form>"
         f"<hr>{password}</details>"
     )
@@ -1091,7 +1132,50 @@ _LINK_ICON = (
 _URL_IN_TEXT = re.compile(r"\s*[<(]?https?://[^\s>)]+[>)]?")
 
 
-def _attention_item(a: Attention, csrf: str) -> str:
+def _coverage_panel(a: Attention, csrf: str) -> str:
+    from ..audiences import GROUPS
+
+    boxes = "".join(
+        f"<label class='check'><input type='checkbox' name='aud_{k}'"
+        f"{' checked' if k in a.coverage_groups else ''}> {e(text)}</label>"
+        for k, text in GROUPS.items()
+    )
+    everyone = (
+        "<label class='check'><input type='checkbox' name='aud_everyone'"
+        f"{' checked' if 'everyone' in a.coverage_groups else ''}> Everyone: the general public"
+        "</label>"
+    )
+    return (
+        "<details class='mini coverage'><summary>Coverage</summary>"
+        "<p class='muted small'>Does this broker only hold data on a specific group? "
+        "People outside it can skip it. Judge from their own reply; if you can't tell, "
+        "leave it as Everyone.</p>"
+        f"<form method='post' action='/act/coverage'>{_hidden(csrf, slug=a.slug)}"
+        f"<div class='checks'>{boxes}{everyone}</div>"
+        "<div class='noterow'>"
+        f"<input name='note' maxlength='240' value='{e(a.coverage_note)}' "
+        "placeholder='One line on who they cover (no personal details)' aria-label='Note'>"
+        "<button type='submit' class='secondary'>Save</button></div></form>"
+        + (
+            "<p class='small'><b>Or ask Claude:</b> copy the prompt, paste it into "
+            "<a href='https://claude.ai/new' target='_blank' rel='noreferrer'>Claude</a>, "
+            "then paste its answer below. Your details are replaced with placeholders.</p>"
+            f"<button type='button' class='secondary' data-copy='cov-{e(a.slug)}'>Copy prompt"
+            "</button>"
+            f"<form method='post' action='/act/coverage-claude'>{_hidden(csrf, slug=a.slug)}"
+            "<textarea name='answer' rows='4' required placeholder='Paste Claude&#x27;s answer'"
+            " aria-label='Answer from Claude'></textarea>"
+            "<button type='submit' class='secondary'>Apply Claude&#x27;s answer</button></form>"
+            f"<textarea id='cov-{e(a.slug)}' class='hidden-copy' readonly aria-hidden='true' "
+            f"tabindex='-1'>{e(a.coverage_prompt)}</textarea>"
+            if a.coverage_prompt
+            else ""
+        )
+        + "</details>"
+    )
+
+
+def _attention_item(a: Attention, csrf: str, contributor: bool = False) -> str:
     def act(action: str, label: str, cls: str = "secondary") -> str:
         return (
             "<form method='post' action='/act/row' class='inline'>"
@@ -1142,7 +1226,8 @@ def _attention_item(a: Attention, csrf: str) -> str:
     return (
         "<li class='att'><div class='att-main'>"
         f"<div class='att-head'><b>{e(a.name)}</b> <span class='pill t-{tone}'>{e(a.why)}</span>"
-        f"</div>{quote_html}{email}</div>"
+        f"</div>{quote_html}{email}"
+        f"{_coverage_panel(a, csrf) if contributor else ''}</div>"
         f"<div class='att-actions'>{''.join(icons)}{''.join(buttons)}</div></li>"
     )
 
@@ -1209,6 +1294,15 @@ def _drafts_line(ui: UI) -> str:
             for n in ui.drafts[-8:]
         )
     return f"<div class='filters' style='margin-top:12px'>{make}{saved}</div>"
+
+
+def _covers_tag(row: Row) -> str:
+    if not row.only_covers:
+        return ""
+    return (
+        f"<div class='muted small' title='This broker only holds data on this group'>"
+        f"Only covers: {e(row.only_covers)}</div>"
+    )
 
 
 def _reply_from(row: Row) -> str:
@@ -1335,7 +1429,9 @@ def dashboard(
     attn = ""
     if d.attention:
         if with_actions:
-            items = "".join(_attention_item(a, csrf) for a in d.attention[:40])
+            items = "".join(
+                _attention_item(a, csrf, contributor=d.contributor_tools) for a in d.attention[:40]
+            )
         else:
             items = "".join(
                 f"<li><span><b>{e(a.name)}</b> <span class='muted'>· {e(a.why)}</span></span></li>"
@@ -1355,7 +1451,8 @@ def dashboard(
 
     trs = "".join(
         f"<tr data-name='{e((r.name + ' ' + r.slug).lower())}' data-status='{e(r.label)}'>"
-        f"<td class='name'>{e(r.name)}{_reply_from(r)}</td><td>{pill(r.status, r.label)}</td>"
+        f"<td class='name'>{e(r.name)}{_reply_from(r)}{_covers_tag(r)}</td>"
+        f"<td>{pill(r.status, r.label)}</td>"
         f"<td class='num'>{e(_short(r.submitted))}</td>"
         f"<td>{_days_cell(r)}<div class='muted small'>{_due(r)}</div></td>"
         f"<td class='small'>{e(r.last_check)}"

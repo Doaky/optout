@@ -58,6 +58,8 @@ FLASH = {
     "imported": "Broker list loaded.",
     "inboxerr": "Couldn't read replies from Gmail. Check your app password and connection.",
     "reviewed": "Saved.",
+    "cov_ok": "Coverage saved. Brokers that only cover other groups are skipped once you've "
+    "set your groups in Settings.",
     "settings_ok": "Settings saved.",
     "pw_ok": "Signed in and saved your app password.",
     "err": "That didn't work. Check the details and try again.",
@@ -652,6 +654,18 @@ def _make_handler(app: App):
                         return self._redirect("/?m=pw_bad#settings")
                     save_smtp_password(pw)
                     return self._redirect("/?m=pw_ok#settings")
+                if path == "/act/coverage":
+                    from ..audiences import GROUPS, save_local
+
+                    picked = [k for k in (*GROUPS, "everyone") if form.get(f"aud_{k}") == "on"]
+                    save_local(slug, picked, form.get("note", ""))
+                    return self._redirect("/?m=cov_ok")
+                if path == "/act/coverage-claude":
+                    from ..audiences import parse_coverage_answer, save_local
+
+                    groups, note = parse_coverage_answer(form.get("answer", ""), slug)
+                    save_local(slug, groups, note)
+                    return self._redirect("/?m=cov_ok")
                 if path == "/act/import":
                     from ..brokers.importer import import_ca_registry
 
@@ -738,11 +752,25 @@ def _fill_replies(ui, session, config) -> None:
         ui.claude_prompt, counts = build_prompt_report(items, config.profile, contacted)
         ui.redactions = describe_redactions(counts)
     learned = learned_entries(session, config.profile)
-    if learned:
+    from ..engine.assist import learned_coverage
+
+    coverage = learned_coverage()
+    if learned or coverage:
         import yaml
 
-        ui.learned_yaml = yaml.safe_dump(learned, sort_keys=False, allow_unicode=True)
-        ui.learned_count = len(learned)
+        parts = []
+        if learned:
+            parts.append(
+                "# add to data/known_replies.yml\n"
+                + yaml.safe_dump(learned, sort_keys=False, allow_unicode=True)
+            )
+        if coverage:
+            parts.append(
+                "# add to data/broker_audiences.yml\n"
+                + yaml.safe_dump(coverage, sort_keys=False, allow_unicode=True)
+            )
+        ui.learned_yaml = "\n".join(parts)
+        ui.learned_count = len(learned) + len(coverage)
 
 
 def code_opens_settings(query: dict) -> bool:
@@ -773,6 +801,9 @@ def _settings_values(config) -> dict[str, str]:
         "alias_pattern": em.alias_pattern or "",
         "allow_unattended": "on" if em.allow_unattended else "",
         "daily_send_time": em.daily_send_time,
+        "my_groups": ",".join(config.my_groups) if config.my_groups is not None else "",
+        "groups_set": "1" if config.my_groups is not None else "",
+        "contributor_tools": "on" if config.contributor_tools else "",
         "timezone": config.timezone or "",
         "sender": em.smtp.username if em.smtp else "",
         "host": em.smtp.host if em.smtp else "",

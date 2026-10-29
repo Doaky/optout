@@ -358,6 +358,13 @@ def _deciding_sentence(text: str, kind: str, profile: Profile) -> str:
     return ""
 
 
+def learned_coverage() -> list[dict[str, object]]:
+    """The user's own coverage entries (who a broker holds data on), for sharing."""
+    from ..audiences import local_entries
+
+    return local_entries()
+
+
 def learned_entries(session: Session, profile: Profile) -> list[dict[str, str]]:
     """Known-reply entries from replies whose meaning is settled, free of personal details."""
     from ..brokers.registry import all_brokers
