@@ -219,7 +219,8 @@ def test_match_order(session, world):
     assert match(_mail(from_addr="a@tickets.example"), idx, known)[1] == "known-sender"
 
 
-def test_bounce_matches_through_the_quoted_original(session, world):
+def test_bounce_matches_through_the_quoted_original(session, world, monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     brokers, subs = world
     idx = build_index(subs.values(), brokers, None)
     mail = parse_message(
@@ -232,6 +233,9 @@ def test_bounce_matches_through_the_quoted_original(session, world):
     rep = process(session, [mail], idx, known=[])
     assert rep.applied == [("acme", "bounced")]
     assert subs["acme"].status == "failed" and "bounced" in subs["acme"].failure_reason
+    from optout.brokers.registry import load_overrides
+
+    assert "acme" in load_overrides()["disabled"]  # off the send list until a good address
 
 
 # --- applying ------------------------------------------------------------------

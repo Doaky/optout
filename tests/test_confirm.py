@@ -281,3 +281,15 @@ def test_auto_close_only_for_groups_you_are_not_in(session):
     again = waiting("agile-education-marketing", "awaiting_user_input")
     assert auto_close_out_of_scope(session, Cfg()) == 0 and again.status == "awaiting_user_input"
     del EmailConfig, SmtpConfig, UserConfig
+
+
+def test_teach_phrase_and_tracker_redirects():
+    from optout.engine.confirm import redirect_ok, teach_phrase
+
+    text = "Email Verification\n\nYou must click on the following secure link to verify your email address.\n"
+    assert teach_phrase(text) == "you must click on the following secure link to verify your email address."
+    assert teach_phrase("Hello there.") == ""
+    # A click-tracker may redirect to the real page; an ordinary site may not leave its hosts.
+    assert redirect_ok("https://portal.osano.com/x", ("track.pstmrk.it",))
+    assert not redirect_ok("http://portal.osano.com/x", ("track.pstmrk.it",))
+    assert not redirect_ok("https://evil.example/x", ("onetrust.com",))

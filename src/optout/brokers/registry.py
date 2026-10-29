@@ -68,6 +68,8 @@ def set_enabled(slug: str, enabled: bool) -> None:
     path = overrides_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump({k: sorted(v) for k, v in ov.items()}))
+    if slug in _registry:  # take effect now, not at the next reload
+        _registry[slug] = _registry[slug].model_copy(update={"enabled": enabled})
 
 
 def _load_lenient(directory: Path) -> list[BrokerDef]:

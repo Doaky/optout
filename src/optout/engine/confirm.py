@@ -32,6 +32,9 @@ _LABELLED_LINK = re.compile(r"([^()\n]{0,60}?)\((https?://[^\s)]+)\)")
 _HOST_OK = re.compile(r"^[a-z0-9.-]+\.[a-z]{2,}$")
 _DEFAULT_ANCHOR = r"confirm|verify"
 MAX_ATTEMPTS = 2
+_CUE = re.compile(r"verif|confirm|click", re.I)
+# Email click-trackers: the link starts on the tracker and redirects to the real page.
+TRACKER_HOSTS = ("pstmrk.it", "sendgrid.net", "mandrillapp.com", "list-manage.com", "mailgun.org")
 
 
 @dataclass(frozen=True)
@@ -148,6 +151,27 @@ def host_allowed(url: str, hosts: tuple[str, ...]) -> bool:
     return any(host == h or host.endswith("." + h) for h in hosts)
 
 
+def teach_phrase(text: str) -> str:
+    """A sentence from the email that says to confirm/verify/click, to recognise it by next
+    time (the most specific one). Empty if there isn't one."""
+    found = []
+    for sent in re.split(r"(?<=[.!?])\s+|\n", text):
+        flat = re.sub(r"\s+", " ", sent).strip()
+        if 12 <= len(flat) <= 200 and _CUE.search(flat) and "http" not in flat:
+            found.append(flat.lower())
+    return max(found, key=len, default="")
+
+
+def redirect_ok(url: str, hosts: tuple[str, ...]) -> bool:
+    """A redirect target: on the flow's hosts, or anywhere over plain HTTPS when the flow's
+    link is an email click-tracker (which always redirects to the real page)."""
+    if host_allowed(url, hosts):
+        return True
+    if not any(h == t or h.endswith("." + t) for h in hosts for t in TRACKER_HOSTS):
+        return False
+    return host_allowed(url, (urlsplit(url).hostname or "",))
+
+
 def flow_for(from_addr: str, text: str, flows: list[Flow]) -> Flow | None:
     flat = re.sub(r"\s+", " ", text).lower()
     addr = from_addr.lower()
@@ -198,7 +222,7 @@ class _SameSite(urllib.request.HTTPRedirectHandler):
         self._hosts = hosts
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
-        if not host_allowed(newurl, self._hosts):
+        if not redirect_ok(newurl, self._hosts):
             raise urllib.error.URLError("redirected off the allowed site")
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
@@ -226,7 +250,7 @@ def fetch_browser(url: str, hosts: tuple[str, ...], timeout: float = 30) -> Fetc
             resp = page.goto(url, wait_until="networkidle", timeout=timeout * 1000)
             page.wait_for_timeout(1500)
             host = urlsplit(page.url).hostname or ""
-            if not host_allowed(page.url, hosts):
+            if not redirect_ok(page.url, hosts):
                 return Fetched(error="left the allowed site", final_host=host)
             return Fetched(resp.status if resp else 0, page.inner_text("body"), host)
         finally:

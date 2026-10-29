@@ -776,6 +776,8 @@ def _make_handler(app: App):
                         if cf.flow_for(row.from_addr, row.text, flows) is None:
                             sender, link_host, _url = cf.propose_flow(row.from_addr, row.text)  # type: ignore[misc]
                             phrase = _deciding_sentence(row.text, "need-info", config.profile)
+                            if len(phrase) < 12:
+                                phrase = cf.teach_phrase(row.text)
                             cf.save_local_flow(
                                 sender, phrase, link_host, "Taught from a reply you confirmed."
                             )

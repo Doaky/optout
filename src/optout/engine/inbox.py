@@ -581,8 +581,28 @@ def apply_kind(session: Session, sub: Submission, kind: str, note: str) -> None:
             update_status(
                 session, sub, "failed", failure_reason="bounced: the broker's address rejected it"
             )
+        # Keep a dead address off the send list until a working one is found
+        # (re-enable it from the brokers list, or add a corrected address in contact_overrides).
+        from ..brokers.registry import set_enabled
+
+        set_enabled(sub.broker_slug, False)
         return
     apply_outcome(session, sub, KIND_TO_OUTCOME[kind], note, "inbox")
+
+
+def disable_bounced(session: Session) -> int:
+    """Keep every broker whose address bounced off the send list. Returns how many were new."""
+    from ..brokers.registry import load_overrides, set_enabled
+
+    already = set(load_overrides()["disabled"])
+    slugs = {
+        r.broker_slug
+        for r in session.exec(select(InboxMessage).where(InboxMessage.kind == "bounced")).all()
+        if r.broker_slug and r.state != "ignored"
+    } - already
+    for slug in sorted(slugs):
+        set_enabled(slug, False)
+    return len(slugs)
 
 
 def _state_path():
@@ -711,6 +731,7 @@ def run_sync(config, *, dry_run: bool = False) -> SyncReport:
             report = process(session, mails, idx, dry_run=dry_run)
             if not dry_run:
                 report.closed = auto_close_out_of_scope(session, config)
+                disable_bounced(session)
                 if config.confirm_links == "auto":
                     from .confirm import auto_confirm, load_flows
 
