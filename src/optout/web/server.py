@@ -318,9 +318,12 @@ def _make_handler(app: App):
                     ok=False,
                 )
             if code in FLASH:
+                text = FLASH[code]
+                if code.startswith("conf_") and (said := query.get("n", [""])[0][:200]):
+                    text += f" The page said: “{said}”"
                 flash = render.message_box(
-                    FLASH[code],
-                    ok=code not in ("err", "busy", "nocfg"),
+                    text,
+                    ok=code not in ("err", "busy", "nocfg", "conf_unclear", "conf_failed"),
                     live=code == "started" and app.job.get("state") == "running",
                 )
 
@@ -782,8 +785,9 @@ def _make_handler(app: App):
                                 sender, phrase, link_host, "Taught from a reply you confirmed."
                             )
                             flows = cf.load_flows()
+                        said: list[str] = []
                         result, _host = cf.confirm_reply(
-                            session, row, flows=flows, fetch=cf.default_fetch
+                            session, row, flows=flows, fetch=cf.default_fetch, said=said
                         )
                     code = {
                         "confirmed": "conf_ok",
@@ -793,7 +797,8 @@ def _make_handler(app: App):
                     }.get(result)
                     if code is None:
                         raise ValueError(result)
-                    return self._redirect(f"/?m={code}")
+                    seen = f"&n={quote(said[0][:160], safe='')}" if said else ""
+                    return self._redirect(f"/?m={code}{seen}")
                 if path == "/act/retry":
                     broker = next((b for b in all_brokers() if b.slug == slug), None)
                     if broker is None or broker.method != "email":

@@ -292,7 +292,7 @@ svg.chart{width:100%;height:auto;display:block;background:var(--chart-surface);b
 LIVE_JS = """(() => {
 const d = document;
 d.documentElement.classList.add('js');
-const strip = ['m', 'a', 'r', 's', 'live', 'draft', 'ds', 'dk', 'settings'];
+const strip = ['m', 'n', 'a', 'r', 's', 'live', 'draft', 'ds', 'dk', 'settings'];
 
 const filter = () => {
   const box = d.getElementById('q');

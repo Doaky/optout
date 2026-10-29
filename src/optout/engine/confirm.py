@@ -301,8 +301,21 @@ def _attempts(session: Session, sub: Submission, message_id: str) -> list[dict]:
 Fetch = Callable[[str, tuple[str, ...]], Fetched]
 
 
+def page_excerpt(f: Fetched, limit: int = 160) -> str:
+    """What the page said, in a line, so you can judge for yourself whether it worked."""
+    if f.error:
+        return f.error
+    flat = re.sub(r"\s+", " ", f.text).strip()
+    return flat[:limit] + ("…" if len(flat) > limit else "") if flat else f"HTTP {f.status}, empty page"
+
+
 def confirm_reply(
-    session: Session, row: InboxMessage, *, flows: list[Flow], fetch: Fetch = default_fetch
+    session: Session,
+    row: InboxMessage,
+    *,
+    flows: list[Flow],
+    fetch: Fetch = default_fetch,
+    said: list[str] | None = None,
 ) -> tuple[str, str]:
     """Click the confirm link in one stored reply, if a known flow allows it.
     Returns (result, host): confirmed | unclear | failed | already | no-flow | no-link."""
@@ -319,12 +332,20 @@ def confirm_reply(
     tried = _attempts(session, sub, row.message_id)
     if any(a.get("result") == "confirmed" for a in tried) or len(tried) >= MAX_ATTEMPTS:
         return "already", host
-    result = judge(fetch(url, flow.link_hosts))
+    page = fetch(url, flow.link_hosts)
+    result = judge(page)
+    if said is not None:
+        said.append(page_excerpt(page))
     record_event(
         session,
         sub,
         "confirm_clicked",
-        {"host": host, "result": result, "message_id": row.message_id[:120]},
+        {
+            "host": host,
+            "result": result,
+            "message_id": row.message_id[:120],
+            "said": page_excerpt(page, 120),
+        },
     )
     if result == "confirmed":
         if sub.status == "awaiting_user_input":

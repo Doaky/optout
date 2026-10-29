@@ -293,3 +293,11 @@ def test_teach_phrase_and_tracker_redirects():
     assert redirect_ok("https://portal.osano.com/x", ("track.pstmrk.it",))
     assert not redirect_ok("http://portal.osano.com/x", ("track.pstmrk.it",))
     assert not redirect_ok("https://evil.example/x", ("onetrust.com",))
+
+
+def test_page_excerpt_shows_what_the_page_said():
+    from optout.engine.confirm import Fetched, page_excerpt
+
+    assert page_excerpt(Fetched(200, "Email\n  verified.\n\nThank you")) == "Email verified. Thank you"
+    assert page_excerpt(Fetched(200, "x" * 300)).endswith("…")
+    assert page_excerpt(Fetched(error="URLError")) == "URLError"

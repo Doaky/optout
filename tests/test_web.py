@@ -1282,7 +1282,7 @@ def test_confirm_for_me_is_offered_for_known_senders_and_works(ui, monkeypatch):
     )
     # the form carries no address: even if one is supplied, it is ignored
     r, _ = ui.post("/act/confirm", {"slug": "evil", "url": "https://phish.example/x"})
-    assert r.getheader("Location") == "/?m=conf_ok"
+    assert r.getheader("Location").startswith("/?m=conf_ok&n=")
     assert seen == ["https://x-privacy.my.onetrust.com/privacyaccess/verify/tok123"]
     with get_session() as s:
         from optout.db import list_submissions
@@ -1310,7 +1310,7 @@ def test_an_unknown_sender_is_only_clicked_after_you_teach_it(ui, monkeypatch, t
     r, _ = ui.post("/act/confirm", {"slug": "evil"})  # no 'remember': refused
     assert r.getheader("Location") == "/?m=err" and seen == []
     r, _ = ui.post("/act/confirm", {"slug": "evil", "remember": "1"})
-    assert r.getheader("Location") == "/?m=conf_ok" and len(seen) == 1
+    assert r.getheader("Location").startswith("/?m=conf_ok&n=") and len(seen) == 1
     assert any(f.sender == "@mail.newplatform.example" for f in cf.load_flows())  # remembered
 
 
