@@ -406,3 +406,14 @@ def test_daily_limit_counts_the_local_day(session, config):
     next_morning = datetime(2026, 10, 28, 13, 0, tzinfo=UTC)  # 9 AM in New York
     assert sent_today(session, next_morning, UTC) == 1  # same UTC day
     assert sent_today(session, next_morning, ny) == 0  # a new day where the user lives
+
+
+def test_brokers_for_groups_you_are_not_in_are_skipped(session):
+    from optout.audiences import Coverage, applies_to
+
+    educators = Coverage("agile", ("educators",))
+    assert applies_to(educators, None)  # groups not set yet: nothing is skipped
+    assert not applies_to(educators, [])
+    assert not applies_to(educators, ["financial-advisors"])
+    assert applies_to(educators, ["educators"])
+    assert applies_to(None, [])  # unlisted brokers cover everyone

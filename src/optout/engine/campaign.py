@@ -56,7 +56,11 @@ def select_brokers(
     now: datetime,
     only: list[str] | None = None,
     recontact_after_days: int = 90,
+    my_groups: list[str] | None = None,
 ) -> Selection:
+    from ..audiences import applies_to, load_coverage
+
+    coverage = load_coverage()
     sel = Selection()
     cutoff = now - timedelta(days=recontact_after_days)
     for b in brokers:
@@ -66,6 +70,9 @@ def select_brokers(
             continue
         if not b.enabled:
             sel.skipped.append((b.slug, "disabled"))
+            continue
+        if not applies_to(coverage.get(b.slug), my_groups):
+            sel.skipped.append((b.slug, f"only covers {coverage[b.slug].label()}"))
             continue
         subs = list(session.exec(select(Submission).where(Submission.broker_slug == b.slug)))
         if any(s.status in ACTIVE for s in subs):

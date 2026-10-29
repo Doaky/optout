@@ -137,7 +137,7 @@ class App:
             load_registry()
             now = datetime.now(UTC)
             with get_session() as session:
-                sel = select_brokers(all_brokers(), session, now=now)
+                sel = select_brokers(all_brokers(), session, now=now, my_groups=config.my_groups)
                 batch = sel.eligible[:count]
                 job["total"] = len(batch)
 
@@ -346,7 +346,9 @@ def _make_handler(app: App):
                     ui.settings = _settings_values(config)
                     ui.settings_open = bool(query.get("settings")) or code_opens_settings(query)
                     if config is not None:
-                        sel = select_brokers(all_brokers(), session, now=now)
+                        sel = select_brokers(
+                            all_brokers(), session, now=now, my_groups=config.my_groups
+                        )
                         ui.used = sent_today(session, now, user_tz(config))
                         ui.limit = config.email.daily_limit
                         room = max(0, ui.limit - ui.used)
@@ -372,7 +374,9 @@ def _make_handler(app: App):
                         ),
                     )
                 with get_session() as session:
-                    sel = select_brokers(all_brokers(), session, now=now)
+                    sel = select_brokers(
+                        all_brokers(), session, now=now, my_groups=config.my_groups
+                    )
                     used = sent_today(session, now, user_tz(config))
                 eligible = [(b.slug, b.name) for b in sel.eligible]
                 return self._send(
@@ -398,7 +402,9 @@ def _make_handler(app: App):
                 except ValueError:
                     want = 40
                 with get_session() as session:
-                    sel = select_brokers(all_brokers(), session, now=now)
+                    sel = select_brokers(
+                        all_brokers(), session, now=now, my_groups=config.my_groups
+                    )
                     used = sent_today(session, now, user_tz(config))
                 room = max(0, config.email.daily_limit - used)
                 batch = sel.eligible[: max(0, min(want, room, 40))]

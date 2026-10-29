@@ -1,0 +1,15 @@
+# Brokers that only hold data on a specific group of people.
+#
+# Everyone not listed is treated as covering the general public. Groups are defined in
+# src/optout/audiences.py. Entries come from what the broker itself said in a reply.
+# Add your own in ~/.config/optout/broker_audiences.yml, or contribute them here
+# (the dashboard's "Share what you've learned" includes your coverage notes).
+- broker: agile-education-marketing
+  audiences: [educators]
+  note: Only people currently employed at an educational institution, compiled from public sources.
+- broker: advisortarget
+  audiences: [financial-advisors]
+  note: Reports about financial advisors and their practices (Broadridge subsidiary); client and account-holder data stays with the institution.
+- broker: aniline
+  audiences: [business-professionals]
+  note: Only company or work email addresses and the names tied to them; does not process personal emails or home addresses.

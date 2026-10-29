@@ -185,7 +185,7 @@ def collect(
     dash.verifiable = len({s.broker_slug for s in subs if s.submitted_at} & scannable)
 
     if config is not None:
-        sel = select_brokers(all_brokers(), session, now=now)
+        sel = select_brokers(all_brokers(), session, now=now, my_groups=config.my_groups)
         dash.eligible, dash.skipped = len(sel.eligible), len(sel.skipped)
         dash.sent_today = sent_today(session, now, _TZ)
         dash.daily_limit = config.email.daily_limit

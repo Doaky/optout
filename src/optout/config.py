@@ -171,6 +171,20 @@ class UserConfig(BaseModel):
     # IANA time zone for showing times and scheduling, e.g. "America/New_York". Blank: the
     # computer's own zone.
     timezone: str | None = None
+    # Groups you belong to (see audiences.GROUPS). None = not set yet: no broker is skipped.
+    # Once set, brokers that only cover groups you're not in are left out of batches.
+    my_groups: list[str] | None = None
+    # Shows coverage tools (judging who a broker covers, with Claude's help) in the dashboard.
+    contributor_tools: bool = False
+
+    @model_validator(mode="after")
+    def _groups_known(self) -> UserConfig:
+        from .audiences import GROUPS
+
+        for g in self.my_groups or []:
+            if g not in GROUPS:
+                raise ValueError(f"unknown group '{g}'")
+        return self
 
     @model_validator(mode="after")
     def _timezone_exists(self) -> UserConfig:
