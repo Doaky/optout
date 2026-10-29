@@ -154,6 +154,14 @@ class GmailLabeler:
                     out[mid] = parseaddr(raw.split(":", 1)[-1].strip())[0][:200]
         return out
 
+    def fetch_message(self, message_id: str) -> bytes | None:
+        """One saved message again, found by its Message-ID (read-only, not marked read)."""
+        token = message_id.strip().strip("<>")
+        if not re.fullmatch(r"[A-Za-z0-9._%+@=-]+", token):
+            return None
+        uids = self._search(f"rfc822msgid:{token}")
+        return self._fetch(uids[0]) if uids else None
+
     def _message_ids(self, uids: list[bytes]) -> dict[bytes, str]:
         assert self._imap is not None
         out: dict[bytes, str] = {}

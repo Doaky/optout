@@ -12,4 +12,5 @@ STATUS_LABEL: dict[str, str] = {
     "rejected": "Rejected",
     "expired": "Expired",
     "failed": "Failed",
+    "closed": "Closed",
 }

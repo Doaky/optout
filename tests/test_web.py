@@ -557,3 +557,56 @@ def test_limit_reached_points_to_settings(ui, monkeypatch):
     monkeypatch.setattr("optout.web.server.sent_today", lambda session, now: 40)
     _, body = ui.req("GET", "/")
     assert "sent today's limit" in body and "href='#settings'" in body
+
+
+def test_closed_connections_are_ignored_quietly(ui, capsys):
+    import socket
+
+    for _ in range(5):  # ask for the page, then hang up before reading it
+        s = socket.create_connection(("127.0.0.1", ui.port))
+        s.sendall(
+            f"GET / HTTP/1.1\r\nHost: {ui.host}\r\nCookie: {COOKIE}={ui.token}\r\n\r\n".encode()
+        )
+        s.close()
+    import time
+
+    time.sleep(0.5)
+    assert ui.req("GET", "/")[0].status == 200  # still serving
+    err = capsys.readouterr().err
+    assert "Traceback" not in err and "BrokenPipe" not in err
+
+
+def test_attention_explains_what_to_do(ui):
+    from optout.db import InboxMessage, list_submissions
+
+    _sent_request()
+    with get_session() as s:
+        sub = list_submissions(s)[0]
+        sub.status = "awaiting_user_input"
+        s.add(sub)
+        s.add(
+            InboxMessage(
+                message_id="<w1>",
+                submission_id=sub.id,
+                broker_slug="evil",
+                from_addr="privacy@evil.example",
+                subject="Automatic reply",
+                kind="need-info",
+                text="Thanks. We do not accept requests via email. You can submit a privacy "
+                "request via our web form here: https://forms.evil.example/privacy?x=1. Bye.",
+                state="applied",
+            )
+        )
+        s.commit()
+    _, body = ui.req("GET", "/")
+    attn = body[body.index("id='attn-h'") : body.index("</section>", body.index("id='attn-h'"))]
+    assert "via our web form here" in attn  # the sentence that matters
+    assert "Open their link ↗" in attn and "forms.evil.example" in attn
+    assert "rel='noreferrer noopener'" in attn  # never opened for you, no referrer
+    assert "I&#x27;ve done it" in attn and ">Close<" in attn
+
+    r, _ = ui.post("/act/row", {"slug": "evil", "action": "status:closed"})
+    assert r.getheader("Location") == "/?m=toggle"
+    _, body = ui.req("GET", "/")
+    assert "id='attn-h'" not in body  # closed: no longer nagging
+    assert "Closed</span>" in body

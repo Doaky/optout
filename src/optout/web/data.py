@@ -6,8 +6,10 @@ file can sit on disk or be shared without leaking identity.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from urllib.parse import urlsplit
 
 from sqlmodel import Session, select
 
@@ -35,11 +37,24 @@ class Row:
 
 
 @dataclass
+class Attention:
+    slug: str
+    name: str
+    kind: str  # need-info | refused | overdue | drift
+    why: str  # short label
+    hint: str  # what to do about it
+    quote: str = ""  # the sentence from their reply that matters
+    email: str = ""  # their latest reply, in full
+    link: str = ""  # first web link in their reply (shown, never opened for you)
+    link_host: str = ""
+
+
+@dataclass
 class Dashboard:
     generated: str
     rows: list[Row] = field(default_factory=list)
     counts: dict[str, int] = field(default_factory=dict)
-    attention: list[tuple[str, str, str]] = field(default_factory=list)  # (slug, name, why)
+    attention: list[Attention] = field(default_factory=list)
     eligible: int = 0
     skipped: int = 0
     sent_today: int = 0
@@ -57,7 +72,7 @@ def _date(dt: datetime | None) -> str:
     return dt.strftime("%Y-%m-%d") if dt else "—"
 
 
-_DONE = {"confirmed", "removed"}
+_DONE = {"confirmed", "removed", "closed"}
 
 
 def collect(
@@ -101,13 +116,53 @@ def collect(
         dash.rows.append(row)
         dash.counts[row.label] = dash.counts.get(row.label, 0) + 1
         if overdue and days is not None:
-            dash.attention.append((row.slug, row.name, f"overdue by {-days} day(s)"))
+            dash.attention.append(
+                Attention(
+                    row.slug,
+                    row.name,
+                    "overdue",
+                    f"Overdue by {-days} day(s)",
+                    "No answer within the legal deadline. Send a short follow-up.",
+                )
+            )
         elif sub.status == "rejected":
-            dash.attention.append((row.slug, row.name, "refused: consider an appeal"))
+            dash.attention.append(
+                _with_reply(
+                    session,
+                    sub,
+                    Attention(
+                        row.slug,
+                        row.name,
+                        "refused",
+                        "Refused",
+                        "You can appeal, or close it if their reason applies to you.",
+                    ),
+                )
+            )
         elif sub.status == "awaiting_user_input":
-            dash.attention.append((row.slug, row.name, "needs your input"))
+            dash.attention.append(
+                _with_reply(
+                    session,
+                    sub,
+                    Attention(
+                        row.slug,
+                        row.name,
+                        "need-info",
+                        "Wants something from you",
+                        "Do what their reply asks, then mark it done so the deadline restarts.",
+                    ),
+                )
+            )
         if drift:
-            dash.attention.append((row.slug, row.name, "form may have changed (drift)"))
+            dash.attention.append(
+                Attention(
+                    row.slug,
+                    row.name,
+                    "drift",
+                    "Their form may have changed",
+                    "Automatic web-form submission may fail for this broker.",
+                )
+            )
 
     dash.series = progress_series(session, subs, now)
 
@@ -157,3 +212,44 @@ def progress_series(
         )
         day += timedelta(days=1)
     return out
+
+
+_LINK = re.compile(r"https?://[^\s<>\"')\]]+")
+
+
+def _with_reply(session: Session, sub: Submission, a: Attention) -> Attention:
+    """Attach the latest reply: the sentence that matters, the email, its first link."""
+    from ..db import InboxMessage
+    from ..engine.inbox import deciding_sentence
+
+    # The reply that caused this state, not just the newest one (an acknowledgement can
+    # arrive alongside the "please confirm your email" message).
+    wanted = {"need-info": ("need-info",), "refused": ("denied",)}.get(a.kind, ())
+    rows = session.exec(
+        select(InboxMessage)
+        .where(InboxMessage.submission_id == sub.id)
+        .order_by(InboxMessage.received_at.desc())  # type: ignore[union-attr]
+    ).all()
+    row = next((r for r in rows if r.kind in wanted), rows[0] if rows else None)
+    if row is None:
+        return a
+    a.email = row.text
+    a.quote = deciding_sentence(row.text, row.kind or "")
+    a.link = _best_link(row.text)
+    a.link_host = urlsplit(a.link).hostname or "" if a.link else ""
+    return a
+
+
+_FORMISH = re.compile(r"privacy|request|form|portal|dsar|dsr|rights|onetrust|consent|delete", re.I)
+_ADS = re.compile(r"aboutads|youradchoices|networkadvertising|optout\.aboutads", re.I)
+
+
+def _best_link(text: str) -> str:
+    """The link most likely to be their privacy form: one that looks like a request form or
+    portal, never the industry ad-choices page that many replies also mention."""
+    links = [m.group(0).rstrip(".,;:") for m in _LINK.finditer(text)]
+    links = [u for u in links if not _ADS.search(u)]
+    for u in links:
+        if _FORMISH.search(u):
+            return u
+    return links[0] if links else ""

@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import re
 from dataclasses import dataclass, field
 from datetime import date
 from html import escape as e
 from urllib.parse import quote
 
 from ..labels import STATUS_LABEL
-from .data import Dashboard, Row
+from .data import Attention, Dashboard, Row
 
 _STATUS_LABELS = set(STATUS_LABEL.values())
 
@@ -156,7 +157,23 @@ legend{font-weight:700;padding:0 6px}
 .fld small{color:var(--muted)}
 .fld.wide{margin-top:12px}
 .check{display:flex;gap:8px;align-items:center;margin-top:12px;font-size:14px}
-.pwform{align-items:end}
+form.inline.pwform{align-items:flex-end;flex-wrap:nowrap}
+.pwform .fld{flex:0 1 320px}
+.pwform input,.pwform button{height:38px}
+.pwform button{white-space:nowrap}
+.att{display:flex;gap:16px;justify-content:space-between;align-items:flex-start;padding:14px 0;
+  border-bottom:1px solid var(--line)}
+.att:last-child{border-bottom:0}
+.att-main{flex:1;min-width:0}
+.att-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.att .quote{margin:6px 0 2px;padding-left:10px;border-left:3px solid var(--line);color:var(--text)}
+.att p{margin:4px 0}
+.att-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:440px}
+@media (max-width:700px){.att{flex-direction:column}.att-actions{justify-content:flex-start}}
+a.btnlink{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:8px;
+  border:1px solid var(--line);background:var(--surface);color:var(--text);text-decoration:none;
+  font-weight:600;font-size:14px}
+a.btnlink:hover{border-color:var(--accent)}
 hr{border:0;border-top:1px solid var(--line);margin:18px 0}
 body.busy main{opacity:.65;transition:opacity .15s}
 body.busy{cursor:progress}
@@ -178,7 +195,8 @@ details.email pre{background:var(--surface)}
 .redacted{margin:6px 0 8px;padding:8px 10px;border-radius:8px;font-size:13px;
   background:color-mix(in srgb,var(--good) 10%,transparent);
   border:1px solid color-mix(in srgb,var(--good) 30%,transparent)}
-details.peek{display:inline-block;margin-left:8px}details.peek[open]{display:block;margin:8px 0 0}
+details.peek{display:block;margin:8px 0 0}
+details.peek>summary{cursor:pointer;color:var(--accent);font-size:13px;width:max-content}
 details.peek pre{max-height:340px;overflow:auto}.steps li{line-height:1.6}
 textarea{font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;width:100%;padding:8px 10px;
   border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);
@@ -411,6 +429,7 @@ _PILL = {
     "rejected": ("critical", "✕"),
     "failed": ("serious", "!"),
     "queued": ("neutral", "○"),
+    "closed": ("neutral", "○"),
     "expired": ("neutral", "○"),
 }
 
@@ -651,7 +670,13 @@ ROW_ACTIONS = [
             ("status:failed", "Failed"),
         ],
     ),
-    ("Other", [("toggle:off", "Never contact this broker")]),
+    (
+        "Other",
+        [
+            ("status:closed", "Close (I'm done with this one)"),
+            ("toggle:off", "Never contact this broker"),
+        ],
+    ),
 ]
 
 
@@ -810,7 +835,13 @@ def _replies_panel(ui: UI) -> str:
             )
         n = len(ui.replies)
         claude = (
-            f"<details class='more'><summary>Ask Claude to sort these {n}</summary>"
+            "<details class='more'><summary>"
+            + (
+                "Ask Claude to sort this reply"
+                if n == 1
+                else f"Ask Claude to sort these {n} replies"
+            )
+            + "</summary>"
             "<ol class='steps'><li>Copy the prompt. Your personal details are replaced with "
             "placeholders like [MY NAME] first."
             + (
@@ -955,7 +986,7 @@ def _settings_panel(ui: UI) -> str:
         "<form method='post' action='/act/password' class='inline pwform'>"
         f"{_hidden(ui.csrf)}<label class='fld'><span>App password</span>"
         "<input type='password' name='password' autocomplete='new-password' required "
-        "placeholder='Paste a new app password'></label>"
+        "placeholder='New app password'></label>"
         "<button type='submit' class='secondary'>Test &amp; save</button></form>"
         "<p class='muted small'>Signs in to check it before saving; it's never shown again. "
         "Gmail: <a href='https://myaccount.google.com/apppasswords' target='_blank' "
@@ -968,6 +999,66 @@ def _settings_panel(ui: UI) -> str:
         f"<form method='post' action='/act/settings'>{_hidden(ui.csrf)}{about}{sending}"
         "<button type='submit' class='big'>Save settings</button></form>"
         f"<hr>{password}</details>"
+    )
+
+
+# Email click-tracking redirectors: the link works, but opening it tells the sender you did.
+_TRACKERS = re.compile(
+    r"(pstmrk\.it|ct\.sendgrid\.net|list-manage\.com|hubspotlinks\.com|mandrillapp\.com|"
+    r"mailgun|links\.\w+\.com|click\.|track\.)",
+    re.IGNORECASE,
+)
+
+
+def _link_note(host: str) -> str:
+    if _TRACKERS.search(host):
+        return (
+            f" Their link goes through a click-tracking service (<b>{e(host)}</b>), so "
+            "opening it tells them you clicked."
+        )
+    return f" Their link goes to <b>{e(host)}</b>."
+
+
+def _attention_item(a: Attention, csrf: str) -> str:
+    def act(action: str, label: str, primary: bool = False) -> str:
+        return (
+            "<form method='post' action='/act/row' class='inline'>"
+            f"{_hidden(csrf, slug=a.slug, action=action)}"
+            f"<button type='submit' class='{'' if primary else 'secondary'}'>{e(label)}</button>"
+            "</form>"
+        )
+
+    buttons: list[str] = []
+    if a.kind == "need-info":
+        if a.link:
+            buttons.append(
+                f"<a class='btnlink' href='{e(a.link)}' target='_blank' "
+                f"rel='noreferrer noopener' title='{e(a.link)}'>Open their link ↗</a>"
+            )
+        buttons.append(act("status:awaiting_broker_confirmation", "I've done it", primary=True))
+    elif a.kind == "refused":
+        buttons.append(act("draft:appeal", "Write an appeal", primary=True))
+    elif a.kind == "overdue":
+        buttons.append(act("draft:followup", "Write a follow-up", primary=True))
+    if a.kind in ("need-info", "refused", "overdue"):
+        buttons.append(act("status:closed", "Close"))
+    quote = f"<p class='quote'>“{e(a.quote)}”</p>" if a.quote else ""
+    email = (
+        f"<details class='email'><summary>Their email</summary><div><pre>{e(a.email)}</pre>"
+        "</div></details>"
+        if a.email
+        else ""
+    )
+    tone = {"need-info": "warning", "refused": "critical", "overdue": "critical"}.get(
+        a.kind, "serious"
+    )
+    return (
+        "<li class='att'><div class='att-main'>"
+        f"<div class='att-head'><b>{e(a.name)}</b> <span class='pill t-{tone}'>{e(a.why)}</span>"
+        f"</div>{quote}<p class='muted small'>{e(a.hint)}"
+        + (_link_note(a.link_host) if a.link_host and a.kind == "need-info" else "")
+        + f"</p>{email}</div>"
+        f"<div class='att-actions'>{''.join(buttons)}</div></li>"
     )
 
 
@@ -1138,11 +1229,13 @@ def dashboard(
 
     attn = ""
     if d.attention:
-        items = "".join(
-            f"<li><span><b>{e(name)}</b> <span class='muted'>· {e(why)}</span></span>"
-            f"{row_form(slug, csrf, name) if with_actions else ''}</li>"
-            for slug, name, why in d.attention[:40]
-        )
+        if with_actions:
+            items = "".join(_attention_item(a, csrf) for a in d.attention[:40])
+        else:
+            items = "".join(
+                f"<li><span><b>{e(a.name)}</b> <span class='muted'>· {e(a.why)}</span></span></li>"
+                for a in d.attention[:40]
+            )
         attn = (
             "<section class='card' aria-labelledby='attn-h'>"
             f"<h2 id='attn-h'>Needs your attention</h2><ul class='attn'>{items}</ul></section>"
@@ -1210,8 +1303,11 @@ def dashboard(
         top = chart
 
     note = (
-        "<p class='muted small'>“Broker says done” is the broker's word. Only “Removed (verified)” "
-        "means a later re-search confirmed the listing is gone.</p>"
+        "<p class='muted small'>“Broker says done” is the broker's word. Only “Removed "
+        "(verified)” means a later re-search confirmed the listing is gone. That's possible "
+        "only for people-search sites with a public search page (<code>optout verify</code>). "
+        "Brokers you emailed have no public search, so “Broker says done” is as far as they "
+        "can go.</p>"
     )
     replies = _replies_panel(act) if act is not None else ""
     settings = _settings_panel(act) if act is not None else ""

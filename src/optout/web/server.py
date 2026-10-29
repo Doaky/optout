@@ -132,6 +132,21 @@ class App:
             job["state"] = "done"
 
 
+# A browser that closes the connection early (navigating away, a cancelled fetch) is
+# normal, not an error.
+_GONE = (BrokenPipeError, ConnectionResetError, ConnectionAbortedError)
+
+
+def _log_error(where: str) -> None:
+    """One short traceback in the terminal for a real bug (never the request URL: it can
+    carry the session token)."""
+    import sys
+    import traceback
+
+    print(f"optout: error handling {where}:", file=sys.stderr)
+    traceback.print_exc(limit=4, file=sys.stderr)
+
+
 def _make_handler(app: App):
     class Handler(BaseHTTPRequestHandler):
         server_version = "optout"
@@ -139,6 +154,12 @@ def _make_handler(app: App):
 
         def log_message(self, *args) -> None:  # URLs can carry the token; log nothing
             pass
+
+        def handle(self) -> None:
+            try:
+                super().handle()
+            except _GONE:
+                pass  # connection closed by the browser mid-response
 
         # -- plumbing ----------------------------------------------------
         def _send(self, code: int, html: str, headers: dict[str, str] | None = None) -> None:
@@ -240,8 +261,14 @@ def _make_handler(app: App):
 
             try:
                 self._route_get(url.path, query, flash)
+            except _GONE:
+                return  # the browser stopped listening (navigated away, cancelled): fine
             except Exception:
-                self._fail(500, "Something went wrong. Check the terminal running optout ui.")
+                _log_error(f"GET {url.path}")
+                try:
+                    self._fail(500, "Something went wrong. Check the terminal running optout.")
+                except _GONE:
+                    pass
 
         def _route_get(self, path: str, query: dict, flash: str) -> None:
             init_db()
@@ -427,8 +454,14 @@ def _make_handler(app: App):
                 return self._fail(403, "Forbidden.")
             try:
                 self._route_post(urlsplit(self.path).path, form)
+            except _GONE:
+                return
             except Exception:
-                self._redirect("/?m=err")
+                _log_error(f"POST {urlsplit(self.path).path}")
+                try:
+                    self._redirect("/?m=err")
+                except _GONE:
+                    pass
 
         def _row_action(self, slug: str, action: str) -> None:
             kind, _, arg = action.partition(":")
@@ -454,6 +487,7 @@ def _make_handler(app: App):
                     "awaiting_user_input",
                     "rejected",
                     "failed",
+                    "closed",
                 }
                 if arg not in allowed:
                     raise ValueError("status not allowed")

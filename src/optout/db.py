@@ -27,6 +27,7 @@ SubmissionStatus = Literal[
     "rejected",
     "expired",
     "failed",
+    "closed",  # the user is done with this broker (accepted a refusal, not relevant, ...)
 ]
 
 EventType = Literal[

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, date, datetime, timedelta
 from email.message import EmailMessage
 
@@ -597,6 +598,7 @@ def test_learning_skips_echoed_subjects_and_shared_platforms(session, world, me,
                 broker_slug=slug,
                 from_addr=sender,
                 subject=subject,
+                text="We are writing to confirm that your request has been completed.",
                 kind="deleted",
                 state="applied",
             )
@@ -605,7 +607,7 @@ def test_learning_skips_echoed_subjects_and_shared_platforms(session, world, me,
     entries = assist.learned_entries(session, me)
     assert {
         "from": "@acme.example",
-        "phrase": "your privacy request is complete",
+        "phrase": "we are writing to confirm that your request has been completed",
         "outcome": "deleted",
         "broker": "acme",
     } in entries
@@ -822,3 +824,127 @@ def test_redaction_report_labels_what_was_removed(me):
     )
     label = assist.describe_redactions(counts)
     assert "partly-masked personal details ×3" in label and "your ZIP code ×1" in label
+
+
+@pytest.mark.parametrize(
+    "subject,text,kind,expected",
+    [
+        (
+            "(Request ID: 76HHC55DDN) Your Privacy Request",
+            "Dear [MY NAME], One more step is required before we can start working on your "
+            "request. "
+            "Please confirm your email by clicking on the button below. Your Request ID is "
+            "76HHC55DDN, please keep this.",
+            "need-info",
+            "please confirm your email by clicking on the button below",
+        ),
+        (
+            "Request Received - [#REQ-233588] Data Deletion Request — Jane",
+            "Please note that this mailbox (privacy@6sense.example) is not monitored for Data "
+            "Subject Requests (DSRs).",
+            "need-info",
+            "is not monitored for data subject requests (dsrs)",
+        ),
+        (
+            "Confirmation: Your request has been completed",
+            "We are writing to confirm that your request to exercise your right has been "
+            "completed.",
+            "deleted",
+            "we are writing to confirm that your request to exercise your right has been completed",
+        ),
+    ],
+)
+def test_learned_phrase_is_the_deciding_sentence(me, subject, text, kind, expected):
+    assert assist._deciding_sentence(text, kind, me) == expected
+
+
+def test_learning_never_keeps_ids_or_generic_platform_subjects(session, world, me, monkeypatch):
+    brokers, _ = world
+    monkeypatch.setattr("optout.brokers.registry.all_brokers", lambda: list(brokers.values()))
+    session.add(
+        InboxMessage(
+            message_id="<p1>",
+            broker_slug="acme",
+            from_addr="noreply@m.onetrust.example",
+            subject="(Request ID: 6R87NG6MTL) Your Privacy Request",
+            text="Hello. Thanks.",
+            kind="need-info",
+            state="applied",
+        )
+    )  # nothing decisive in body
+    session.add(
+        InboxMessage(
+            message_id="<p2>",
+            broker_slug="acme",
+            from_addr="noreply@m.onetrust.example",
+            subject="(Request ID: 6R87NG6MTL) Request logged successfully",
+            text="Your request has been successfully submitted. Your Request ID is 6R87NG6MTL.",
+            kind="auto-reply",
+            state="applied",
+        )
+    )
+    session.commit()
+    entries = assist.learned_entries(session, me)
+    assert entries == [
+        {
+            "from": "@m.onetrust.example",
+            "phrase": "your request has been successfully submitted",
+            "outcome": "auto-reply",
+        }
+    ]
+    assert not any(re.search(r"\d", e["phrase"]) for e in entries)
+
+
+def test_prompt_wording_and_law_names(session, world, me):
+    _review_row(session, "acme", text="Under New Jersey's Daniel's Law we protect Jane.")
+    me2 = me.model_copy(update={"legal_name": "Daniel Q Example"})
+    prompt = assist.build_prompt(assist.review_items(session), me2, {"acme": "Acme"})
+    assert "Below is 1 reply" in prompt
+    text = assist.redact("Hi Daniel, under Daniel's Law and Daniel’s Law we...", me2)
+    assert text == "Hi [MY NAME], under Daniel's Law and Daniel’s Law we..."
+
+
+def test_sentence_around_respects_addresses_and_long_runs():
+    from optout.engine.inbox import deciding_sentence
+
+    text = "Hello. Please note that this mailbox (privacy@6sense.com) is not monitored. Bye."
+    assert deciding_sentence(text, "need-info") == (
+        "Please note that this mailbox (privacy@6sense.com) is not monitored."
+    )
+    run = "Header " * 60 + "you must fill out the following form " + "footer " * 60
+    quote = deciding_sentence(run, "need-info")
+    assert quote.startswith("…") and quote.endswith("…") and len(quote) < 330
+    assert "fill out the following form" in quote
+
+
+def test_best_link_prefers_their_privacy_form():
+    from optout.web.data import _best_link
+
+    text = (
+        "Opt out of ads at http://optout.aboutads.info/?c=2. To make a request use "
+        "https://example.com/blog or https://privacy.example.com/webform/123."
+    )
+    assert _best_link(text) == "https://privacy.example.com/webform/123"
+    assert _best_link("Visit http://optout.aboutads.info only.") == ""
+
+
+def test_html_links_are_kept_as_addresses():
+    from optout.engine.inbox import _html_to_text
+
+    text = _html_to_text(
+        '<p>Please <a class="btn" href="https://acme.example/confirm?t=1&amp;u=2">'
+        'Confirm email</a> or <a href="mailto:x@y.z">write</a>.</p>'
+    )
+    assert "Confirm email (https://acme.example/confirm?t=1&u=2)" in text
+    assert "mailto" not in text
+
+
+def test_quote_prefers_a_real_sentence_over_headings():
+    from optout.engine.inbox import deciding_sentence
+
+    text = (
+        "Further Information Needed Further Information Needed Thank you for your inquiry, "
+        "in order to help you, you must fill out the following form. Bye."
+    )
+    quote = deciding_sentence(text, "need-info")
+    assert "you must fill out the following form" in quote

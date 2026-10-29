@@ -38,9 +38,11 @@ def _who(profile: Profile) -> str:
 
 def stage_for(sub: Submission, escalations_sent: list[str], now: datetime) -> str | None:
     """Which draft, if any, is warranted right now."""
+    if sub.status == "closed":
+        return None
     if sub.status == "rejected":
         return "complaint" if "appeal" in escalations_sent else "appeal"
-    if sub.status in ("confirmed", "removed", "failed", "queued", "awaiting_user_input"):
+    if sub.status in ("confirmed", "removed", "failed", "queued", "awaiting_user_input", "closed"):
         return None
     if sub.deadline_at is None or now <= _aware(sub.deadline_at):
         return None

@@ -56,10 +56,11 @@ def redact_report(text: str, profile: Profile) -> tuple[str, Counter[str]]:
     for value, mark in sorted(pairs, key=lambda p: -len(p[0])):
         if value and len(value.strip()) >= 4:
             sub(re.escape(value.strip()), mark)
-    # Name parts on their own ("Hi Jane,").
+    # Name parts on their own ("Hi Jane,"), but not inside the name of a law: "Daniel's Law"
+    # is New Jersey's privacy statute, not the user.
     for part in profile.legal_name.split():
         if len(part) >= 3:
-            sub(rf"\b{re.escape(part)}\b", "[MY NAME]")
+            sub(rf"\b{re.escape(part)}\b(?!['’]s\s+Law\b)", "[MY NAME]")
     # Phone numbers written differently (dots, spaces, +1).
     for p in profile.phones.current + profile.phones.previous:
         digits = re.sub(r"\D", "", p)[-10:]
@@ -159,9 +160,10 @@ def build_prompt_report(
         else ""
     )
     n = len(items)
-    prompt = f"""I emailed data brokers asking them to delete my personal data. Below are {n} \
-replies that my tool couldn't sort with confidence. Please read each one and tell me what the \
-broker is actually saying.
+    some = "is 1 reply" if n == 1 else f"are {n} replies"
+    prompt = f"""I emailed data brokers asking them to delete my personal data. Below {some} \
+that my tool couldn't sort with confidence. Please read each one and tell me what the broker is \
+actually saying.
 
 Choose exactly one outcome per reply:
 - deleted: they say they deleted my data, completed or fulfilled my request, or hold no data \
@@ -280,23 +282,69 @@ _NOISE = re.compile(r"^((re|fw|fwd|aw|automatic reply|auto reply)\s*:\s*)+", re.
 _OUR_SUBJECT = "data deletion request"  # the subject this tool sends; replies echo it
 
 
+_VARIABLE = re.compile(
+    r"\[MY [A-Z ]+\]|\[MASKED\]|\[RELATIVE\]"  # redacted personal details
+    r"|https?://\S+|\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b"  # links and addresses
+    r"|\b(?=[\w-]*\d)[\w-]{3,}\b"  # anything with digits: ticket IDs, dates, case numbers
+    r"|\bdata deletion request\b",  # our own subject, echoed back
+    re.IGNORECASE,
+)
+
+
+def _trim(piece: str) -> str:
+    """Edge punctuation off; unmatched brackets off. Matched ones stay, so the phrase is
+    still word for word what the next email will say."""
+    piece = piece.strip(" -:—|,;.!?\"'#")
+    for _ in range(4):
+        piece = piece.lstrip(")]}>").rstrip("([{<").strip(" -:—|,;.!?\"'#")
+        if piece.count("(") > piece.count(")"):
+            piece = piece[: piece.rfind("(")]
+        elif piece.count(")") > piece.count("("):
+            piece = piece[piece.find(")") + 1 :]
+        else:
+            break
+    return piece.strip(" -:—|,;.!?\"'#")
+
+
+def _fixed_part(text: str, profile: Profile, min_words: int = 3) -> str:
+    """The longest stretch of *text* with nothing person- or ticket-specific in it, so it
+    will appear word for word in the next email from the same template."""
+    cleaned = _NOISE.sub("", redact(re.sub(r"\s+", " ", text), profile))
+    pieces = _VARIABLE.split(cleaned)
+    best = ""
+    for piece in pieces:
+        if not piece:
+            continue
+        piece = _trim(re.sub(r"\s+", " ", piece))
+        if len(piece.split()) > len(best.split()):
+            best = piece
+    words = best.split()
+    if len(words) < min_words or len(best) > 160:
+        return ""
+    return best.lower()
+
+
 def _stable_phrase(subject: str, profile: Profile) -> str:
-    s = _NOISE.sub("", redact(subject, profile))
-    s = re.sub(r"\[MY [A-Z ]+\]", " ", s)  # drop placeholders entirely
-    # ticket and case numbers, with their label ("Case #48213", "Ticket: AB-1234")
-    s = re.sub(
-        r"\b(case|ticket|ref(erence)?|request|incident|id)\s*(no\.?|number)?\s*[:#]?\s*"
-        r"[\w-]*\d{3,}[\w-]*",
-        " ",
-        s,
-        flags=re.IGNORECASE,
-    )
-    s = re.sub(r"[#\[(]?\b[\w-]*\d{3,}[\w-]*\b[\])]?", " ", s)
-    s = re.sub(_OUR_SUBJECT, " ", s, flags=re.IGNORECASE)  # our own subject, echoed back
-    s = re.sub(r"[\[\](){}<>]", " ", s)  # brackets left around removed ticket numbers
-    s = re.sub(r"\s[-–—|:]\s", " ", s)  # separators left behind
-    s = re.sub(r"\s+", " ", s).strip(" -:—|")
-    return s.lower() if len(s) >= 8 else ""
+    """A subject line's fixed part (used only for a broker's own domain)."""
+    return _fixed_part(subject, profile, min_words=2)
+
+
+def _deciding_sentence(text: str, kind: str, profile: Profile) -> str:
+    """The fixed part of the sentence that decided this reply's outcome."""
+    from .inbox import RULES
+
+    flat = re.sub(r"\s+", " ", text)
+    for rule_kind, _name, rx in RULES:
+        if rule_kind != kind:
+            continue
+        m = rx.search(flat)
+        if not m:
+            return ""
+        from .inbox import sentence_around
+
+        sentence = sentence_around(flat, m.start(), m.end()).strip("…")
+        return _fixed_part(sentence, profile, min_words=4)
+    return ""
 
 
 def learned_entries(session: Session, profile: Profile) -> list[dict[str, str]]:
@@ -318,15 +366,23 @@ def learned_entries(session: Session, profile: Profile) -> list[dict[str, str]]:
             continue
         if r.rule.startswith("known reply"):
             continue  # already in the shared list
-        phrase = _stable_phrase(r.subject, profile)
-        if not phrase:
-            continue  # nothing left once our own echoed subject is removed
         domain = r.from_addr.rsplit("@", 1)[-1]
         if "." not in domain:
             continue
-        entry = {"from": f"@{domain}", "phrase": phrase, "outcome": r.kind}
         doms = own_domains.get(r.broker_slug or "", set())
-        if r.broker_slug and any(domain == d or domain.endswith("." + d) for d in doms):
+        own = bool(r.broker_slug) and any(domain == d or domain.endswith("." + d) for d in doms)
+        # Learn the sentence that decided it: specific to the template, free of IDs. A
+        # subject line is too generic ("Your Privacy Request" is sent at every stage), so
+        # it's only a fallback, and only from the broker's own domain.
+        phrase = _deciding_sentence(r.text, "deleted" if r.kind == "no-data" else r.kind, profile)
+        if not phrase and r.kind == "no-data":
+            phrase = _deciding_sentence(r.text, "no-data", profile)
+        if not phrase and own:
+            phrase = _stable_phrase(r.subject, profile)
+        if not phrase:
+            continue
+        entry = {"from": f"@{domain}", "phrase": phrase, "outcome": r.kind}
+        if own:
             # Only name the broker when the reply came from its own domain; shared privacy
             # platforms (OneTrust, TrustSuperset...) send for many brokers.
             entry["broker"] = r.broker_slug

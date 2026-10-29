@@ -26,7 +26,8 @@ from ..db import InboxMessage, Submission, update_status
 
 MAX_TEXT = 8000
 # Bump when matching or classification changes: saved replies are re-checked once.
-RULES_VERSION = 4
+RULES_VERSION = 5
+PARSER_VERSION = 2  # bump when parsing changes: saved replies are re-read from Gmail once
 
 # --- parsing -----------------------------------------------------------------
 
@@ -54,8 +55,14 @@ _MSGID = re.compile(r"<[^<>\s@]+@[^<>\s]+>")
 _ID_HEADER = re.compile(r"(?im)^\s*(?:message-id|in-reply-to|references)\s*:\s*(.+)$")
 
 
+_ANCHOR = re.compile(r"""(?is)<a\s[^>]*?href\s*=\s*["'](https?://[^"']+)["'][^>]*>(.*?)</a>""")
+
+
 def _html_to_text(markup: str) -> str:
     markup = re.sub(r"(?is)<(script|style).*?</\1>", " ", markup)
+    # Keep where buttons and links go ("Confirm email" -> "Confirm email (https://...)"):
+    # the dashboard shows the address so you can choose to open it. It's never opened for you.
+    markup = _ANCHOR.sub(lambda m: f"{m.group(2)} ({m.group(1)})", markup)
     markup = re.sub(r"(?i)<br\s*/?>|</p>|</div>|</tr>", "\n", markup)
     text = html.unescape(re.sub(r"<[^>]+>", " ", markup))
     return re.sub(r"[ \t]+", " ", text).replace(" .", ".").replace(" ,", ",")
@@ -162,7 +169,9 @@ RULES: list[tuple[str, str, re.Pattern[str]]] = [
             r"\b(we|will) (need|require)\b[^.]{0,50}\b(information|identifiers?|details|"
             r"verification)\b|\binsufficient\b|\bplease (provide|submit|complete|fill out|"
             r"reply with|send us)\b|\b(web ?form|online form|portal)\b|\bnot monitored\b|"
-            r"\b(do|does) not accept\b[^.]{0,40}\b(e-?mail|requests?)\b",
+            r"\b(do|does) not accept\b[^.]{0,40}\b(e-?mail|requests?)\b|"
+            r"\b(you )?(must|need to|will need to) (fill out|fill in|complete|submit|use)\b|"
+            r"\bfill (out|in) (the|our|this|a) (following )?form\b",
             _I,
         ),
     ),
@@ -623,6 +632,21 @@ def run_sync(config, *, dry_run: bool = False) -> SyncReport:
                     )
                 ).all()
                 found = gmail.display_names([r.message_id for r in nameless]) if nameless else {}
+                reparsed = 0
+                if not dry_run and parser_version_seen() < PARSER_VERSION:
+                    saved = session.exec(
+                        select(InboxMessage).where(
+                            InboxMessage.state.in_(("applied", "review", "resolved"))  # type: ignore[attr-defined]
+                        )
+                    ).all()
+                    for r in saved:
+                        raw = gmail.fetch_message(r.message_id)
+                        if raw:
+                            fresh = parse_message(raw)
+                            r.text, r.from_name = fresh.text, fresh.from_name or r.from_name
+                            session.add(r)
+                            reparsed += 1
+                    mark_parser_version()
             for r in nameless:
                 if found.get(r.message_id):
                     r.from_name = found[r.message_id]
@@ -634,7 +658,9 @@ def run_sync(config, *, dry_run: bool = False) -> SyncReport:
                     mails.append(parse_message(raw))
                 except Exception:  # a malformed message must not stop the rest
                     continue
-            if not dry_run and (rules_version_seen() < RULES_VERSION or any(found.values())):
+            if not dry_run and (
+                rules_version_seen() < RULES_VERSION or any(found.values()) or reparsed
+            ):
                 recheck(session, idx)
                 mark_rules_version()
             report = process(session, mails, idx, dry_run=dry_run)
@@ -772,5 +798,63 @@ def mark_rules_version() -> None:
     except (OSError, ValueError):
         data = {}
     data["rules_version"] = RULES_VERSION
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data))
+
+
+_SENTENCE_END = re.compile(r"[.!?](?=\s|$)")  # not the dot in "privacy@6sense.com"
+
+
+def sentence_around(flat: str, start: int, end: int, pad: int = 140) -> str:
+    """The sentence containing [start, end), trimmed to a window around it when the email
+    has no real sentence breaks (some HTML mail is one long run of text)."""
+    before = [m.end() for m in _SENTENCE_END.finditer(flat, 0, start)]
+    s0 = before[-1] if before else 0
+    after = _SENTENCE_END.search(flat, end)
+    s1 = after.end() if after else len(flat)
+    cut_left = start - s0 > pad
+    cut_right = s1 - end > pad
+    if cut_left:
+        s0 = flat.find(" ", start - pad) + 1
+    if cut_right:
+        space = flat.rfind(" ", end, end + pad)
+        s1 = space if space > end else end + pad
+    text = flat[s0:s1].strip()
+    return ("…" if cut_left else "") + text + ("…" if cut_right else "")
+
+
+def _sentence_score(quote: str) -> tuple[int, float]:
+    """Prefer a real sentence over a run of headings: untrimmed first, then the share of
+    lower-case words ("Further Information Needed" headings score low)."""
+    words = re.findall(r"[A-Za-z]+", quote)
+    lower = sum(1 for w in words if w.islower()) / max(len(words), 1)
+    return (0 if quote.startswith("…") or quote.endswith("…") else 1, lower)
+
+
+def deciding_sentence(text: str, kind: str) -> str:
+    """The sentence in a reply that decided its outcome, as written (for display)."""
+    flat = re.sub(r"\s+", " ", text)
+    for rule_kind, _name, rx in RULES:
+        if rule_kind != kind:
+            continue
+        quotes = [sentence_around(flat, m.start(), m.end()) for m in rx.finditer(flat)]
+        return max(quotes, key=_sentence_score) if quotes else ""
+    return ""
+
+
+def parser_version_seen() -> int:
+    try:
+        return int(json.loads(_state_path().read_text()).get("parser_version", 0))
+    except (OSError, ValueError):
+        return 0
+
+
+def mark_parser_version() -> None:
+    path = _state_path()
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        data = {}
+    data["parser_version"] = PARSER_VERSION
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data))
