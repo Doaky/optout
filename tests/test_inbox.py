@@ -1099,3 +1099,18 @@ def test_share_skips_coverage_that_matches_the_shared_list(tmp_path, monkeypatch
     assert [e["broker"] for e in assist.learned_coverage()] == ["some-new-broker"]
     save_local("agile-education-marketing", ["students"], "different from shared")
     assert "agile-education-marketing" in [e["broker"] for e in assist.learned_coverage()]
+
+
+@pytest.mark.parametrize(
+    "phrase,ok",
+    [
+        ("automated response", False),
+        ("thank you for your email", False),
+        ("fraiser automated reply re", False),
+        ("thank you for contacting civis analytics re: [fwd:dataprotectionmail@]", False),
+        ("this email inbox is not monitored regularly", True),
+        ("to submit a data rights request, please complete the form", True),
+    ],
+)
+def test_vague_patterns_are_not_offered_for_sharing(phrase, ok):
+    assert assist._specific_enough(phrase) is ok

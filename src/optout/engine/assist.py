@@ -418,6 +418,22 @@ def learned_coverage() -> list[dict[str, object]]:
     ]
 
 
+_GENERIC_PHRASE = re.compile(
+    r"^(thank you for (your email|contacting( us)?|reaching out)|thanks for (reaching out|your "
+    r"email)|(automated|automatic|auto)[ -]?(reply|response)|we have received your "
+    r"(email|request|message))( re)?$"
+)
+
+
+def _specific_enough(phrase: str) -> bool:
+    """Reject phrases too vague to trust: a bare greeting or 'automated response' would
+    match a broker's real answer too, and a known pattern outranks the general rules."""
+    if re.search(r"[\[\]@<>]", phrase):  # leftovers of redaction or a forwarded header
+        return False
+    cleaned = re.sub(r"\s+re$", "", phrase.strip())
+    return len(cleaned.split()) >= 4 and not _GENERIC_PHRASE.match(cleaned)
+
+
 def _already_known(entry: dict[str, str], known: list) -> bool:
     """True when the shared list already has this: same sender (or its domain), same
     outcome, and a phrase that says the same thing (one contains the other)."""
@@ -462,7 +478,7 @@ def learned_entries(session: Session, profile: Profile) -> list[dict[str, str]]:
             phrase = _deciding_sentence(r.text, "no-data", profile)
         if not phrase and own:
             phrase = _stable_phrase(r.subject, profile)
-        if not phrase:
+        if not phrase or not _specific_enough(phrase):
             continue
         entry = {"from": f"@{domain}", "phrase": phrase, "outcome": r.kind}
         if own:
