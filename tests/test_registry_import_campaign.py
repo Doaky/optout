@@ -474,3 +474,58 @@ def test_a_broker_contacted_a_moment_ago_is_never_emailed_again(session, config)
         session, config, [b], limit=5, runner=runner, sleep=lambda s: None, now=lambda: NOW
     )
     assert calls == [] and report.skipped == ["b0"] and report.sent == []
+
+
+def test_resend_to_a_new_address_sends_once_and_closes_the_old_request(session, config):
+    from optout.engine.campaign import resend_to
+
+    b = _broker("experian")
+    old = create_submission(
+        session,
+        broker_slug="experian",
+        method_used="email",
+        legal_basis_cited=[],
+        statutory_response_days=45,
+    )
+    mark_submitted(session, old, {}, None, 45, submitted_at=NOW - timedelta(days=2))
+    old.status = "awaiting_user_input"
+    session.add(old)
+    session.commit()
+    seen: list[str] = []
+
+    def runner(session, sub, broker, profile, cfg):
+        seen.append(broker.opt_out_email)
+        sub.status = "awaiting_broker_confirmation"
+        sub.submitted_at = NOW
+        session.add(sub)
+        session.commit()
+
+    report = resend_to(
+        session, config, b, "optout@experian.example", runner=runner, now=lambda: NOW
+    )
+    assert seen == ["optout@experian.example"] and report.sent == ["experian"]
+    assert old.status == "closed"  # the unread one is closed; the new one has its own deadline
+
+
+def test_resend_respects_the_lock_and_the_limit(session, config, tmp_path, monkeypatch):
+    from optout.engine.campaign import SendLock, resend_to
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    calls: list[str] = []
+    runner = lambda *a: calls.append("sent")  # noqa: E731
+    with SendLock():
+        rep = resend_to(
+            session, config, _broker("x"), "a@x.example", runner=runner, now=lambda: NOW
+        )
+    assert calls == [] and rep.stopped_reason == "another batch is already sending"
+    config.email.daily_limit = 1
+    sub = create_submission(
+        session,
+        broker_slug="y",
+        method_used="email",
+        legal_basis_cited=[],
+        statutory_response_days=45,
+    )
+    mark_submitted(session, sub, {}, None, 45, submitted_at=NOW)
+    rep = resend_to(session, config, _broker("x"), "a@x.example", runner=runner, now=lambda: NOW)
+    assert calls == [] and "limit" in rep.stopped_reason

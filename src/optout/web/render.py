@@ -205,6 +205,8 @@ th button.sortbtn:focus-visible{outline:2px solid var(--ring);outline-offset:2px
 .coverage form + form{margin-top:6px}
 .att-actions{display:flex;gap:6px;align-items:center;flex:none}
 .att-actions button{padding:6px 14px;font-size:13px}
+form.redirect{margin-top:6px;gap:8px}
+button.mini{padding:4px 10px;font-size:12.5px}
 button.ibtn{padding:0;background:var(--surface);color:var(--text-2);border-color:var(--line)}
 button.ibtn:hover{color:var(--text);border-color:var(--accent);background:var(--surface)}
 button.ibtn.mini{width:26px;height:26px;border-radius:6px;margin-left:4px;display:inline-flex;
@@ -1292,6 +1294,15 @@ def _attention_item(a: Attention, csrf: str, contributor: bool = False) -> str:
     if a.kind in ("need-info", "refused", "overdue"):
         buttons.append(act("status:closed", "Close"))
 
+    redirect = ""
+    if a.alt_emails and a.kind in ("need-info", "refused"):
+        redirect = "".join(
+            "<form method='post' action='/act/resend-to' class='inline redirect'>"
+            f"{_hidden(csrf, slug=a.slug, address=addr)}"
+            f"<span class='muted small'>Their reply names <b>{e(addr)}</b>.</span>"
+            "<button type='submit' class='secondary mini'>Send my request there</button></form>"
+            for addr in a.alt_emails
+        )
     quote = _URL_IN_TEXT.sub("", a.quote).replace("  ", " ").strip()
     quote_html = (
         f"<p class='quote'>“{e(quote)}”</p>" if quote else f"<p class='muted'>{e(a.hint)}</p>"
@@ -1307,7 +1318,7 @@ def _attention_item(a: Attention, csrf: str, contributor: bool = False) -> str:
     return (
         "<li class='att'><div class='att-main'>"
         f"<div class='att-head'><b>{e(a.name)}</b> <span class='pill t-{tone}'>{e(a.why)}</span>"
-        f"</div>{quote_html}{email}"
+        f"</div>{quote_html}{redirect}{email}"
         f"{_coverage_panel(a, csrf) if contributor else ''}</div>"
         f"<div class='att-actions'>{''.join(icons)}{''.join(buttons)}</div></li>"
     )

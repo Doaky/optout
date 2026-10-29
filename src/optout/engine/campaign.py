@@ -216,6 +216,54 @@ def _run_locked(session, config, brokers, limit, runner, sleep, now, on_progress
     return report
 
 
+def resend_to(
+    session: Session,
+    config: UserConfig,
+    broker: BrokerDef,
+    address: str,
+    *,
+    runner: Callable[..., None] = run_submission,
+    now: Callable[[], datetime] = lambda: datetime.now(UTC),
+) -> CampaignReport:
+    """Send this broker's request to a different address its own reply asked for.
+
+    Deliberately narrow: one broker, one email, under the same one-batch-at-a-time lock and
+    the same 24-hour limit. The earlier request is closed (it was never going to be read),
+    and the new one starts its own deadline."""
+    from ..config import user_tz
+    from ..db import record_event, update_status
+
+    report = CampaignReport()
+    with SendLock() as got:
+        if not got:
+            report.stopped_reason = "another batch is already sending"
+            return report
+        used = sent_today(session, now(), user_tz(config))
+        if used >= config.email.daily_limit:
+            report.stopped_reason = f"daily limit of {config.email.daily_limit} already reached"
+            return report
+        old = list(session.exec(select(Submission).where(Submission.broker_slug == broker.slug)))
+        target = broker.model_copy(update={"opt_out_email": address, "method": "email"})
+        sub = create_submission(
+            session,
+            broker_slug=broker.slug,
+            method_used="email",
+            legal_basis_cited=broker.legal_basis,
+            statutory_response_days=broker.statutory_response_days,
+        )
+        with email_method.batch_session(config):
+            runner(session, sub, target, config.profile, config)
+        if sub.status == "awaiting_broker_confirmation":
+            report.sent.append(broker.slug)
+            for prev in old:
+                if prev.id != sub.id and prev.status in ACTIVE | {"awaiting_user_input"}:
+                    update_status(session, prev, "closed")
+                    record_event(session, prev, "redirected", {"to_domain": address.split("@")[1]})
+        else:
+            report.failed.append((broker.slug, sub.failure_reason or sub.status))
+    return report
+
+
 # --- automatic daily sending ------------------------------------------------
 
 

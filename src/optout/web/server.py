@@ -134,6 +134,34 @@ class App:
         threading.Thread(target=self._run_campaign, args=(count, only), daemon=True).start()
         return "started"
 
+    def start_resend(self, slug: str, address: str) -> str:
+        with self.job_lock:
+            if self.job.get("state") == "running":
+                return "busy"
+            self.job = {"state": "running", "sent": [], "failed": [], "total": 1}
+        threading.Thread(target=self._run_resend, args=(slug, address), daemon=True).start()
+        return "started"
+
+    def _run_resend(self, slug: str, address: str) -> None:
+        from ..engine.campaign import resend_to
+
+        job = self.job
+        try:
+            config = load_config()
+            load_registry()
+            broker = next(b for b in all_brokers() if b.slug == slug)
+            with get_session() as session:
+                report = resend_to(session, config, broker, address)
+            job["sent"], job["failed"], job["stopped"] = (
+                report.sent,
+                report.failed,
+                report.stopped_reason,
+            )
+        except Exception as exc:  # never leak a traceback into the page
+            job["stopped"] = f"{type(exc).__name__}"
+        finally:
+            job["state"] = "done"
+
     def _run_campaign(self, count: int, only: str | None = None) -> None:
         job = self.job
         try:
@@ -683,6 +711,32 @@ def _make_handler(app: App):
                     groups, note = parse_coverage_answer(form.get("answer", ""), slug)
                     save_local(slug, groups, note)
                     return self._redirect("/?m=cov_ok")
+                if path == "/act/resend-to":
+                    from sqlmodel import select
+
+                    from ..db import InboxMessage
+                    from .data import alternate_addresses
+
+                    address = form.get("address", "").strip().lower()
+                    broker = next((b for b in all_brokers() if b.slug == slug), None)
+                    if broker is None:
+                        raise ValueError("unknown broker")
+                    # Only an address that the broker's own stored reply names, on its own
+                    # domain. The form value is never trusted by itself.
+                    with get_session() as session:
+                        replies = session.exec(
+                            select(InboxMessage).where(InboxMessage.broker_slug == slug)
+                        ).all()
+                    allowed = {
+                        a
+                        for r in replies
+                        for a in alternate_addresses(
+                            r.text, r.from_addr, broker.opt_out_email or ""
+                        )
+                    }
+                    if address not in allowed:
+                        raise ValueError("that address isn't in their reply")
+                    return self._redirect(f"/?m={app.start_resend(slug, address)}#send")
                 if path == "/act/retry":
                     broker = next((b for b in all_brokers() if b.slug == slug), None)
                     if broker is None or broker.method != "email":

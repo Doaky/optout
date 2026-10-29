@@ -50,6 +50,7 @@ class Attention:
     email: str = ""  # their latest reply, in full
     link: str = ""  # first web link in their reply (shown, never opened for you)
     link_host: str = ""
+    alt_emails: list[str] = field(default_factory=list)  # other addresses their reply names
     gmail_url: str = ""  # opens this exact email in Gmail (search by Message-ID)
     coverage: str = ""  # who the broker covers, if limited ("educators")
     coverage_note: str = ""
@@ -304,7 +305,44 @@ def _with_reply(session: Session, sub: Submission, a: Attention) -> Attention:
     a.quote = deciding_sentence(row.text, row.kind or "")
     a.link = _best_link(row.text)
     a.link_host = urlsplit(a.link).hostname or "" if a.link else ""
+    from ..brokers.registry import get_broker
+
+    try:
+        contacted = get_broker(sub.broker_slug).opt_out_email or ""
+    except KeyError:
+        contacted = ""
+    a.alt_emails = alternate_addresses(row.text, row.from_addr, contacted)
     return a
+
+
+_EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")
+_NOT_A_MAILBOX = re.compile(
+    r"^(no-?reply|do-?not-?reply|donotreply|mailer-daemon|postmaster)", re.I
+)
+
+
+def alternate_addresses(text: str, sender: str, contacted: str, *, limit: int = 2) -> list[str]:
+    """Addresses a reply tells us to write to instead. Reply text is untrusted, so only
+    an address on the same company's domain as whoever replied (or as the address we
+    wrote to) counts. Anything else could send your request to a stranger."""
+    sender = sender.lower()
+    contacted = contacted.lower()
+    domains = {x.rsplit("@", 1)[1] for x in (sender, contacted) if "@" in x}
+
+    def same_company(domain: str) -> bool:
+        return any(
+            domain == d or domain.endswith("." + d) or d.endswith("." + domain) for d in domains
+        )
+
+    found: list[str] = []
+    for m in _EMAIL.finditer(text):
+        addr = m.group(0).lower().rstrip(".")
+        local, _, domain = addr.partition("@")
+        if addr in (sender, contacted) or addr in found or _NOT_A_MAILBOX.match(local):
+            continue
+        if same_company(domain):
+            found.append(addr)
+    return found[:limit]
 
 
 _FORMISH = re.compile(r"privacy|request|form|portal|dsar|dsr|rights|onetrust|consent|delete", re.I)

@@ -850,3 +850,56 @@ def test_attention_copy_prompt_and_honest_chart_label(ui):
     assert "SECRETTOKEN" not in body.split("id='attn-prompt'")[1].split("</textarea>")[0]
     assert ">Says done<" in body or "Says done" in body  # chart legend, not "Removed"
     assert "Removed 0" not in body
+
+
+def test_alternate_address_only_from_the_same_company(ui):
+    from optout.web.data import alternate_addresses
+
+    text = (
+        "Email optout@experian.example<mailto:optout@experian.example> or privacy@evil.example. "
+        "Also stranger@gmail.com and noreply@experian.example and ca_drop@experian.example."
+    )
+    got = alternate_addresses(text, "ca_drop@experian.example", "dsar@experian.example")
+    assert got == ["optout@experian.example"]  # not another company, not noreply, not sender
+    assert alternate_addresses("write to a@other.example", "x@acme.example", "p@acme.example") == []
+
+
+def test_resend_to_button_and_route_are_guarded(ui, monkeypatch):
+    from optout.db import InboxMessage, list_submissions
+
+    _sent_request()
+    started: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "optout.web.server.App.start_resend",
+        lambda self, slug, addr: started.append((slug, addr)) or "started",
+    )
+    with get_session() as s:
+        sub = list_submissions(s)[0]
+        sub.status = "awaiting_user_input"
+        s.add(sub)
+        s.add(
+            InboxMessage(
+                message_id="<r1>",
+                submission_id=sub.id,
+                broker_slug="evil",
+                from_addr="auto@evil.example",
+                subject="Auto",
+                kind="need-info",
+                state="applied",
+                text="This inbox is not monitored. Please email optout@evil.example, "
+                "or privacy@thief.example.",
+            )
+        )
+        s.commit()
+    _, body = ui.req("GET", "/")
+    assert "Send my request there" in body and "optout@evil.example" in body
+    assert "value='privacy@thief.example'" not in body  # no button for another company
+
+    r, _ = ui.post("/act/resend-to", {"slug": "evil", "address": "optout@evil.example"})
+    assert r.getheader("Location") == "/?m=started#send" and started == [
+        ("evil", "optout@evil.example")
+    ]
+    for bad in ("privacy@thief.example", "someone@evil.example", ""):  # not in their reply
+        r, _ = ui.post("/act/resend-to", {"slug": "evil", "address": bad})
+        assert r.getheader("Location") == "/?m=err", bad
+    assert len(started) == 1
