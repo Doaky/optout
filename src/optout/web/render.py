@@ -157,6 +157,12 @@ legend{font-weight:700;padding:0 6px}
 .fld>span{color:var(--text-2);font-weight:600}
 .fld small{color:var(--muted)}
 .fld.wide{margin-top:12px}
+.fw{display:flex;flex-direction:column;gap:4px}
+details.fhelp>summary{cursor:pointer;color:var(--accent);font-size:12.5px;width:max-content}
+details.fhelp>div{margin-top:6px;padding:10px 12px;border:1px solid var(--line);
+  border-radius:8px;background:var(--surface-2);font-size:13px;line-height:1.5}
+details.fhelp p{margin:0 0 8px}details.fhelp ol,details.fhelp ul{margin:0 0 8px;padding-left:20px}
+details.fhelp code{font-size:12px}
 .check{display:flex;gap:8px;align-items:center;margin-top:12px;font-size:14px}
 form.inline.pwform{align-items:flex-end;flex-wrap:nowrap}
 .pwform .fld{flex:0 1 320px}
@@ -178,15 +184,31 @@ details.mini>summary::-webkit-details-marker{display:none}
 details.mini[open]>summary{margin-bottom:6px}
 .att:has(details.coverage[open]){align-items:flex-start}
 .coverage{max-width:760px}
-.coverage .checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));
-  gap:2px 18px;margin:6px 0}
-.coverage .check{margin:0;font-size:13px;align-items:flex-start}
+th button.sortbtn{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:5px;
+  font:inherit;text-transform:inherit;letter-spacing:inherit;color:inherit}
+th button.sortbtn::after{content:"\2195";opacity:.35;font-size:11px}
+th[aria-sort=ascending] button.sortbtn::after{content:"\25B2";opacity:1;color:var(--accent)}
+th[aria-sort=descending] button.sortbtn::after{content:"\25BC";opacity:1;color:var(--accent)}
+th button.sortbtn:hover{color:var(--text)}
+th button.sortbtn:focus-visible{outline:2px solid var(--ring);outline-offset:2px;border-radius:4px}
+.gsec h3{margin:12px 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--muted)}
+.gbox{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:6px 18px}
+.gopt{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.4;
+  cursor:pointer;padding:6px 8px;border-radius:8px}
+.gopt:hover{background:var(--surface-2)}
+.gopt input{margin-top:3px;flex:none}
+.gopt .also{display:block;font-size:12px;color:var(--accent);margin-top:2px}
 .coverage .noterow{display:flex;gap:8px;margin-top:6px}
 .coverage .noterow input{flex:1;min-width:0}
 .coverage textarea{margin-top:8px}
 .coverage form + form{margin-top:6px}
 .att-actions{display:flex;gap:6px;align-items:center;flex:none}
 .att-actions button{padding:6px 14px;font-size:13px}
+button.ibtn{padding:0;background:var(--surface);color:var(--text-2);border-color:var(--line)}
+button.ibtn:hover{color:var(--text);border-color:var(--accent);background:var(--surface)}
+button.ibtn.mini{width:26px;height:26px;border-radius:6px;margin-left:4px;display:inline-flex;
+  align-items:center;justify-content:center;vertical-align:middle}
 a.ibtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;
   border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--text-2)}
 a.ibtn:hover{border-color:var(--accent);color:var(--text)}
@@ -196,8 +218,12 @@ a.btnlink{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border
   font-weight:600;font-size:14px}
 a.btnlink:hover{border-color:var(--accent)}
 hr{border:0;border-top:1px solid var(--line);margin:18px 0}
-body.busy main{opacity:.65;transition:opacity .15s}
 body.busy{cursor:progress}
+.topbar::after{content:"";position:absolute;left:0;bottom:-1px;height:2px;width:0;
+  background:var(--accent);opacity:0}
+body.busy .topbar::after{opacity:1;animation:sweep 1.1s ease-in-out infinite}
+@keyframes sweep{0%{left:0;width:0}50%{left:20%;width:60%}100%{left:100%;width:0}}
+@media (prefers-reduced-motion:reduce){body.busy .topbar::after{animation:none;width:100%}}
 .js .search button{display:none}
 .sendrow{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-top:12px}
 .sendrow label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--text-2)}
@@ -276,6 +302,27 @@ const filter = () => {
   });
   const none = d.getElementById('nomatch');
   if (none) none.hidden = shown > 0;
+  sortRows();
+};
+
+let sortKey = '';
+let sortDir = 1;
+const sortRows = () => {
+  const body = d.querySelector('table tbody');
+  if (body && sortKey) {
+    const rows = [...body.querySelectorAll('tr[data-name]')];
+    const val = (tr) => (sortKey === 'days' ? Number(tr.dataset.days)
+      : sortKey === 'status' ? tr.dataset.status.toLowerCase() : tr.dataset[sortKey]);
+    rows.sort((a, b) => {
+      const x = val(a), y = val(b);
+      if (sortKey === 'sent' && (!x || !y)) return x === y ? 0 : x ? -1 : 1;  // unsent last
+      return (x < y ? -1 : x > y ? 1 : 0) * sortDir;
+    });
+    const tail = d.getElementById('nomatch');
+    rows.forEach((tr) => body.insertBefore(tr, tail));
+  }
+  d.querySelectorAll('th[data-sortkey]').forEach((th) => th.setAttribute(
+    'aria-sort', th.dataset.sortkey === sortKey ? (sortDir > 0 ? 'ascending' : 'descending') : 'none'));
 };
 
 const swap = async (res) => {
@@ -349,6 +396,14 @@ const openSettings = () => {
 if (location.hash === '#settings') openSettings();
 
 d.addEventListener('click', (e) => {
+  const sorter = e.target.closest('th[data-sortkey] button');
+  if (sorter) {
+    const key = sorter.closest('th').dataset.sortkey;
+    if (key === sortKey) sortDir = -sortDir;
+    else { sortKey = key; sortDir = key === 'sent' ? -1 : 1; }  // newest first for Sent
+    sortRows();
+    return;
+  }
   if (e.target.closest('a[href$="#settings"]')) { e.preventDefault(); openSettings(); return; }
   const pill = e.target.closest('a.fpill[data-filter]');
   if (pill) {
@@ -663,50 +718,18 @@ class UI:
 
 
 ROW_ACTIONS = [
+    ("Email", [("draft:auto", "Write a follow-up email")]),
     (
-        "Record their reply",
-        [
-            ("reply:deleted", "They say it's deleted"),
-            ("reply:denied", "They refused"),
-            ("reply:need-info", "They need more info"),
-            ("reply:auto-reply", "Automated reply only"),
-        ],
-    ),
-    (
-        "Write a follow-up",
-        [
-            ("draft:clarify", "Clarify (answer to an auto-reply)"),
-            ("draft:followup", "Follow up (no response)"),
-            ("draft:appeal", "Appeal (they refused)"),
-            ("draft:complaint", "AG complaint draft"),
-        ],
-    ),
-    (
-        "I sent one",
-        [
-            ("sent:clarify", "Sent: clarify"),
-            ("sent:followup", "Sent: follow-up"),
-            ("sent:appeal", "Sent: appeal"),
-            ("sent:complaint", "Sent: complaint"),
-        ],
-    ),
-    (
-        "Move to",
+        "Set status",
         [
             ("status:awaiting_broker_confirmation", "Awaiting reply"),
             ("status:confirmed", "Broker says done"),
-            ("status:awaiting_user_input", "Needs input"),
+            ("status:awaiting_user_input", "Wants something from me"),
             ("status:rejected", "Refused"),
-            ("status:failed", "Failed"),
+            ("status:closed", "Closed"),
         ],
     ),
-    (
-        "Other",
-        [
-            ("status:closed", "Close (I'm done with this one)"),
-            ("toggle:off", "Never contact this broker"),
-        ],
-    ),
+    ("Other", [("toggle:off", "Never contact this broker")]),
 ]
 
 
@@ -758,13 +781,14 @@ def _send_panel(ui: UI) -> str:
         inner = "<p class='bad'>No config found. Run <code>optout init</code> first.</p>"
     elif n == 0 and ui.limit and ui.used >= ui.limit:
         inner = (
-            f"<p>You've sent today's limit of <b>{ui.limit}</b>.</p><p class='muted small'>"
-            "To send another batch now, raise <b>Emails per day</b> in "
+            f"<p>You've sent your limit of <b>{ui.limit}</b> emails in the last 24 hours.</p>"
+            "<p class='muted small'>Room opens up as older sends pass 24 hours. To send "
+            "another batch now, raise <b>Emails per 24 hours</b> in "
             "<a href='#settings'>Settings</a>.</p>"
         )
     elif n == 0:
         inner = (
-            f"<p class='muted'>Nothing to send right now. {ui.used}/{ui.limit} used today; "
+            f"<p class='muted'>Nothing to send right now. {ui.used}/{ui.limit} sent in the last 24 hours; "
             "brokers contacted in the last 90 days are skipped.</p>"
         )
     else:
@@ -776,7 +800,7 @@ def _send_panel(ui: UI) -> str:
         )
         inner = (
             f"<p><b>{n}</b> emails ready to go from <b>{e(ui.sender)}</b>.<br>"
-            f"<span class='muted small'>{ui.used}/{ui.limit} sent today · paced, stops on "
+            f"<span class='muted small'>{ui.used}/{ui.limit} sent in the last 24 hours · paced, stops on "
             "repeated errors</span></p>"
             f"<details class='emails'><summary>Preview all {n} emails</summary>{emails}</details>"
             "<form method='post' action='/act/campaign' class='sendrow'>"
@@ -919,13 +943,51 @@ def _replies_panel(ui: UI) -> str:
 
 
 def _field(
-    label: str, name: str, value: str, *, kind: str = "text", hint: str = "", attrs: str = ""
+    label: str,
+    name: str,
+    value: str,
+    *,
+    kind: str = "text",
+    hint: str = "",
+    attrs: str = "",
+    help_html: str = "",
 ) -> str:
-    return (
+    box = (
         f"<label class='fld'><span>{e(label)}</span>"
         f"<input type='{kind}' name='{name}' value='{e(value)}' {attrs}>"
         f"{f'<small>{e(hint)}</small>' if hint else ''}</label>"
     )
+    if not help_html:
+        return box
+    return (
+        f"<div class='fw'>{box}<details class='fhelp'><summary>How does this work?</summary>"
+        f"<div>{help_html}</div></details></div>"
+    )
+
+
+_SEND_AS_HELP = (
+    "<p>Brokers normally see your Gmail address in the From line. <b>Send as</b> makes the "
+    "emails come from a different address instead, so your main one stays off their lists.</p>"
+    "<ol><li>In Gmail open Settings &rarr; <i>Accounts and Import</i> &rarr; <i>Send mail "
+    "as</i> &rarr; <i>Add another email address</i>, and confirm it (Gmail sends that address "
+    "a code).</li><li>Type that address here.</li></ol>"
+    "<p>It must be an address Gmail has verified; otherwise Gmail quietly sends from your "
+    "normal address. Leave blank to send from your own address.</p>"
+)
+_ALIAS_HELP = (
+    "<p>Gives every broker its own reply address. If spam later arrives at "
+    "<code>optout-acme-data@yourdomain.com</code>, you know Acme Data passed your address on. "
+    "<code>{slug}</code> is replaced with the broker's short name.</p>"
+    "<p>You need an address that accepts mail for any name. Options:</p><ul>"
+    "<li><b>Gmail's own plus addresses</b>, no setup: <code>yourname+{slug}@gmail.com</code>. "
+    "Mail still reaches your inbox. (A broker could strip the <code>+</code> part, but it "
+    "works for tracing.)</li>"
+    "<li><b>Your own domain</b> with a catch-all that forwards everything to your inbox "
+    "(Cloudflare Email Routing is free): <code>optout-{slug}@yourdomain.com</code>.</li>"
+    "<li>A service like SimpleLogin or Addy.io.</li></ul>"
+    "<p>The alias is used as the reply-to address and inside each request. Leave blank to use "
+    "your own address.</p>"
+)
 
 
 _COMMON_TZ = [
@@ -945,15 +1007,36 @@ _TZ_LIST = (
 )
 
 
-def _groups_fieldset(v: dict[str, str]) -> str:
-    from ..audiences import GROUPS
+def _group_box(key: str, prefix: str, checked: bool, *, implies: bool) -> str:
+    from ..audiences import GROUPS, IMPLIES, TITLES
 
-    mine = set(v.get("my_groups", "").split(",")) if v.get("groups_set") else set()
-    boxes = "".join(
-        f"<label class='check'><input type='checkbox' name='group_{k}'"
-        f"{' checked' if k in mine else ''}> {e(text)}</label>"
-        for k, text in GROUPS.items()
+    also = IMPLIES.get(key, ()) if implies else ()
+    data = f" data-implies='{e(','.join(also))}'" if also else ""
+    hint = (
+        f"<span class='also'>Also counts as: {e(', '.join(TITLES[x] for x in also))}</span>"
+        if also
+        else ""
     )
+    return (
+        f"<label class='gopt'><input type='checkbox' name='{prefix}{key}'{data}"
+        f"{' checked' if checked else ''}><span><b>{e(TITLES[key])}</b>"
+        f"<span class='muted'> {e(GROUPS[key])}.</span>{hint}</span></label>"
+    )
+
+
+def _group_sections(prefix: str, checked: set[str], *, implies: bool) -> str:
+    from ..audiences import SECTIONS
+
+    return "".join(
+        f"<div class='gsec'><h3>{e(title)}</h3><div class='gbox'>"
+        + "".join(_group_box(k, prefix, k in checked, implies=implies) for k in keys)
+        + "</div></div>"
+        for title, keys in SECTIONS
+    )
+
+
+def _groups_fieldset(v: dict[str, str]) -> str:
+    mine = set(v.get("my_groups", "").split(",")) if v.get("groups_set") else set()
     status = (
         "Brokers that only cover groups you're not in are left out of batches."
         if v.get("groups_set")
@@ -964,7 +1047,8 @@ def _groups_fieldset(v: dict[str, str]) -> str:
         "<fieldset><legend>Groups you belong to</legend>"
         "<p class='muted small'>A few brokers only hold data on a specific group, like "
         f"educators or financial advisors. {e(status)}</p>"
-        f"<input type='hidden' name='groups_present' value='1'>{boxes}</fieldset>"
+        "<input type='hidden' name='groups_present' value='1'>"
+        f"{_group_sections('group_', mine, implies=True)}</fieldset>"
     )
 
 
@@ -1008,12 +1092,13 @@ def _settings_panel(ui: UI) -> str:
     sending = (
         "<fieldset><legend>Sending</legend><div class='fgrid'>"
         + _field(
-            "Emails per day",
+            "Emails per 24 hours",
             "daily_limit",
             v["daily_limit"],
             kind="number",
-            attrs="min='1' max='200' required",
-            hint="Raise this to send another batch today. Gmail allows ~500; 40–100 is safer.",
+            attrs="min='1' max='500' required",
+            hint="Gmail allows 500 sends in any rolling 24 hours, counting everything you "
+            "send, not just these. Raise this to send another batch now.",
         )
         + _field(
             "Pause between emails (seconds)",
@@ -1039,13 +1124,15 @@ def _settings_panel(ui: UI) -> str:
             "from_address",
             v["from_address"],
             kind="email",
-            hint="A 'Send mail as' address set up in Gmail. Blank = your account.",
+            hint="Show a different address in the From line. Blank = your own.",
+            help_html=_SEND_AS_HELP,
         )
         + _field(
             "Per-broker alias (optional)",
             "alias_pattern",
             v["alias_pattern"],
-            hint="Needs your own domain, e.g. optout-{slug}@yourdomain.com",
+            hint="A separate reply address per broker, e.g. you+{slug}@gmail.com",
+            help_html=_ALIAS_HELP,
         )
         + _field(
             "Time zone",
@@ -1133,17 +1220,11 @@ _URL_IN_TEXT = re.compile(r"\s*[<(]?https?://[^\s>)]+[>)]?")
 
 
 def _coverage_panel(a: Attention, csrf: str) -> str:
-    from ..audiences import GROUPS
-
-    boxes = "".join(
-        f"<label class='check'><input type='checkbox' name='aud_{k}'"
-        f"{' checked' if k in a.coverage_groups else ''}> {e(text)}</label>"
-        for k, text in GROUPS.items()
-    )
+    boxes = _group_sections("aud_", set(a.coverage_groups), implies=False)
     everyone = (
-        "<label class='check'><input type='checkbox' name='aud_everyone'"
-        f"{' checked' if 'everyone' in a.coverage_groups else ''}> Everyone: the general public"
-        "</label>"
+        "<label class='gopt'><input type='checkbox' name='aud_everyone'"
+        f"{' checked' if 'everyone' in a.coverage_groups else ''}><span><b>Everyone</b>"
+        "<span class='muted'> The general public: not limited to a group.</span></span></label>"
     )
     return (
         "<details class='mini coverage'><summary>Coverage</summary>"
@@ -1151,7 +1232,7 @@ def _coverage_panel(a: Attention, csrf: str) -> str:
         "People outside it can skip it. Judge from their own reply; if you can't tell, "
         "leave it as Everyone.</p>"
         f"<form method='post' action='/act/coverage'>{_hidden(csrf, slug=a.slug)}"
-        f"<div class='checks'>{boxes}{everyone}</div>"
+        f"{boxes}<div class='gsec'><div class='gbox'>{everyone}</div></div>"
         "<div class='noterow'>"
         f"<input name='note' maxlength='240' value='{e(a.coverage_note)}' "
         "placeholder='One line on who they cover (no personal details)' aria-label='Note'>"
@@ -1296,6 +1377,27 @@ def _drafts_line(ui: UI) -> str:
     return f"<div class='filters' style='margin-top:12px'>{make}{saved}</div>"
 
 
+_RETRY_ICON = (
+    "<svg viewBox='0 0 24 24' width='15' height='15' aria-hidden='true' fill='none' "
+    "stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
+    "<path d='M21 12a9 9 0 1 1-2.64-6.36'/><path d='M21 4v5h-5'/></svg>"
+)
+
+
+def _status_cell(row: Row, csrf: str) -> str:
+    """The status pill, with a resend button when an email failed to send."""
+    tip = f" title='{e(row.failure)}'" if row.failure else ""
+    cell = f"<span{tip}>{pill(row.status, row.label)}</span>"
+    if row.retryable and csrf:
+        cell += (
+            " <form method='post' action='/act/retry' class='inline'>"
+            f"{_hidden(csrf, slug=row.slug)}"
+            "<button type='submit' class='ibtn mini' title='Try sending this email again' "
+            f"aria-label='Resend the email to {e(row.name)}'>{_RETRY_ICON}</button></form>"
+        )
+    return cell
+
+
 def _covers_tag(row: Row) -> str:
     if not row.only_covers:
         return ""
@@ -1370,7 +1472,14 @@ def _stats(d: Dashboard, ui: UI | None) -> str:
         )
     )
     if ui and ui.limit:
-        tiles.append((f"{ui.used}/{ui.limit}", "Sent today", "var(--neutral)", "Daily limit"))
+        tiles.append(
+            (
+                f"{ui.used}/{ui.limit}",
+                "Last 24 hours",
+                "var(--neutral)",
+                "Emails sent, of your limit",
+            )
+        )
     return (
         "<section class='stats' aria-label='Summary'>"
         + "".join(
@@ -1450,9 +1559,11 @@ def dashboard(
         )
 
     trs = "".join(
-        f"<tr data-name='{e((r.name + ' ' + r.slug).lower())}' data-status='{e(r.label)}'>"
+        f"<tr data-name='{e((r.name + ' ' + r.slug).lower())}' data-status='{e(r.label)}' "
+        f"data-sent='{e(r.submitted if r.submitted != '—' else '')}' "
+        f"data-days='{r.days_left if r.days_left is not None else 1000000}'>"
         f"<td class='name'>{e(r.name)}{_reply_from(r)}{_covers_tag(r)}</td>"
-        f"<td>{pill(r.status, r.label)}</td>"
+        f"<td>{_status_cell(r, csrf if with_actions else '')}</td>"
         f"<td class='num'>{e(_short(r.submitted))}</td>"
         f"<td>{_days_cell(r)}<div class='muted small'>{_due(r)}</div></td>"
         f"<td class='small'>{e(r.last_check)}"
@@ -1467,9 +1578,9 @@ def dashboard(
     )
     if rows:
         table = (
-            "<div class='table-wrap'><table><thead><tr><th scope='col'>Broker</th>"
-            "<th scope='col'>Status</th><th scope='col'>Sent</th>"
-            "<th scope='col'>Time left</th><th scope='col'>Last check</th>"
+            "<div class='table-wrap'><table><thead><tr><th scope='col' data-sortkey='name' aria-sort='none'><button type='button' class='sortbtn'>Broker</button></th>"
+            "<th scope='col' data-sortkey='status' aria-sort='none'><button type='button' class='sortbtn'>Status</button></th><th scope='col' data-sortkey='sent' aria-sort='none'><button type='button' class='sortbtn'>Sent</button></th>"
+            "<th scope='col' data-sortkey='days' aria-sort='none'><button type='button' class='sortbtn'>Time left</button></th><th scope='col'>Last check</th>"
             f"{'<th scope=col>Action</th>' if with_actions else ''}</tr></thead>"
             f"<tbody>{trs}<tr id='nomatch' hidden><td colspan='7' class='muted'>No requests "
             "match.</td></tr></tbody></table></div>"
@@ -1612,7 +1723,7 @@ def campaign_page(
     if running:
         form = "<p class='muted'>A batch is running. This page refreshes by itself.</p>"
     elif batch == 0:
-        form = f"<p class='muted'>Nothing to send right now ({used}/{limit} used today).</p>"
+        form = f"<p class='muted'>Nothing to send right now ({used}/{limit} sent in the last 24 hours).</p>"
     else:
         form = (
             "<section class='card'><p>Review exactly what will be emailed before anything is "

@@ -35,6 +35,8 @@ class Row:
     drifted: bool
     reply_from: list[str] = field(default_factory=list)
     only_covers: str = ""  # e.g. "educators" when the broker serves a specific group
+    retryable: bool = False  # an email that failed to send (not a bounce): can be resent
+    failure: str = ""  # why it failed, for the tooltip
 
 
 @dataclass
@@ -141,6 +143,10 @@ def collect(
             last_check=f"{v.outcome.replace('_', ' ')} {_date(v.checked_at)}" if v else "—",
             drifted=drift,
             reply_from=reply_from.get(sub.broker_slug, []),
+            retryable=(
+                sub.status == "failed" and sub.submitted_at is None and sub.method_used == "email"
+            ),
+            failure=(sub.failure_reason or "")[:200] if sub.status == "failed" else "",
             only_covers=(
                 coverage[sub.broker_slug].label()
                 if sub.broker_slug in coverage and coverage[sub.broker_slug].niche

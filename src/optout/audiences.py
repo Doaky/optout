@@ -16,18 +16,58 @@ import yaml
 
 from .config import config_dir
 
-# The groups, with the wording shown to the user. Keep descriptions plain.
-GROUPS: dict[str, str] = {
-    "business-professionals": "Work contacts: you appear in B2B databases by employer, job "
-    "title, or work email",
-    "educators": "You work at a school, college, or university",
-    "students": "You're a student",
-    "financial-advisors": "You're a financial advisor, broker, or run an advisory practice",
-    "financial-account-holders": "Data a bank or brokerage holds about its customers "
-    "(ask the institution instead)",
-    "healthcare-providers": "You're a doctor, nurse, or other licensed healthcare worker",
-    "real-estate-professionals": "You're a real-estate agent, broker, or investor",
+# The groups, as shown to the user: a short title, then one plain sentence starting "You".
+TITLES: dict[str, str] = {
+    "business-professionals": "Work contacts",
+    "educators": "Educator",
+    "financial-advisors": "Financial advisor",
+    "healthcare-providers": "Healthcare worker",
+    "real-estate-professionals": "Real estate professional",
+    "students": "Student",
+    "financial-account-holders": "Bank or brokerage customer",
 }
+GROUPS: dict[str, str] = {
+    "business-professionals": "You have a work email or job title that appears in business "
+    "contact lists",
+    "educators": "You work at a school, college, or university",
+    "financial-advisors": "You're a financial advisor or run an advisory practice",
+    "healthcare-providers": "You're a licensed healthcare worker, like a doctor, nurse, or dentist",
+    "real-estate-professionals": "You're a real estate agent, broker, or investor",
+    "students": "You're a student",
+    "financial-account-holders": "You have bank, card, or brokerage accounts. Those records "
+    "stay with the institution, so ask it directly",
+}
+# How the picker is laid out.
+SECTIONS: list[tuple[str, list[str]]] = [
+    (
+        "Your job",
+        [
+            "business-professionals",
+            "educators",
+            "financial-advisors",
+            "healthcare-providers",
+            "real-estate-professionals",
+        ],
+    ),
+    ("Other", ["students", "financial-account-holders"]),
+]
+# Belonging to a group usually means belonging to a broader one too: an educator or a
+# financial advisor is also listed in business contact databases. Ticking the narrow group
+# ticks these as well.
+IMPLIES: dict[str, tuple[str, ...]] = {
+    "educators": ("business-professionals",),
+    "financial-advisors": ("business-professionals",),
+    "healthcare-providers": ("business-professionals",),
+    "real-estate-professionals": ("business-professionals",),
+}
+
+
+def expand_groups(groups: list[str]) -> list[str]:
+    """The groups plus everything they imply, in display order, without duplicates."""
+    chosen = set(groups)
+    for g in groups:
+        chosen.update(IMPLIES.get(g, ()))
+    return [g for g in GROUPS if g in chosen]
 
 
 @dataclass(frozen=True)

@@ -8,10 +8,10 @@ from datetime import date
 
 from pydantic import ValidationError
 
-from ..audiences import GROUPS
+from ..audiences import GROUPS, expand_groups
 from ..config import Address, PreviousAddress, UserConfig
 
-LIMITS = {"daily_limit": (1, 200), "send_delay_seconds": (0, 120)}
+LIMITS = {"daily_limit": (1, 500), "send_delay_seconds": (0, 120)}
 
 
 def _list(raw: str) -> list[str]:
@@ -108,7 +108,8 @@ def apply_form(cfg: UserConfig, form: dict[str, str]) -> UserConfig:
     # Groups: only once the user has seen the section (the form says so), otherwise a save
     # from an old page must not wipe the setting.
     if form.get("groups_present") == "1":
-        data["my_groups"] = [g for g in GROUPS if form.get(f"group_{g}") == "on"]
+        picked = [g for g in GROUPS if form.get(f"group_{g}") == "on"]
+        data["my_groups"] = expand_groups(picked)
     data["contributor_tools"] = form.get("contributor_tools") == "on"
     try:
         return UserConfig.model_validate(data)

@@ -124,22 +124,30 @@ class App:
             time.sleep(every)
 
     # -- campaign job ----------------------------------------------------
-    def start_campaign(self, count: int) -> str:
+    def start_campaign(self, count: int, only: str | None = None) -> str:
+        """Send up to *count* emails in the background; *only* limits it to one broker
+        (used to resend a failed one)."""
         with self.job_lock:
             if self.job.get("state") == "running":
                 return "busy"
             self.job = {"state": "running", "sent": [], "failed": [], "total": count}
-        threading.Thread(target=self._run_campaign, args=(count,), daemon=True).start()
+        threading.Thread(target=self._run_campaign, args=(count, only), daemon=True).start()
         return "started"
 
-    def _run_campaign(self, count: int) -> None:
+    def _run_campaign(self, count: int, only: str | None = None) -> None:
         job = self.job
         try:
             config = load_config()
             load_registry()
             now = datetime.now(UTC)
             with get_session() as session:
-                sel = select_brokers(all_brokers(), session, now=now, my_groups=config.my_groups)
+                sel = select_brokers(
+                    all_brokers(),
+                    session,
+                    now=now,
+                    only=[only] if only else None,
+                    my_groups=config.my_groups,
+                )
                 batch = sel.eligible[:count]
                 job["total"] = len(batch)
 
@@ -501,6 +509,7 @@ def _make_handler(app: App):
                     actions.record_reply(session, slug, arg, None)
                 return self._redirect("/?m=reply")
             if kind == "draft":
+                arg = actions.auto_draft_kind(slug) if arg == "auto" else arg
                 out = actions.write_draft_now(load_config(), slug, arg, datetime.now(UTC))
                 return self._redirect(
                     f"/?draft={quote(out.name, safe='')}&ds={quote(slug, safe='')}"
@@ -522,13 +531,21 @@ def _make_handler(app: App):
                 }
                 if arg not in allowed:
                     raise ValueError("status not allowed")
+                as_reply = {
+                    "confirmed": "deleted",
+                    "rejected": "denied",
+                    "awaiting_user_input": "need-info",
+                }
                 with get_session() as session:
                     subs = list_submissions(session, broker_slug=slug)
                     if not subs:
                         raise ValueError("no request")
                     sub = max(subs, key=lambda x: x.created_at)
                     before = sub.status
-                    update_status(session, sub, arg)
+                    if arg in as_reply:
+                        actions.record_reply(session, slug, as_reply[arg], None)
+                    else:
+                        update_status(session, sub, arg)
                     record_event(session, sub, "status_set", {"from": before, "to": arg})
                 return self._redirect("/?m=toggle")
             if action == "toggle:off":
@@ -666,6 +683,15 @@ def _make_handler(app: App):
                     groups, note = parse_coverage_answer(form.get("answer", ""), slug)
                     save_local(slug, groups, note)
                     return self._redirect("/?m=cov_ok")
+                if path == "/act/retry":
+                    broker = next((b for b in all_brokers() if b.slug == slug), None)
+                    if broker is None or broker.method != "email":
+                        raise ValueError("can't resend this one")
+                    with get_session() as session:
+                        subs = list_submissions(session, broker_slug=slug)
+                    if not any(s.status == "failed" and s.submitted_at is None for s in subs):
+                        raise ValueError("nothing failed to send")
+                    return self._redirect(f"/?m={app.start_campaign(1, only=slug)}#send")
                 if path == "/act/import":
                     from ..brokers.importer import import_ca_registry
 

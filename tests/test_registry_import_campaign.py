@@ -389,12 +389,8 @@ def test_auto_send_runs_once_per_local_day_from_the_set_time():
     assert not auto_send_due(later, "10:00", _date(2026, 10, 28))  # already ran today
 
 
-def test_daily_limit_counts_the_local_day(session, config):
-    from zoneinfo import ZoneInfo
-
-    ny = ZoneInfo("America/New_York")
-    # 9 PM New York on Oct 27 is already Oct 28 in UTC
-    evening = datetime(2026, 10, 28, 1, 0, tzinfo=UTC)
+def test_daily_limit_is_a_rolling_24_hours(session, config):
+    sent_at = datetime(2026, 10, 28, 1, 0, tzinfo=UTC)
     sub = create_submission(
         session,
         broker_slug="x",
@@ -402,10 +398,9 @@ def test_daily_limit_counts_the_local_day(session, config):
         legal_basis_cited=[],
         statutory_response_days=45,
     )
-    mark_submitted(session, sub, {}, None, 45, submitted_at=evening)
-    next_morning = datetime(2026, 10, 28, 13, 0, tzinfo=UTC)  # 9 AM in New York
-    assert sent_today(session, next_morning, UTC) == 1  # same UTC day
-    assert sent_today(session, next_morning, ny) == 0  # a new day where the user lives
+    mark_submitted(session, sub, {}, None, 45, submitted_at=sent_at)
+    assert sent_today(session, sent_at + timedelta(hours=23, minutes=59)) == 1
+    assert sent_today(session, sent_at + timedelta(hours=24, minutes=1)) == 0  # rolled off
 
 
 def test_brokers_for_groups_you_are_not_in_are_skipped(session):

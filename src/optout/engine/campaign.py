@@ -40,9 +40,9 @@ class CampaignReport:
 
 
 def sent_today(session: Session, now: datetime, tz=None) -> int:
-    """Emails sent since midnight in the user's zone (UTC if none given)."""
-    local = now.astimezone(tz or UTC)
-    start = local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
+    """Emails sent in the last 24 hours: a rolling window, like Gmail's own send limit.
+    (*tz* is accepted for older callers and no longer matters.)"""
+    start = now.astimezone(UTC) - timedelta(hours=24)
     stmt = select(Submission).where(
         Submission.method_used == "email", Submission.submitted_at >= start
     )

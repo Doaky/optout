@@ -21,7 +21,7 @@ from optout.config import (
     UserConfig,
     save_config,
 )
-from optout.db import get_session, init_db, list_submissions
+from optout.db import get_session, init_db, list_events, list_submissions
 from optout.web.server import COOKIE, make_server
 
 EVIL = "<script>alert(1)</script>Evil Co"
@@ -189,7 +189,8 @@ def test_preview_shows_exact_email_and_minimal_identifiers(ui):
 def test_send_is_one_click_but_still_forgery_protected(ui, monkeypatch):
     started = []
     monkeypatch.setattr(
-        "optout.web.server.App.start_campaign", lambda self, n: started.append(n) or "started"
+        "optout.web.server.App.start_campaign",
+        lambda self, n, only=None: started.append(n) or "started",
     )
     # forged: no CSRF / foreign origin -> nothing starts
     assert ui.post("/act/campaign", {"count": "1"}, with_csrf=False)[0].status == 403
@@ -242,8 +243,8 @@ def test_reply_and_draft_flow(ui):
     assert "1990" not in body and "5125550000" not in body
 
     r, body = ui.req("GET", "/")
-    assert "Broker says done</span></td>" in body
-    assert "Removed (verified)</span></td>" not in body
+    assert "Broker says done</span></span></td>" in body
+    assert "Removed (verified)</span></span></td>" not in body
     assert "/act/row" in body
 
 
@@ -277,7 +278,7 @@ def _sent_request(slug="evil"):
 def test_row_actions_work_from_the_main_page(ui):
     _sent_request()
     _, body = ui.req("GET", "/")
-    assert "/act/row" in body and "Automated reply only" in body
+    assert "/act/row" in body and "Write a follow-up email" in body
 
     r, _ = ui.post("/act/row", {"slug": "evil", "action": "reply:auto-reply"})
     assert r.getheader("Location") == "/?m=reply"
@@ -326,7 +327,8 @@ def test_buttons_work_in_a_real_browser(ui, monkeypatch):
     sync_api = pytest.importorskip("playwright.sync_api")
     started = []
     monkeypatch.setattr(
-        "optout.web.server.App.start_campaign", lambda self, n: started.append(n) or "started"
+        "optout.web.server.App.start_campaign",
+        lambda self, n, only=None: started.append(n) or "started",
     )
     try:
         pw = sync_api.sync_playwright().start()
@@ -367,7 +369,7 @@ def test_batch_progress_updates_live_without_a_refresh(ui, monkeypatch):
 
     sync_api = pytest.importorskip("playwright.sync_api")
 
-    def fake_start(self, n):
+    def fake_start(self, n, only=None):
         self.job = {"state": "running", "sent": [], "failed": [], "total": 2}
 
         def run():
@@ -556,7 +558,7 @@ def test_password_is_tested_before_saving(ui, monkeypatch):
 def test_limit_reached_points_to_settings(ui, monkeypatch):
     monkeypatch.setattr("optout.web.server.sent_today", lambda *args: 40)
     _, body = ui.req("GET", "/")
-    assert "sent today's limit" in body and "href='#settings'" in body
+    assert "emails in the last 24 hours" in body and "href='#settings'" in body
 
 
 def test_closed_connections_are_ignored_quietly(ui, capsys):
@@ -676,9 +678,10 @@ def test_groups_and_contributor_tools_in_settings(ui):
 
     # an old page (no groups_present) can't wipe the setting
     ui.post("/act/settings", {**base, "groups_present": "1", "group_educators": "on"})
-    assert load_config().my_groups == ["educators"]
+    # an educator is also a work contact, so that group comes along
+    assert load_config().my_groups == ["business-professionals", "educators"]
     ui.post("/act/settings", base)
-    assert load_config().my_groups == ["educators"]
+    assert load_config().my_groups == ["business-professionals", "educators"]
     # saved with nothing ticked: set, and in no group
     ui.post("/act/settings", {**base, "groups_present": "1"})
     assert load_config().my_groups == []
@@ -738,3 +741,84 @@ def test_coverage_panel_only_with_contributor_tools_and_is_strict(ui, tmp_path):
     assert load_coverage()["evil"].audiences == ("students",)  # nothing bad was saved
     r, _ = ui.post("/act/coverage", {"slug": "evil"})  # nothing picked
     assert r.getheader("Location") == "/?m=err"
+
+
+def test_row_menu_is_small_and_picks_the_right_email(ui):
+    import re as _re
+
+    _sent_request()
+    _, body = ui.req("GET", "/")
+    menu = body[body.index("class='inline rowform auto'") :]
+    menu = menu[: menu.index("</select>")]
+    assert len(_re.findall(r"<option value=", menu)) <= 8  # was 19
+    assert "Never contact this broker" in menu and "Set status" in menu
+
+    for status, expected in (("awaiting_broker_confirmation", "followup"), ("rejected", "appeal")):
+        with get_session() as s:
+            sub = list_submissions(s)[0]
+            sub.status = status
+            s.add(sub)
+            s.commit()
+        r, _ = ui.post("/act/row", {"slug": "evil", "action": "draft:auto"})
+        assert f"dk={expected}" in r.getheader("Location"), status
+
+    # moving a status to "Broker says done" also counts as a reply for the chart
+    ui.post("/act/row", {"slug": "evil", "action": "status:confirmed"})
+    with get_session() as s:
+        sub = list_submissions(s)[0]
+        assert sub.status == "confirmed"
+        events = [e.event_type for e in list_events(s, sub.id)]
+    assert "confirmation_received" in events and "status_set" in events
+
+
+def test_failed_email_can_be_resent_from_the_table(ui, monkeypatch):
+    from optout.db import create_submission
+
+    started: list[tuple[int, str | None]] = []
+    monkeypatch.setattr(
+        "optout.web.server.App.start_campaign",
+        lambda self, n, only=None: started.append((n, only)) or "started",
+    )
+    with get_session() as s:
+        sub = create_submission(
+            s,
+            broker_slug="evil",
+            method_used="email",
+            legal_basis_cited=[],
+            statutory_response_days=45,
+        )
+        sub.status = "failed"
+        sub.failure_reason = "SMTP error: Connection unexpectedly closed"
+        s.add(sub)
+        s.commit()
+    _, body = ui.req("GET", "/")
+    assert "action='/act/retry'" in body and "Try sending this email again" in body
+    assert "Connection unexpectedly closed" in body  # why, on hover
+
+    r, _ = ui.post("/act/retry", {"slug": "evil"})
+    assert r.getheader("Location") == "/?m=started#send" and started == [(1, "evil")]
+    assert ui.post("/act/retry", {"slug": "nobody"})[0].getheader("Location") == "/?m=err"
+
+
+def test_bounced_or_sent_requests_have_no_resend_button(ui):
+    from optout.db import create_submission, mark_submitted
+
+    with get_session() as s:
+        sub = create_submission(
+            s,
+            broker_slug="evil",
+            method_used="email",
+            legal_basis_cited=[],
+            statutory_response_days=45,
+        )
+        mark_submitted(s, sub, {}, None, 45)
+        sub.status = "failed"  # a bounce: it was sent, then rejected
+        sub.failure_reason = "bounced: the broker's address rejected it"
+        s.add(sub)
+        s.commit()
+    _, body = ui.req("GET", "/")
+    assert (
+        "action='/act/retry'"
+        not in body.split("<main")[1].split("</main>")[0].split("action='/act/settings'")[0]
+    )
+    assert ui.post("/act/retry", {"slug": "evil"})[0].getheader("Location") == "/?m=err"

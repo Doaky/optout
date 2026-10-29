@@ -53,9 +53,30 @@ def redact_report(text: str, profile: Profile) -> tuple[str, Counter[str]]:
     pairs += [(e, "[MY EMAIL]") for e in profile.emails.current + profile.emails.previous]
     pairs += [(p, "[MY PHONE]") for p in profile.phones.current + profile.phones.previous]
     pairs += [(r, "[RELATIVE]") for r in profile.relatives]
+    # Forms people and systems build from the same details: "JaneExample" as a display
+    # name or username, an email's local part, first+last without the middle name.
+    parts = [w for w in re.split(r"\s+", profile.legal_name.strip()) if w]
+    if len(parts) >= 2:
+        pairs += [("".join(parts), "[MY NAME]"), (parts[0] + parts[-1], "[MY NAME]")]
+        pairs += [
+            (f"{parts[0]}.{parts[-1]}", "[MY NAME]"),
+            (f"{parts[0]}_{parts[-1]}", "[MY NAME]"),
+        ]
+    pairs += [
+        (e.split("@")[0], "[MY EMAIL]")
+        for e in profile.emails.current + profile.emails.previous
+        if "@" in e
+    ]
+    word_marks = {"[MY NAME]", "[RELATIVE]", "[MY EMAIL]"}
     for value, mark in sorted(pairs, key=lambda p: -len(p[0])):
-        if value and len(value.strip()) >= 4:
-            sub(re.escape(value.strip()), mark)
+        value = value.strip()
+        if value and len(value) >= 4:
+            # Names and usernames match whole words only, so a relative called "Sumer"
+            # can't turn "consumers" into "[RELATIVE]ers".
+            pattern = (
+                rf"(?<!\w){re.escape(value)}(?!\w)" if mark in word_marks else re.escape(value)
+            )
+            sub(pattern, mark)
     # Name parts on their own ("Hi Jane,"), but not inside the name of a law: "Daniel's Law"
     # is New Jersey's privacy statute, not the user.
     for part in profile.legal_name.split():

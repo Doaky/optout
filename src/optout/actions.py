@@ -127,6 +127,28 @@ def _write_draft(config, sub, broker, kind: str, now) -> Path:
     return path
 
 
+def auto_draft_kind(slug: str) -> str:
+    """Which email fits this request: an appeal if they refused, a clarification if the
+    last thing they sent was an automatic reply, otherwise a plain follow-up."""
+    from sqlmodel import select
+
+    from .db import InboxMessage, get_session
+
+    with get_session() as session:
+        subs = list_submissions(session, broker_slug=slug)
+        if not subs:
+            raise ValueError(f"No request on record for '{slug}'.")
+        sub = max(subs, key=lambda x: x.created_at)
+        if sub.status == "rejected":
+            return "appeal"
+        last = session.exec(
+            select(InboxMessage)
+            .where(InboxMessage.submission_id == sub.id)
+            .order_by(InboxMessage.received_at.desc())  # type: ignore[union-attr]
+        ).first()
+        return "clarify" if last is not None and last.kind == "auto-reply" else "followup"
+
+
 def write_draft_now(config, slug: str, kind: str, now) -> Path:
     """Write a draft for the broker's latest request right now, whatever the deadline."""
     from .db import get_session

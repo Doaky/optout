@@ -309,7 +309,8 @@ def test_known_replies_load_from_user_file(tmp_path, monkeypatch):
         "- not a mapping\n"
     )
     loaded = load_known_replies()
-    assert [k.sender for k in loaded] == ["@agg.example"]
+    senders = [k.sender for k in loaded]
+    assert "@agg.example" in senders and "@bad.example" not in senders
 
 
 # --- Claude hand-off -----------------------------------------------------------
@@ -476,10 +477,12 @@ def test_fetch_replies_reads_new_messages_only():
     with GmailLabeler(
         "me@gmail.com", "pw", "OPTOUT", connect=lambda: fake, reply_label="OPTOUT Response"
     ) as g:
-        assert g.fetch_replies({"<seen@x>"}) == [b"RAW-8"]
+        assert g.fetch_replies({"<seen@x>"}, since=date(2026, 10, 27)) == [b"RAW-8"]
     searches = [c[2] for c in fake.calls if c[0] == "SEARCH"]
-    assert '"label:OPTOUT -from:me newer_than:180d"' in searches
-    assert '"label:OPTOUT-Response -from:me newer_than:180d"' in searches
+    assert '"label:OPTOUT -from:me after:2026/10/27"' in searches
+    assert '"label:OPTOUT-Response -from:me after:2026/10/27"' in searches
+    assert '"from:mailer-daemon after:2026/10/27"' in searches
+    assert not any("newer_than" in q or "in:inbox" in q for q in searches)  # no broad scans
     fetches = [c for c in fake.calls if c[0] == "FETCH"]
     assert all("PEEK" in c[2] for c in fetches)  # never marks anything read
     assert not any(c[0] == "STORE" and "-X-GM-LABELS" in c for c in fake.calls)
@@ -958,3 +961,59 @@ def test_doesnt_apply_closes_the_request(session, world):
     # Claude can't choose it: only the documented outcomes are accepted from an answer
     verdicts, problems = assist.parse_answer('[{"id":"R1","outcome":"close"}]', {"R1"}, set())
     assert verdicts == [] and problems
+
+
+def test_shared_known_replies_file_is_valid_and_safe():
+    from optout.engine.inbox import load_known_replies
+
+    known = load_known_replies()
+    assert len(known) >= 25  # every entry parsed (bad ones are dropped silently)
+    for kr in known:
+        assert kr.sender.startswith("@") and len(kr.phrase) >= 12, kr
+    # a shared platform never pins one broker
+    for kr in known:
+        if any(p in kr.sender for p in ("onetrust", "trustsuperset", "zendesk", "ketch")):
+            assert kr.broker is None, kr
+
+
+def test_a_known_acknowledgement_never_hides_a_real_answer():
+    from optout.engine.inbox import verdict
+
+    ack = KnownReply(
+        sender="@acme.example", phrase="thank you for contacting", outcome="auto-reply"
+    )
+    both = _mail(
+        from_addr="p@acme.example",
+        subject="Re: request",
+        text="Thank you for contacting Acme. Your data has been deleted.",
+    )
+    assert verdict(both, ack)[0] == "deleted"
+    only_ack = _mail(
+        from_addr="p@acme.example",
+        subject="Re: request",
+        text="Thank you for contacting Acme. We'll be in touch.",
+    )
+    assert verdict(only_ack, ack)[0] == "auto-reply"
+    assert "known reply" in verdict(only_ack, ack)[1]
+
+
+@pytest.mark.parametrize(
+    "text,kind",
+    [
+        ("Without a full address we will be unable to locate your record.", "unknown"),
+        ("We were unable to locate any records matching your information.", "no-data"),
+    ],
+)
+def test_conditional_unable_to_locate_is_not_a_deletion(text, kind):
+    assert classify("Re: request", text)[0] == kind
+
+
+def test_redaction_catches_usernames_squashed_names_and_whole_words(me):
+    me2 = me.model_copy(update={"relatives": ["Sumer"]})
+    out, counts = assist.redact_report(
+        "Johnsmith wrote; Jane.Example and JaneExample; consumers and Sumer Smith", me2
+    )
+    # (me's legal name is Jane Q Example)
+    assert "JaneExample" not in out and "Jane.Example" not in out
+    assert "consumers" in out  # a relative called "Sumer" must not eat part of a word
+    assert "[RELATIVE] Smith" in out and counts["[RELATIVE]"] == 1

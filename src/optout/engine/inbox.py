@@ -13,7 +13,7 @@ import json
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from email import message_from_bytes, policy
 from email.message import EmailMessage
 from email.utils import getaddresses, parsedate_to_datetime
@@ -26,7 +26,7 @@ from ..db import InboxMessage, Submission, update_status
 
 MAX_TEXT = 8000
 # Bump when matching or classification changes: saved replies are re-checked once.
-RULES_VERSION = 5
+RULES_VERSION = 6
 PARSER_VERSION = 2  # bump when parsing changes: saved replies are re-read from Gmail once
 
 # --- parsing -----------------------------------------------------------------
@@ -179,7 +179,8 @@ RULES: list[tuple[str, str, re.Pattern[str]]] = [
         "no-data",
         "no record of you",
         re.compile(
-            r"\b(no|not find any|did not find|could not find|couldn't find|unable to "
+            r"\b(no|not find any|did not find|could not find|couldn't find|"
+            r"(?<!will be )(?<!would be )(?<!may be )(?<!we are )unable to "
             r"(locate|find|identify)|do not have|don't have|does not have|not able to "
             r"(locate|find))\b[^.\n]{0,60}\b(records?|information|data|profile|account|"
             r"match(es)?)\b",
@@ -281,6 +282,18 @@ def classify(subject: str, text: str) -> tuple[str, str, list[str]]:
         return "unknown", "", []
     best = min(hits, key=lambda h: _PRIORITY.index(h[0]))
     return best[0], best[1], kinds
+
+
+def verdict(mail: ParsedMail, kr: KnownReply | None) -> tuple[str, str, list[str]]:
+    """A known reply decides the outcome, except that a known *acknowledgement* never
+    hides a real answer: "Thank you for contacting us. Your data has been deleted." is
+    deleted even if the sender's boilerplate greeting is on the list."""
+    kind, rule, kinds = classify(mail.subject, mail.text)
+    if kr is None:
+        return kind, rule, kinds
+    if kr.outcome == "auto-reply" and kind not in ("unknown", "auto-reply"):
+        return kind, rule, kinds
+    return kr.outcome, f"known reply ({kr.sender})", [kr.outcome]
 
 
 def is_confident(kinds: list[str]) -> bool:
@@ -503,10 +516,7 @@ def process(
         sub, how = match(mail, idx, kr)
         if sub is None and (guess := only_open_request(mail, idx)) is not None:
             sub, how = guess, "only-request"
-        if kr is not None:
-            kind, rule, kinds = kr.outcome, f"known reply ({kr.sender})", [kr.outcome]
-        else:
-            kind, rule, kinds = classify(mail.subject, mail.text)
+        kind, rule, kinds = verdict(mail, kr)
         # A guessed match ("only-request") is shown with the broker filled in, but a person
         # confirms it: a wrong guess must never change a request's status.
         auto = (
@@ -613,7 +623,11 @@ def run_sync(config, *, dry_run: bool = False) -> SyncReport:
         with get_session() as session:
             subs = list(session.exec(select(Submission)))
             idx = build_index(subs, brokers, config.email.alias_pattern, reply_senders(session))
-            domains = set(idx.by_domain)
+            first_sent = first_send_time(subs)
+            if first_sent is None:
+                raise ValueError("nothing has been sent yet, so there are no replies to read")
+            since = first_sent.astimezone(UTC).date() - timedelta(days=1)
+            expected = expected_addresses(session, brokers, subs)
             seen = set(session.exec(select(InboxMessage.message_id)).all())
             label = config.email.gmail_label or "OPTOUT"
             with GmailLabeler(
@@ -622,8 +636,8 @@ def run_sync(config, *, dry_run: bool = False) -> SyncReport:
                 label,
                 reply_label=config.email.reply_label,
             ) as gmail:
-                gmail.label_replies(domains)
-                raws = gmail.fetch_replies(seen)
+                gmail.label_replies(expected, since=since)
+                raws = gmail.fetch_replies(seen, since=since)
                 # Replies saved before display names were recorded: fetch just the header.
                 nameless = session.exec(
                     select(InboxMessage).where(
@@ -655,9 +669,14 @@ def run_sync(config, *, dry_run: bool = False) -> SyncReport:
             mails = []
             for raw in raws:
                 try:
-                    mails.append(parse_message(raw))
+                    mail = parse_message(raw)
                 except Exception:  # a malformed message must not stop the rest
                     continue
+                # A reply can't predate our first request: anything older is unrelated mail.
+                if mail.date is not None and _utc(mail.date) < first_sent:
+                    continue
+                mails.append(mail)
+            cleanup_out_of_scope(session, first_sent)
             if not dry_run and (
                 rules_version_seen() < RULES_VERSION or any(found.values()) or reparsed
             ):
@@ -752,10 +771,7 @@ def recheck(session: Session, idx: MatchIndex, known: list[KnownReply] | None = 
             sub, how = session.get(Submission, row.submission_id), row.matched_by
         if sub is None and (guess := only_open_request(mail, idx)) is not None:
             sub, how = guess, "only-request"
-        if kr is not None:
-            kind, rule, kinds = kr.outcome, f"known reply ({kr.sender})", [kr.outcome]
-        else:
-            kind, rule, kinds = classify(mail.subject, mail.text)
+        kind, rule, kinds = verdict(mail, kr)
         auto = (
             sub is not None and how != "only-request" and kind != "unknown" and is_confident(kinds)
         )
@@ -865,3 +881,41 @@ def mark_parser_version() -> None:
     data["parser_version"] = PARSER_VERSION
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data))
+
+
+# --- keeping the scan to mail that can be about our requests -----------------
+
+
+def first_send_time(subs: Iterable[Submission]) -> datetime | None:
+    sent = [_utc(s.submitted_at) for s in subs if s.submitted_at]
+    return min(sent) if sent else None
+
+
+def expected_addresses(
+    session: Session, brokers: dict[str, BrokerDef], subs: Iterable[Submission]
+) -> set[str]:
+    """Exact addresses a contacted broker is expected to reply from: where we wrote to,
+    plus any address that has already replied and was matched with confidence."""
+    slugs = {s.broker_slug for s in subs if s.submitted_at}
+    out = {
+        b.opt_out_email.lower() for slug in slugs if (b := brokers.get(slug)) and b.opt_out_email
+    }
+    out |= set(reply_senders(session))
+    return out
+
+
+def cleanup_out_of_scope(session: Session, first_sent: datetime) -> int:
+    """Set aside saved replies dated before our first request (they came from an earlier,
+    broader scan). They are kept as 'ignored' so they are never fetched again."""
+    changed = 0
+    for row in session.exec(
+        select(InboxMessage).where(
+            InboxMessage.state.in_(("review", "applied"))  # type: ignore[attr-defined]
+        )
+    ).all():
+        if row.received_at is not None and _utc(row.received_at) < first_sent:
+            row.state = "ignored"
+            session.add(row)
+            changed += 1
+    session.commit()
+    return changed

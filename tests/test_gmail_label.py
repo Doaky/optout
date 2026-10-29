@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 
 from optout.config import EmailConfig, SmtpConfig
@@ -68,7 +70,7 @@ def test_only_search_and_label_never_fetch_or_delete():
     fake = FakeIMAP()
     with _labeler(fake) as g:
         g.label_all_sent()
-        g.label_replies(["33across.com", "6sense.com"])
+        g.label_replies(["privacy@33across.com", "dsar@6sense.com"], since=date(2026, 10, 27))
     verbs = {c[0] for c in fake.calls if c[0] in ("FETCH", "COPY", "EXPUNGE", "DELETE", "STORE")}
     assert verbs == {"STORE"}
     stores = [c for c in fake.calls if c[0] == "STORE"]
@@ -79,8 +81,10 @@ def test_rejects_odd_message_ids_and_domains():
     fake = FakeIMAP()
     with _labeler(fake) as g:
         assert g.label_message_ids(['<a" OR in:anywhere@x.y>']) == 0
-        assert g.label_replies(["bad domain", "x.com) OR (from:y"]) == 0
-    assert not any(c[0] == "SEARCH" for c in fake.calls)
+        g.label_replies(["bad address", "x@y.com) OR (from:z"], since=date(2026, 10, 27))
+    searches = [c[2] for c in fake.calls if c[0] == "SEARCH"]
+    # only the subject search ran; odd "addresses" never reached a search expression
+    assert len(searches) == 1 and "from:" not in searches[0].replace("-from:me", "")
 
 
 @pytest.mark.parametrize("bad", ['OPT"OUT', "OPT\\OUT", "OPT\nOUT", "", "x" * 61])

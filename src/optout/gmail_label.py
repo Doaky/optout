@@ -15,9 +15,11 @@ import imaplib
 import re
 import time
 from collections.abc import Callable, Iterable
+from datetime import date
 
 _LABEL_RE = re.compile(r"^[A-Za-z0-9 _/-]{1,60}$")
 _DOMAIN_RE = re.compile(r"^[a-z0-9.-]+\.[a-z]{2,}$")
+_ADDR_RE = re.compile(r"^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$")
 IMAP_HOST = "imap.gmail.com"
 SUBJECT = "Data Deletion Request"
 
@@ -119,13 +121,15 @@ class GmailLabeler:
         return self._label(self._search(f'from:me subject:"{SUBJECT}"'))
 
     def fetch_replies(
-        self, already_seen: set[str], *, days: int = 180, limit: int = 300
+        self, already_seen: set[str], *, since: date, limit: int = 300
     ) -> list[bytes]:
-        """Raw messages with either label (not sent by you) plus bounces, skipping ones seen."""
+        """Raw messages that carry one of our labels (not sent by you) since *since*, plus
+        bounce notices from the same period. Nothing else in the mailbox is read."""
         tags = {name.replace(" ", "-") for name in (self.label, self.reply_label)}
+        after = f"after:{since:%Y/%m/%d}"
         uids: list[bytes] = []
-        queries = [f"label:{t} -from:me newer_than:{days}d" for t in sorted(tags)]
-        queries.append(f"from:mailer-daemon newer_than:{days}d")
+        queries = [f"label:{t} -from:me {after}" for t in sorted(tags)]
+        queries.append(f"from:mailer-daemon {after}")
         for query in queries:
             uids.extend(u for u in self._search(query) if u not in uids)
         uids = uids[-limit:]
@@ -187,11 +191,18 @@ class GmailLabeler:
                 return bytes(item[1])
         return None
 
-    def label_replies(self, domains: Iterable[str]) -> int:
-        """Label inbox mail from the given broker domains (bodies are never fetched)."""
-        clean = sorted({d.lower() for d in domains if _DOMAIN_RE.match(d.lower())})
-        total = 0
+    def label_replies(self, addresses: Iterable[str], *, since: date) -> int:
+        """Label inbox mail since *since* that is plainly a reply to us: sent from an exact
+        address we expect a broker to answer from, or carrying our request's subject. A
+        broker's other mail (newsletters, account notices) is never touched."""
+        clean = sorted({a.lower() for a in addresses if _ADDR_RE.match(a.lower())})
+        after = f"after:{since:%Y/%m/%d}"
+        total = self._label(
+            self._search(f'in:inbox -from:me {after} subject:"{SUBJECT}"'), self.reply_label
+        )
         for i in range(0, len(clean), 20):
-            terms = " OR ".join(f"from:{d}" for d in clean[i : i + 20])
-            total += self._label(self._search(f"in:inbox ({terms})"), self.reply_label)
+            terms = " OR ".join(f"from:{a}" for a in clean[i : i + 20])
+            total += self._label(
+                self._search(f"in:inbox -from:me {after} ({terms})"), self.reply_label
+            )
         return total
