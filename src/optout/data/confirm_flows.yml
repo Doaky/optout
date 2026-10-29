@@ -1,0 +1,20 @@
+# "Click the button in this email" steps we know how to confirm for you.
+#
+# A flow says: an email from this sender, with this wording, contains a confirm/verify link
+# on one of these hosts. With "Confirm links" set to automatic (or when you press
+# "Confirm for me"), optout opens that link and reads whether the page says it worked.
+# It never opens a link from an unrecognised sender, a different host, or a plain-http link.
+#
+#   from:        "@domain.com" (the sender's whole domain) or one exact address
+#   phrase:      wording that appears in the email (12+ characters)
+#   anchor:      what the link's label says (a regex; default confirm|verify)
+#   link_hosts:  the link must be on one of these domains (or a subdomain of one)
+#
+# Add your own in ~/.config/optout/confirm_flows.yml (the dashboard's "Confirm & remember"
+# button does this), or contribute new ones via "Share what you've learned".
+- name: OneTrust privacy request portals
+  from: '@m.onetrust.com'
+  phrase: please confirm your email by clicking on the button below
+  anchor: confirm
+  link_hosts: [onetrust.com]
+  note: The button in OneTrust's "One more step is required" email. Used by many brokers.

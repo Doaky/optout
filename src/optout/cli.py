@@ -1114,6 +1114,8 @@ def inbox(
     console.print(
         f"\n{len(report.applied)} new repl{'y' if len(report.applied) == 1 else 'ies'}"
         f"{' (dry run)' if dry_run else ' applied'}, {report.review} to review."
+        + (f" {report.confirmed} confirm link(s) opened." if report.confirmed else "")
+        + (f" {report.closed} closed (broker doesn't cover you)." if report.closed else "")
     )
     if report.review and not dry_run:
         console.print("Review them on the dashboard, or: [cyan]optout review[/cyan]")

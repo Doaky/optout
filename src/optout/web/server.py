@@ -58,6 +58,10 @@ FLASH = {
     "imported": "Broker list loaded.",
     "inboxerr": "Couldn't read replies from Gmail. Check your app password and connection.",
     "reviewed": "Saved.",
+    "conf_ok": "Confirmed. They'll carry on with your request; it's back to awaiting a reply.",
+    "conf_unclear": "I opened the link, but the page didn't clearly say it worked. Check your "
+    "inbox, or open the link yourself.",
+    "conf_failed": "Couldn't use that confirm link (it may have expired). Open it yourself.",
     "cov_ok": "Coverage saved. Brokers that only cover other groups are skipped once you've "
     "set your groups in Settings.",
     "settings_ok": "Settings saved.",
@@ -743,6 +747,51 @@ def _make_handler(app: App):
                     if address not in allowed:
                         raise ValueError("that address isn't in their reply")
                     return self._redirect(f"/?m={app.start_resend(slug, address)}#send")
+                if path == "/act/confirm":
+                    from ..engine import confirm as cf
+                    from ..engine.assist import _deciding_sentence
+
+                    config = load_config()
+                    remember = form.get("remember") == "1"
+                    with get_session() as session:
+                        rows = sorted(
+                            (r for r in cf.pending_confirmations(session) if r.broker_slug == slug),
+                            key=lambda r: r.received_at or datetime.min,
+                            reverse=True,
+                        )
+                        flows = cf.load_flows()
+                        # The link is re-derived here from the stored reply; nothing from the
+                        # form is ever used as an address.
+                        row = next(
+                            (
+                                r
+                                for r in rows
+                                if cf.flow_for(r.from_addr, r.text, flows)
+                                or (remember and cf.propose_flow(r.from_addr, r.text))
+                            ),
+                            None,
+                        )
+                        if row is None:
+                            raise ValueError("nothing to confirm")
+                        if cf.flow_for(row.from_addr, row.text, flows) is None:
+                            sender, link_host, _url = cf.propose_flow(row.from_addr, row.text)  # type: ignore[misc]
+                            phrase = _deciding_sentence(row.text, "need-info", config.profile)
+                            cf.save_local_flow(
+                                sender, phrase, link_host, "Taught from a reply you confirmed."
+                            )
+                            flows = cf.load_flows()
+                        result, _host = cf.confirm_reply(
+                            session, row, flows=flows, fetch=cf.default_fetch
+                        )
+                    code = {
+                        "confirmed": "conf_ok",
+                        "already": "conf_ok",
+                        "unclear": "conf_unclear",
+                        "failed": "conf_failed",
+                    }.get(result)
+                    if code is None:
+                        raise ValueError(result)
+                    return self._redirect(f"/?m={code}")
                 if path == "/act/retry":
                     broker = next((b for b in all_brokers() if b.slug == slug), None)
                     if broker is None or broker.method != "email":
@@ -898,6 +947,7 @@ def _settings_values(config) -> dict[str, str]:
         "my_groups": ",".join(config.my_groups) if config.my_groups is not None else "",
         "groups_set": "1" if config.my_groups is not None else "",
         "contributor_tools": "on" if config.contributor_tools else "",
+        "confirm_links": config.confirm_links,
         "timezone": config.timezone or "",
         "sender": em.smtp.username if em.smtp else "",
         "host": em.smtp.host if em.smtp else "",

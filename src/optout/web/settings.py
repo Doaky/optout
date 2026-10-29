@@ -111,6 +111,7 @@ def apply_form(cfg: UserConfig, form: dict[str, str]) -> UserConfig:
         picked = [g for g in GROUPS if form.get(f"group_{g}") == "on"]
         data["my_groups"] = expand_groups(picked)
     data["contributor_tools"] = form.get("contributor_tools") == "on"
+    data["confirm_links"] = "auto" if form.get("confirm_links") == "auto" else "ask"
     try:
         return UserConfig.model_validate(data)
     except ValidationError as exc:

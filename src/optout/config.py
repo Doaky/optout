@@ -174,6 +174,9 @@ class UserConfig(BaseModel):
     # Groups you belong to (see audiences.GROUPS). None = not set yet: no broker is skipped.
     # Once set, brokers that only cover groups you're not in are left out of batches.
     my_groups: list[str] | None = None
+    # "ask": press "Confirm for me" on each item. "auto": while checking replies, open confirm
+    # links from senders matching a known flow (see engine/confirm.py) without asking.
+    confirm_links: Literal["ask", "auto"] = "ask"
     # Shows coverage tools (judging who a broker covers, with Claude's help) in the dashboard.
     contributor_tools: bool = False
 

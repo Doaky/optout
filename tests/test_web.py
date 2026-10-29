@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import http.client
 import threading
-from datetime import date
+from datetime import UTC, date, datetime
 from urllib.parse import urlencode
 
 import pytest
@@ -1122,3 +1122,215 @@ def test_resend_offer_compares_with_where_the_request_actually_went(ui, monkeypa
     assert "Send my request there" in body  # the old request still needs to go there
     r, _ = ui.post("/act/resend-to", {"slug": "evil", "address": "privacy-new@evil.example"})
     assert started == [("evil", "privacy-new@evil.example")]
+
+
+def test_sorting_the_table_in_a_real_browser(ui):
+    from optout.db import create_submission, mark_submitted
+
+    sync_api = pytest.importorskip("playwright.sync_api")
+    from datetime import UTC, datetime, timedelta
+
+    now = datetime.now(UTC)
+    with get_session() as s:
+        for slug, days_ago in (("evil", 5), ("zeta-co", 1), ("alpha-co", 3)):
+            sub = create_submission(
+                s,
+                broker_slug=slug,
+                method_used="email",
+                legal_basis_cited=[],
+                statutory_response_days=45,
+            )
+            mark_submitted(s, sub, {}, None, 45, submitted_at=now - timedelta(days=days_ago))
+            sub.status = "awaiting_broker_confirmation"
+            s.add(sub)
+            s.commit()
+    try:
+        pw = sync_api.sync_playwright().start()
+        browser = pw.chromium.launch()
+    except Exception as exc:
+        pytest.skip(f"no browser: {type(exc).__name__}")
+    try:
+        page = browser.new_page()
+        errors: list[str] = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        page.goto(f"http://127.0.0.1:{ui.port}/?t={ui.token}")
+
+        def order():
+            return [
+                r.get_attribute("data-name").split()[-1]
+                for r in page.locator("tr[data-name]:visible").all()
+            ]
+
+        def click(label):
+            page.locator("th button.sortbtn", has_text=label).click()
+
+        def names():
+            return [
+                r.get_attribute("data-name") for r in page.locator("tr[data-name]:visible").all()
+            ]
+
+        click("Broker")
+        assert names() == sorted(names())  # A to Z by name
+        assert page.locator("th[data-sortkey=name]").get_attribute("aria-sort") == "ascending"
+        click("Broker")
+        assert names() == sorted(names(), reverse=True)
+        assert page.locator("th[data-sortkey=name]").get_attribute("aria-sort") == "descending"
+        click("Sent")
+        assert order() == ["zeta-co", "alpha-co", "evil"]  # newest first
+        click("Sent")
+        assert order() == ["evil", "alpha-co", "zeta-co"]  # then oldest first
+        assert page.locator("th[data-sortkey=name]").get_attribute("aria-sort") == "none"
+        # the arrow is a real character, not an escape that turned into a control character
+        css = page.evaluate(
+            "getComputedStyle(document.querySelector("
+            "'th[data-sortkey=days] button'), '::after').content"
+        )
+        assert css.strip('"') in ("↕", "▲", "▼") and "95" not in css
+        assert not errors, errors
+    finally:
+        browser.close()
+        pw.stop()
+
+
+def test_stats_separate_heard_back_from_silent_and_latest_reply_is_shown(ui):
+    from optout.db import InboxMessage, create_submission, list_submissions, mark_submitted
+
+    with get_session() as s:
+        for slug in ("evil", "quiet-co", "chatty-co"):
+            sub = create_submission(
+                s,
+                broker_slug=slug,
+                method_used="email",
+                legal_basis_cited=[],
+                statutory_response_days=45,
+            )
+            mark_submitted(s, sub, {}, None, 45)
+            sub.status = "awaiting_broker_confirmation"
+            s.add(sub)
+        s.commit()
+        # "evil" sent an acknowledgement only: still waiting, but not silent
+        evil = [x for x in list_submissions(s) if x.broker_slug == "evil"][0]
+        s.add(
+            InboxMessage(
+                message_id="<h1>",
+                submission_id=evil.id,
+                broker_slug="evil",
+                from_addr="p@evil.example",
+                subject="Re",
+                kind="auto-reply",
+                state="applied",
+                received_at=datetime(2026, 10, 28, 15, tzinfo=UTC),
+            )
+        )
+        s.commit()
+    _, body = ui.req("GET", "/")
+    stats = body[body.index("aria-label='Summary'") :]
+    stats = stats[: stats.index("</section>")]
+    assert "Heard back" in stats and "No reply yet" in stats
+    assert "<div class='n'>3</div><div class='l'><span class='dot'" in stats  # 3 sent
+    heard = stats[stats.index("Heard back") - 220 : stats.index("Heard back")]
+    silent = stats[stats.index("No reply yet") - 220 : stats.index("No reply yet")]
+    assert ">1</div>" in heard and ">2</div>" in silent  # 1 replied, 2 silent
+    assert "Latest reply" in body and "Last check" not in body
+    assert "acknowledged" in body  # what the broker's latest email was
+
+
+_CONFIRM_TEXT = (
+    "Dear Jane, One more step is required before we can start working on your request. "
+    "Please confirm your email by clicking on the button below.\n\n"
+    "Confirm email (https://x-privacy.my.onetrust.com/privacyaccess/verify/tok123)\n"
+)
+
+
+def _pending_confirm(sender="noreply@m.onetrust.com", text=_CONFIRM_TEXT):
+    from optout.db import InboxMessage, list_submissions
+
+    _sent_request()
+    with get_session() as s:
+        sub = list_submissions(s)[0]
+        sub.status = "awaiting_user_input"
+        s.add(sub)
+        s.add(
+            InboxMessage(
+                message_id="<cf1>",
+                submission_id=sub.id,
+                broker_slug="evil",
+                from_addr=sender,
+                subject="Your Privacy Request",
+                kind="need-info",
+                text=text,
+                state="applied",
+            )
+        )
+        s.commit()
+
+
+def test_confirm_for_me_is_offered_for_known_senders_and_works(ui, monkeypatch):
+    from optout.engine import confirm as cf
+
+    _pending_confirm()
+    _, body = ui.req("GET", "/")
+    assert "Confirm for me" in body and "action='/act/confirm'" in body
+    seen: list[str] = []
+    monkeypatch.setattr(
+        cf,
+        "default_fetch",
+        lambda url, hosts: (
+            seen.append(url)
+            or cf.Fetched(200, "Your email has been verified.", "x-privacy.my.onetrust.com")
+        ),
+    )
+    # the form carries no address: even if one is supplied, it is ignored
+    r, _ = ui.post("/act/confirm", {"slug": "evil", "url": "https://phish.example/x"})
+    assert r.getheader("Location") == "/?m=conf_ok"
+    assert seen == ["https://x-privacy.my.onetrust.com/privacyaccess/verify/tok123"]
+    with get_session() as s:
+        from optout.db import list_submissions
+
+        assert list_submissions(s)[0].status == "awaiting_broker_confirmation"
+    _, body = ui.req("GET", "/")
+    assert "id='attn-h'" not in body  # it's off the attention list
+
+
+def test_an_unknown_sender_is_only_clicked_after_you_teach_it(ui, monkeypatch, tmp_path):
+    from optout.engine import confirm as cf
+
+    text = _CONFIRM_TEXT.replace("x-privacy.my.onetrust.com", "t.my.newplatform.example")
+    _pending_confirm(sender="noreply@mail.newplatform.example", text=text)
+    seen: list[str] = []
+    monkeypatch.setattr(
+        cf,
+        "default_fetch",
+        lambda url, hosts: (
+            seen.append(url) or cf.Fetched(200, "Thank you, verified.", "t.my.newplatform.example")
+        ),
+    )
+    _, body = ui.req("GET", "/")
+    assert "Confirm &amp; remember" in body and "Confirm for me" not in body
+    r, _ = ui.post("/act/confirm", {"slug": "evil"})  # no 'remember': refused
+    assert r.getheader("Location") == "/?m=err" and seen == []
+    r, _ = ui.post("/act/confirm", {"slug": "evil", "remember": "1"})
+    assert r.getheader("Location") == "/?m=conf_ok" and len(seen) == 1
+    assert any(f.sender == "@mail.newplatform.example" for f in cf.load_flows())  # remembered
+
+
+def test_confirm_setting_defaults_to_ask_and_is_saved(ui):
+    from optout.config import load_config
+
+    base = {
+        "legal_name": "Jane Q Public",
+        "dob": "1990-05-14",
+        "street": "1 Main St",
+        "city": "Richmond",
+        "state": "VA",
+        "zip": "23219",
+        "daily_limit": "40",
+        "send_delay_seconds": "5",
+        "daily_send_time": "10:00",
+    }
+    _, body = ui.req("GET", "/")
+    assert "name='confirm_links'" in body and load_config().confirm_links == "ask"
+    ui.post("/act/settings", {**base, "confirm_links": "auto"})
+    assert load_config().confirm_links == "auto"
+    ui.post("/act/settings", base)  # unticked/absent goes back to asking
+    assert load_config().confirm_links == "ask"

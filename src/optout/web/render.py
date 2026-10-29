@@ -189,9 +189,9 @@ details.mini[open]>summary{margin-bottom:6px}
 .coverage{max-width:760px}
 th button.sortbtn{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:5px;
   font:inherit;text-transform:inherit;letter-spacing:inherit;color:inherit}
-th button.sortbtn::after{content:"\2195";opacity:.35;font-size:11px}
-th[aria-sort=ascending] button.sortbtn::after{content:"\25B2";opacity:1;color:var(--accent)}
-th[aria-sort=descending] button.sortbtn::after{content:"\25BC";opacity:1;color:var(--accent)}
+th button.sortbtn::after{content:"↕";opacity:.35;font-size:11px}
+th[aria-sort=ascending] button.sortbtn::after{content:"▲";opacity:1;color:var(--accent)}
+th[aria-sort=descending] button.sortbtn::after{content:"▼";opacity:1;color:var(--accent)}
 th button.sortbtn:hover{color:var(--text)}
 th button.sortbtn:focus-visible{outline:2px solid var(--ring);outline-offset:2px;border-radius:4px}
 .gsec h3{margin:12px 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;
@@ -313,7 +313,7 @@ const filter = () => {
 let sortKey = '';
 let sortDir = 1;
 const sortRows = () => {
-  const body = d.querySelector('table tbody');
+  const body = d.querySelector('#req-table tbody');
   if (body && sortKey) {
     const rows = [...body.querySelectorAll('tr[data-name]')];
     const val = (tr) => (sortKey === 'days' ? Number(tr.dataset.days)
@@ -1087,6 +1087,27 @@ def _groups_fieldset(v: dict[str, str]) -> str:
     )
 
 
+def _confirm_field(v: dict[str, str]) -> str:
+    auto = v.get("confirm_links") == "auto"
+    return (
+        "<div class='fw'><label class='fld'><span>Confirm links in emails</span>"
+        "<select name='confirm_links'>"
+        f"<option value='ask'{'' if auto else ' selected'}>Ask me each time</option>"
+        f"<option value='auto'{' selected' if auto else ''}>Do it automatically for senders "
+        "I've approved</option></select>"
+        "<small>For &ldquo;click the button to confirm your email&rdquo; steps.</small></label>"
+        "<details class='fhelp'><summary>How does this work?</summary><div>"
+        "<p>Some brokers send a second email with a button you must click. For senders optout "
+        "recognises (a known flow), it can open that link for you and check the page says it "
+        "worked. Unrecognised senders are never clicked; use <b>Confirm &amp; remember</b> on "
+        "one of them to teach it.</p>"
+        "<p>Safety rules: the email must be a reply to one of your requests; the link must be "
+        "HTTPS on the platform's own domain; redirects off that domain are refused; no cookies "
+        "or personal details are sent; and anything unclear is left for you.</p></div></details>"
+        "</div>"
+    )
+
+
 def _settings_panel(ui: UI) -> str:
     v = ui.settings
     if not v:
@@ -1169,6 +1190,7 @@ def _settings_panel(ui: UI) -> str:
             hint="A separate reply address per broker, e.g. you+{slug}@gmail.com",
             help_html=_ALIAS_HELP,
         )
+        + _confirm_field(v)
         + _field(
             "Time zone",
             "timezone",
@@ -1318,6 +1340,21 @@ def _attention_item(a: Attention, csrf: str, contributor: bool = False) -> str:
             f"{_LINK_ICON}</a>"
         )
     buttons: list[str] = []
+    if a.confirm:
+        remember = "<input type='hidden' name='remember' value='1'>" if a.confirm == "teach" else ""
+        title = (
+            "Opens their confirm link for you and checks the page says it worked"
+            if a.confirm == "known"
+            else "Opens the link, and remembers this sender so it's automatic next time"
+        )
+        buttons.append(
+            "<form method='post' action='/act/confirm' class='inline'>"
+            f"{_hidden(csrf, slug=a.slug)}{remember}"
+            f"<button type='submit' class='{'' if a.confirm == 'known' else 'secondary'}' "
+            f"title='{e(title)}'>"
+            f"{'Confirm for me' if a.confirm == 'known' else 'Confirm &amp; remember'}</button>"
+            "</form>"
+        )
     if a.kind == "need-info":
         buttons.append(act("status:awaiting_broker_confirmation", "Done", cls=""))
     elif a.kind == "refused":
@@ -1486,14 +1523,16 @@ def _stats(d: Dashboard, ui: UI | None) -> str:
         by[r.status] = by.get(r.status, 0) + 1
     sent = sum(1 for r in d.rows if r.submitted != "—")
     # (number, label, colour, one-line explanation)
+    heard = sum(1 for r in d.rows if r.heard)
+    silent = sum(
+        1
+        for r in d.rows
+        if not r.heard and r.status in ("awaiting_broker_confirmation", "submitted")
+    )
     tiles: list[tuple[object, str, str, str]] = [
         (sent, "Requests sent", "var(--s1)", "Deletion requests that went out"),
-        (
-            by.get("awaiting_broker_confirmation", 0) + by.get("submitted", 0),
-            "Awaiting reply",
-            _tone_var("submitted"),
-            "Sent; no answer yet",
-        ),
+        (heard, "Heard back", _tone_var("submitted"), "Brokers that have replied in any way"),
+        (silent, "No reply yet", "var(--neutral)", "Most take weeks to answer"),
         (
             by.get("confirmed", 0),
             "Broker says done",
@@ -1643,9 +1682,9 @@ def dashboard(
     )
     if rows:
         table = (
-            "<div class='table-wrap'><table><thead><tr><th scope='col' data-sortkey='name' aria-sort='none'><button type='button' class='sortbtn'>Broker</button></th>"
+            "<div class='table-wrap'><table id='req-table'><thead><tr><th scope='col' data-sortkey='name' aria-sort='none'><button type='button' class='sortbtn'>Broker</button></th>"
             "<th scope='col' data-sortkey='status' aria-sort='none'><button type='button' class='sortbtn'>Status</button></th><th scope='col' data-sortkey='sent' aria-sort='none'><button type='button' class='sortbtn'>Sent</button></th>"
-            "<th scope='col' data-sortkey='days' aria-sort='none'><button type='button' class='sortbtn'>Time left</button></th><th scope='col'>Last check</th>"
+            "<th scope='col' data-sortkey='days' aria-sort='none'><button type='button' class='sortbtn'>Time left</button></th><th scope='col' title='The broker's most recent email, or the last time we re-checked their site'>Latest reply</th>"
             f"{'<th scope=col>Action</th>' if with_actions else ''}</tr></thead>"
             f"<tbody>{trs}<tr id='nomatch' hidden><td colspan='7' class='muted'>No requests "
             "match.</td></tr></tbody></table></div>"

@@ -516,6 +516,8 @@ class SyncReport:
     applied: list[tuple[str, str]] = field(default_factory=list)  # (slug, kind)
     review: int = 0
     skipped: int = 0
+    confirmed: int = 0  # confirm links opened for you (when set to automatic)
+    closed: int = 0  # requests closed because the broker doesn't cover you
 
 
 def process(
@@ -705,6 +707,12 @@ def run_sync(config, *, dry_run: bool = False) -> SyncReport:
                 recheck(session, idx)
                 mark_rules_version()
             report = process(session, mails, idx, dry_run=dry_run)
+            if not dry_run:
+                report.closed = auto_close_out_of_scope(session, config)
+                if config.confirm_links == "auto":
+                    from .confirm import auto_confirm, load_flows
+
+                    report.confirmed, _unclear = auto_confirm(session, load_flows())
     except Exception as exc:
         if not dry_run:
             mark_checked(now, error=type(exc).__name__)
@@ -941,3 +949,31 @@ def cleanup_out_of_scope(session: Session, first_sent: datetime) -> int:
             changed += 1
     session.commit()
     return changed
+
+
+def auto_close_out_of_scope(session: Session, config) -> int:
+    """Close requests that are waiting on you only because the broker serves a group you're
+    not in (an educators-only list, say). Needs your groups to be set; never touches
+    anything else. Returns how many were closed."""
+    from ..audiences import applies_to, load_coverage
+    from ..db import record_event
+
+    if config.my_groups is None:
+        return 0
+    coverage = load_coverage()
+    closed = 0
+    latest: dict[str, Submission] = {}
+    for s in session.exec(select(Submission)):
+        if s.submitted_at and (
+            s.broker_slug not in latest or s.created_at > latest[s.broker_slug].created_at
+        ):
+            latest[s.broker_slug] = s
+    for slug, sub in latest.items():
+        cov = coverage.get(slug)
+        if sub.status not in ("awaiting_user_input", "rejected") or cov is None:
+            continue
+        if not applies_to(cov, config.my_groups):
+            update_status(session, sub, "closed")
+            record_event(session, sub, "auto_closed", {"reason": f"only covers {cov.label()}"})
+            closed += 1
+    return closed

@@ -1,0 +1,341 @@
+"""Confirming "click the button in this email" steps, for senders we recognise.
+
+A reply's link is untrusted input, so this only ever clicks one when ALL of these hold:
+
+- the email is a reply matched to one of our own requests
+- its sender and wording match a known flow (``data/confirm_flows.yml`` plus the user's own)
+- the link is HTTPS, on a host that flow allows, with no credentials or IP address
+- every redirect stays on that same set of hosts
+
+It sends no cookies and no personal details: it just opens the link, the way you would,
+and reads whether the page says it worked. Anything it can't tell is left for you.
+"""
+
+from __future__ import annotations
+
+import ipaddress
+import re
+import urllib.error
+import urllib.request
+from collections.abc import Callable
+from dataclasses import dataclass
+from importlib.resources import files
+from urllib.parse import urlsplit
+
+import yaml
+from sqlmodel import Session, select
+
+from ..config import config_dir
+from ..db import InboxMessage, Submission, list_events, record_event, update_status
+
+_LABELLED_LINK = re.compile(r"([^()\n]{0,60}?)\((https?://[^\s)]+)\)")
+_HOST_OK = re.compile(r"^[a-z0-9.-]+\.[a-z]{2,}$")
+_DEFAULT_ANCHOR = r"confirm|verify"
+MAX_ATTEMPTS = 2
+
+
+@dataclass(frozen=True)
+class Flow:
+    sender: str  # "@domain.com" or one exact address
+    phrase: str  # wording that appears in the email
+    link_hosts: tuple[str, ...]  # the link must be on one of these (or a subdomain)
+    anchor: re.Pattern[str]  # the link's label, e.g. "Confirm email"
+    note: str = ""
+
+
+# --- the mapping --------------------------------------------------------------
+
+
+def _parse(data: object) -> list[Flow]:
+    out: list[Flow] = []
+    for item in data if isinstance(data, list) else []:
+        if not isinstance(item, dict):
+            continue
+        hosts = tuple(
+            h
+            for h in (str(x).lower().strip() for x in item.get("link_hosts") or [])
+            if _HOST_OK.match(h)
+        )
+        sender = str(item.get("from", "")).lower().strip()
+        phrase = str(item.get("phrase", "")).lower().strip()
+        try:
+            anchor = re.compile(str(item.get("anchor") or _DEFAULT_ANCHOR), re.IGNORECASE)
+        except re.error:
+            continue
+        if sender and len(phrase) >= 12 and hosts:
+            out.append(Flow(sender, phrase, hosts, anchor, str(item.get("note", ""))[:240]))
+    return out
+
+
+def _local_path():
+    return config_dir() / "confirm_flows.yml"
+
+
+def load_flows() -> list[Flow]:
+    flows: list[Flow] = []
+    for src in (files("optout").joinpath("data/confirm_flows.yml"), _local_path()):
+        try:
+            flows += _parse(yaml.safe_load(src.read_text()) or [])
+        except (OSError, yaml.YAMLError):
+            continue
+    return flows
+
+
+def local_flow_entries() -> list[dict[str, object]]:
+    try:
+        data = yaml.safe_load(_local_path().read_text()) or []
+    except (OSError, yaml.YAMLError):
+        return []
+    return [d for d in data if isinstance(d, dict)] if isinstance(data, list) else []
+
+
+def learned_flows() -> list[dict[str, object]]:
+    """The user's own flows the shared list doesn't already have, for sharing."""
+    shared = {(f.sender, f.phrase) for f in _parse(_shared_raw())}
+    return [
+        e
+        for e in local_flow_entries()
+        if (str(e.get("from", "")).lower(), str(e.get("phrase", "")).lower()) not in shared
+    ]
+
+
+def _shared_raw() -> object:
+    try:
+        return yaml.safe_load(files("optout").joinpath("data/confirm_flows.yml").read_text())
+    except (OSError, yaml.YAMLError):
+        return []
+
+
+def save_local_flow(sender: str, phrase: str, link_host: str, note: str = "") -> None:
+    """Remember a flow for this user. Raises ValueError if it wouldn't be a safe one."""
+    sender, phrase, link_host = sender.lower().strip(), phrase.lower().strip(), link_host.lower()
+    if not sender.startswith("@") or not _HOST_OK.match(sender[1:]):
+        raise ValueError("sender must be a whole domain")
+    if len(phrase) < 12 or not _HOST_OK.match(link_host):
+        raise ValueError("flow is too vague to trust")
+    entries = [
+        e
+        for e in local_flow_entries()
+        if (str(e.get("from", "")).lower(), str(e.get("phrase", "")).lower()) != (sender, phrase)
+    ]
+    entries.append(
+        {
+            "from": sender,
+            "phrase": phrase,
+            "anchor": _DEFAULT_ANCHOR,
+            "link_hosts": [link_host],
+            "note": note[:240],
+        }
+    )
+    path = _local_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(entries, sort_keys=False, allow_unicode=True))
+
+
+# --- finding the link ------------------------------------------------------------
+
+
+def host_allowed(url: str, hosts: tuple[str, ...]) -> bool:
+    u = urlsplit(url)
+    host = (u.hostname or "").lower()
+    if u.scheme != "https" or not host or u.username or u.password or len(url) > 4000:
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return False  # a bare IP address is never a privacy platform
+    except ValueError:
+        pass
+    return any(host == h or host.endswith("." + h) for h in hosts)
+
+
+def flow_for(from_addr: str, text: str, flows: list[Flow]) -> Flow | None:
+    flat = re.sub(r"\s+", " ", text).lower()
+    addr = from_addr.lower()
+    for f in flows:
+        sender_ok = addr.endswith(f.sender) if f.sender.startswith("@") else addr == f.sender
+        if sender_ok and f.phrase in flat:
+            return f
+    return None
+
+
+def find_link(text: str, flow: Flow) -> str | None:
+    """The link whose label says confirm/verify, if it is on an allowed host."""
+    for m in _LABELLED_LINK.finditer(text):
+        label, url = m.group(1), m.group(2).rstrip(".,;")
+        if flow.anchor.search(label) and host_allowed(url, flow.link_hosts):
+            return url
+    return None
+
+
+def propose_flow(from_addr: str, text: str) -> tuple[str, str, str] | None:
+    """For a sender we don't know yet: (sender domain, link host, link) if the email has a
+    labelled confirm/verify link on an ordinary HTTPS host. The user decides whether to trust it."""
+    for m in _LABELLED_LINK.finditer(text):
+        label, url = m.group(1), m.group(2).rstrip(".,;")
+        if not re.search(_DEFAULT_ANCHOR, label, re.IGNORECASE):
+            continue
+        host = (urlsplit(url).hostname or "").lower()
+        parts = host.split(".")
+        suffix = ".".join(parts[1:]) if len(parts) >= 4 else host  # my.onetrust.com
+        if host_allowed(url, (suffix,)) and "@" in from_addr:
+            return "@" + from_addr.rsplit("@", 1)[1].lower(), suffix, url
+    return None
+
+
+# --- opening it --------------------------------------------------------------------
+
+
+@dataclass
+class Fetched:
+    status: int = 0
+    text: str = ""
+    final_host: str = ""
+    error: str = ""
+
+
+class _SameSite(urllib.request.HTTPRedirectHandler):
+    def __init__(self, hosts: tuple[str, ...]) -> None:
+        self._hosts = hosts
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
+        if not host_allowed(newurl, self._hosts):
+            raise urllib.error.URLError("redirected off the allowed site")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def fetch_plain(url: str, hosts: tuple[str, ...], timeout: float = 20) -> Fetched:
+    opener = urllib.request.build_opener(_SameSite(hosts))
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (optout)"})
+    try:
+        with opener.open(req, timeout=timeout) as resp:  # noqa: S310 (host-checked above)
+            body = resp.read(300_000).decode("utf-8", "replace")
+            return Fetched(resp.status, body, urlsplit(resp.geturl()).hostname or "")
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        return Fetched(error=type(exc).__name__)
+
+
+def fetch_browser(url: str, hosts: tuple[str, ...], timeout: float = 30) -> Fetched:
+    """Many confirm pages only work with JavaScript, so load it in a headless browser."""
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True)
+        try:
+            ctx = browser.new_context(accept_downloads=False)
+            page = ctx.new_page()
+            resp = page.goto(url, wait_until="networkidle", timeout=timeout * 1000)
+            page.wait_for_timeout(1500)
+            host = urlsplit(page.url).hostname or ""
+            if not host_allowed(page.url, hosts):
+                return Fetched(error="left the allowed site", final_host=host)
+            return Fetched(resp.status if resp else 0, page.inner_text("body"), host)
+        finally:
+            browser.close()
+
+
+def default_fetch(url: str, hosts: tuple[str, ...]) -> Fetched:
+    try:
+        return fetch_browser(url, hosts)
+    except Exception:  # no browser installed, or it couldn't start
+        return fetch_plain(url, hosts)
+
+
+_OK = re.compile(
+    r"verified|confirmed|thank you|success|received|submitted|all set|you may (now )?close", re.I
+)
+_BAD = re.compile(r"expired|invalid|error|try again|not found|something went wrong|unable to", re.I)
+_ALREADY = re.compile(r"already (been )?(verified|confirmed)", re.I)
+
+
+def judge(f: Fetched) -> str:
+    """'confirmed' only when the page plainly says so; 'unclear' when we can't tell."""
+    if f.error or not 200 <= f.status < 300:
+        return "failed"
+    head = f.text[:6000]
+    if _ALREADY.search(head):
+        return "confirmed"
+    if _BAD.search(head):
+        return "failed"
+    return "confirmed" if _OK.search(head) else "unclear"
+
+
+# --- doing it ------------------------------------------------------------------------
+
+
+def _attempts(session: Session, sub: Submission, message_id: str) -> list[dict]:
+    import json
+
+    out = []
+    for ev in list_events(session, sub.id):
+        if ev.event_type == "confirm_clicked":
+            p = json.loads(ev.payload_json or "{}")
+            if p.get("message_id") == message_id[:120]:
+                out.append(p)
+    return out
+
+
+Fetch = Callable[[str, tuple[str, ...]], Fetched]
+
+
+def confirm_reply(
+    session: Session, row: InboxMessage, *, flows: list[Flow], fetch: Fetch = default_fetch
+) -> tuple[str, str]:
+    """Click the confirm link in one stored reply, if a known flow allows it.
+    Returns (result, host): confirmed | unclear | failed | already | no-flow | no-link."""
+    sub = session.get(Submission, row.submission_id) if row.submission_id else None
+    if sub is None:
+        return "no-flow", ""
+    flow = flow_for(row.from_addr, row.text, flows)
+    if flow is None:
+        return "no-flow", ""
+    url = find_link(row.text, flow)
+    if url is None:
+        return "no-link", ""
+    host = urlsplit(url).hostname or ""
+    tried = _attempts(session, sub, row.message_id)
+    if any(a.get("result") == "confirmed" for a in tried) or len(tried) >= MAX_ATTEMPTS:
+        return "already", host
+    result = judge(fetch(url, flow.link_hosts))
+    record_event(
+        session,
+        sub,
+        "confirm_clicked",
+        {"host": host, "result": result, "message_id": row.message_id[:120]},
+    )
+    if result == "confirmed":
+        if sub.status == "awaiting_user_input":
+            update_status(session, sub, "awaiting_broker_confirmation")
+        row.state = "resolved"
+        session.add(row)
+        session.commit()
+    return result, host
+
+
+def pending_confirmations(session: Session) -> list[InboxMessage]:
+    return list(
+        session.exec(
+            select(InboxMessage).where(
+                InboxMessage.kind == "need-info",
+                InboxMessage.state.in_(("applied", "review")),  # type: ignore[attr-defined]
+            )
+        ).all()
+    )
+
+
+def auto_confirm(
+    session: Session, flows: list[Flow], *, fetch: Fetch = default_fetch, limit: int = 10
+) -> tuple[int, int]:
+    """Confirm every pending reply a known flow covers. Returns (confirmed, unclear).
+    Capped per run, and each message is tried at most MAX_ATTEMPTS times."""
+    done = unclear = tried = 0
+    for row in pending_confirmations(session):
+        if tried >= limit:
+            break
+        if flow_for(row.from_addr, row.text, flows) is None:
+            continue
+        result, _ = confirm_reply(session, row, flows=flows, fetch=fetch)
+        if result in ("confirmed", "unclear", "failed"):
+            tried += 1
+        done += result == "confirmed"
+        unclear += result == "unclear"
+    return done, unclear

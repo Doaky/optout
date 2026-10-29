@@ -36,6 +36,7 @@ class Row:
     drifted: bool
     reply_from: list[str] = field(default_factory=list)
     only_covers: str = ""  # e.g. "educators" when the broker serves a specific group
+    heard: bool = False  # the broker has replied in some way (even just an acknowledgement)
     retryable: bool = False  # an email that failed to send (not a bounce): can be resent
     failure: str = ""  # why it failed, for the tooltip
 
@@ -51,6 +52,7 @@ class Attention:
     email: str = ""  # their latest reply, in full
     link: str = ""  # first web link in their reply (shown, never opened for you)
     link_host: str = ""
+    confirm: str = ""  # "known" (we can click it for you) or "teach" (unfamiliar sender)
     alt_emails: list[str] = field(default_factory=list)  # other addresses their reply names
     gmail_url: str = ""  # opens this exact email in Gmail (search by Message-ID)
     coverage: str = ""  # who the broker covers, if limited ("educators")
@@ -89,6 +91,33 @@ def _date(dt: datetime | None) -> str:
     return _aware(dt).astimezone(_TZ).strftime("%Y-%m-%d") if dt else "—"
 
 
+_REPLY_WORDS = {
+    "need-info": "asked for something",
+    "auto-reply": "acknowledged",
+    "deleted": "says deleted",
+    "no-data": "has no data",
+    "denied": "refused",
+    "bounced": "bounced",
+}
+
+
+def _reply_summary(m) -> str:
+    """'Oct 29 · asked for something': the broker's latest email, in a few words."""
+    if m is None:
+        return "—"
+    when = _date(m.received_at) if m.received_at else ""
+    word = _REPLY_WORDS.get(m.kind, "replied")
+    return f"{when[5:] and _short_date(when)} · {word}" if when != "—" else word
+
+
+def _short_date(iso: str) -> str:
+    try:
+        d = datetime.strptime(iso, "%Y-%m-%d")
+    except ValueError:
+        return iso
+    return f"{d:%b} {d.day}"
+
+
 def friendly_time(dt: datetime, tz: tzinfo) -> str:
     """'Oct 28, 8:04 PM EDT'"""
     local = dt.astimezone(tz)
@@ -122,6 +151,18 @@ def collect(
     from ..audiences import load_coverage
 
     coverage = load_coverage()
+    from ..db import InboxMessage
+
+    latest_reply: dict = {}  # submission id -> its most recent real reply
+    for m in session.exec(
+        select(InboxMessage).where(
+            InboxMessage.submission_id != None,  # noqa: E711 (SQL IS NOT NULL)
+            InboxMessage.state != "ignored",
+        )
+    ):
+        cur = latest_reply.get(m.submission_id)
+        if cur is None or (m.received_at or datetime.min) >= (cur.received_at or datetime.min):
+            latest_reply[m.submission_id] = m
     seen: set[str] = set()
     for sub in subs:  # newest first: keep one row per broker, the latest attempt
         if sub.broker_slug in seen:
@@ -144,7 +185,12 @@ def collect(
             deadline=_date(sub.deadline_at),
             days_left=days,
             overdue=overdue,
-            last_check=f"{v.outcome.replace('_', ' ')} {_date(v.checked_at)}" if v else "—",
+            last_check=(
+                f"{v.outcome.replace('_', ' ')} {_date(v.checked_at)}"
+                if v
+                else _reply_summary(latest_reply.get(sub.id))
+            ),
+            heard=sub.id in latest_reply,
             drifted=drift,
             reply_from=reply_from.get(sub.broker_slug, []),
             retryable=(
@@ -311,6 +357,15 @@ def _with_reply(session: Session, sub: Submission, a: Attention) -> Attention:
     from ..brokers.registry import get_broker
 
     a.alt_emails = alternate_addresses(row.text, row.from_addr, sent_to(sub, get_broker))
+    if a.kind == "need-info":
+        from ..engine.confirm import find_link as find_confirm_link
+        from ..engine.confirm import flow_for, load_flows, propose_flow
+
+        flow = flow_for(row.from_addr, row.text, load_flows())
+        if flow is not None and find_confirm_link(row.text, flow):
+            a.confirm = "known"
+        elif propose_flow(row.from_addr, row.text):
+            a.confirm = "teach"
     if a.kind == "need-info":
         a.why = action_label(row.text, has_link=bool(a.link), has_other_email=bool(a.alt_emails))
     return a
