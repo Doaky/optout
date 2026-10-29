@@ -101,9 +101,15 @@ def apply_form(cfg: UserConfig, form: dict[str, str]) -> UserConfig:
         alias_pattern=form.get("alias_pattern", "").strip() or None,
         from_address=form.get("from_address", "").strip() or None,
         allow_unattended=form.get("allow_unattended") == "on",
+        daily_send_time=form.get("daily_send_time", "").strip() or "10:00",
     )
+    data["timezone"] = form.get("timezone", "").strip() or None
     try:
         return UserConfig.model_validate(data)
     except ValidationError as exc:
-        loc = exc.errors()[0].get("loc", ("setting",))
-        raise ValueError(str(loc[-1]).replace("_", " ")) from None
+        err = exc.errors()[0]
+        loc = err.get("loc") or ()
+        if loc:
+            raise ValueError(str(loc[-1]).replace("_", " ")) from None
+        # A whole-model check (e.g. an unknown time zone): use its own message.
+        raise ValueError(str(err.get("msg", "a setting")).removeprefix("Value error, ")) from None

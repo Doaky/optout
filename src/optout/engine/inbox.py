@@ -823,6 +823,12 @@ def sentence_around(flat: str, start: int, end: int, pad: int = 140) -> str:
     return ("…" if cut_left else "") + text + ("…" if cut_right else "")
 
 
+_BOILERPLATE = re.compile(
+    r"you are receiving this|if you did not|unsubscribe|this email was sent|do not reply to this",
+    re.IGNORECASE,
+)
+
+
 def _sentence_score(quote: str) -> tuple[int, float]:
     """Prefer a real sentence over a run of headings: untrimmed first, then the share of
     lower-case words ("Further Information Needed" headings score low)."""
@@ -838,7 +844,8 @@ def deciding_sentence(text: str, kind: str) -> str:
         if rule_kind != kind:
             continue
         quotes = [sentence_around(flat, m.start(), m.end()) for m in rx.finditer(flat)]
-        return max(quotes, key=_sentence_score) if quotes else ""
+        real = [q for q in quotes if not _BOILERPLATE.search(q)] or quotes
+        return max(real, key=_sentence_score) if real else ""
     return ""
 
 

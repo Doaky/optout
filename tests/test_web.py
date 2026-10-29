@@ -554,7 +554,7 @@ def test_password_is_tested_before_saving(ui, monkeypatch):
 
 
 def test_limit_reached_points_to_settings(ui, monkeypatch):
-    monkeypatch.setattr("optout.web.server.sent_today", lambda session, now: 40)
+    monkeypatch.setattr("optout.web.server.sent_today", lambda *args: 40)
     _, body = ui.req("GET", "/")
     assert "sent today's limit" in body and "href='#settings'" in body
 
@@ -601,12 +601,55 @@ def test_attention_explains_what_to_do(ui):
     _, body = ui.req("GET", "/")
     attn = body[body.index("id='attn-h'") : body.index("</section>", body.index("id='attn-h'"))]
     assert "via our web form here" in attn  # the sentence that matters
-    assert "Open their link ↗" in attn and "forms.evil.example" in attn
+    assert "Open their link" in attn and "forms.evil.example" in attn
     assert "rel='noreferrer noopener'" in attn  # never opened for you, no referrer
-    assert "I&#x27;ve done it" in attn and ">Close<" in attn
+    assert ">Done<" in attn and ">Close<" in attn
+    assert "mail.google.com/mail/u/0/#search/rfc822msgid%3Aw1" in attn  # the exact email
+    assert "then click <b>Done</b>" in attn  # the section says how it works
+    assert "https://forms.evil.example" not in attn.split("class='quote'")[1].split("</p>")[0]
 
     r, _ = ui.post("/act/row", {"slug": "evil", "action": "status:closed"})
     assert r.getheader("Location") == "/?m=toggle"
     _, body = ui.req("GET", "/")
     assert "id='attn-h'" not in body  # closed: no longer nagging
     assert "Closed</span>" in body
+
+
+def test_verified_tile_only_when_something_can_be_verified(ui):
+    _sent_request()  # an email broker: nothing to re-search
+    _, body = ui.req("GET", "/")
+    stats = body[
+        body.index("aria-label='Summary'") : body.index(
+            "</section>", body.index("aria-label='Summary'")
+        )
+    ]
+    assert "Broker says done" in stats and "They told you it" in stats
+    assert "Verified removed" not in stats
+
+
+def test_time_zone_and_send_time_settings(ui):
+    from optout.config import load_config
+
+    _, body = ui.req("GET", "/")
+    assert "name='timezone'" in body and "name='daily_send_time'" in body
+    base = {
+        "legal_name": "Jane Q Public",
+        "dob": "1990-05-14",
+        "street": "1 Main St",
+        "city": "Richmond",
+        "state": "VA",
+        "zip": "23219",
+        "daily_limit": "40",
+        "send_delay_seconds": "5",
+    }
+    r, _ = ui.post(
+        "/act/settings", {**base, "timezone": "America/New_York", "daily_send_time": "09:30"}
+    )
+    assert r.getheader("Location") == "/?m=settings_ok#settings"
+    cfg = load_config()
+    assert cfg.timezone == "America/New_York" and cfg.email.daily_send_time == "09:30"
+    _, body = ui.req("GET", "/")
+    assert " EDT</span>" in body or " EST</span>" in body  # times shown in that zone
+    for bad in ({"timezone": "Mars/Olympus"}, {"daily_send_time": "25:00"}):
+        r, _ = ui.post("/act/settings", {**base, "daily_send_time": "09:30", **bad})
+        assert r.getheader("Location") == "/?m=settings_err#settings", bad

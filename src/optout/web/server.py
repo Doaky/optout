@@ -31,7 +31,7 @@ from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 from .. import actions
 from ..brokers.registry import all_brokers, imported_dir, load_registry, set_enabled
-from ..config import load_config
+from ..config import load_config, user_tz
 from ..db import (
     get_session,
     init_db,
@@ -78,6 +78,29 @@ class App:
         self.job_lock = threading.Lock()
         self.inbox_lock = threading.Lock()
         self.last_error = ""  # shown once after a failed settings save (never from the URL)
+
+    def schedule_forever(self, every: float = 60) -> None:
+        """Send each day's batch at the configured local time, if the user allowed it."""
+        import time
+
+        from ..config import user_tz
+        from ..engine.campaign import auto_send_due, last_auto_run, mark_auto_run
+
+        while True:
+            time.sleep(every)
+            try:
+                config = load_config()
+                if not config.email.allow_unattended:
+                    continue
+                now_local = datetime.now(UTC).astimezone(user_tz(config))
+                if not auto_send_due(now_local, config.email.daily_send_time, last_auto_run()):
+                    continue
+                mark_auto_run(now_local.date())  # once per day, even if nothing is eligible
+                if self.job.get("state") != "running":
+                    self.start_campaign(config.email.daily_limit)
+                actions.write_escalation_drafts(config, datetime.now(UTC))
+            except Exception:
+                _log_error("scheduled sending")
 
     def poll_inbox_forever(self, every: float = 900, first: float = 5) -> None:
         """Check for replies shortly after start, then every 15 minutes."""
@@ -324,7 +347,7 @@ def _make_handler(app: App):
                     ui.settings_open = bool(query.get("settings")) or code_opens_settings(query)
                     if config is not None:
                         sel = select_brokers(all_brokers(), session, now=now)
-                        ui.used = sent_today(session, now)
+                        ui.used = sent_today(session, now, user_tz(config))
                         ui.limit = config.email.daily_limit
                         room = max(0, ui.limit - ui.used)
                         batch = sel.eligible[: min(room, 40)]
@@ -350,7 +373,7 @@ def _make_handler(app: App):
                     )
                 with get_session() as session:
                     sel = select_brokers(all_brokers(), session, now=now)
-                    used = sent_today(session, now)
+                    used = sent_today(session, now, user_tz(config))
                 eligible = [(b.slug, b.name) for b in sel.eligible]
                 return self._send(
                     200,
@@ -376,7 +399,7 @@ def _make_handler(app: App):
                     want = 40
                 with get_session() as session:
                     sel = select_brokers(all_brokers(), session, now=now)
-                    used = sent_today(session, now)
+                    used = sent_today(session, now, user_tz(config))
                 room = max(0, config.email.daily_limit - used)
                 batch = sel.eligible[: max(0, min(want, room, 40))]
                 items = [(b.name, b.opt_out_email or "", *_email_for(config, b)) for b in batch]
@@ -743,6 +766,8 @@ def _settings_values(config) -> dict[str, str]:
         "from_address": em.from_address or "",
         "alias_pattern": em.alias_pattern or "",
         "allow_unattended": "on" if em.allow_unattended else "",
+        "daily_send_time": em.daily_send_time,
+        "timezone": config.timezone or "",
         "sender": em.smtp.username if em.smtp else "",
         "host": em.smtp.host if em.smtp else "",
     }
@@ -836,6 +861,7 @@ def serve(port: int = 8765, open_browser: bool = True) -> None:
     )
     print("Press Ctrl+C to stop.", flush=True)
     threading.Thread(target=app.poll_inbox_forever, daemon=True).start()
+    threading.Thread(target=app.schedule_forever, daemon=True).start()
     if open_browser:
         open_in_browser(url)
     try:

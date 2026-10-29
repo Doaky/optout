@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from datetime import date
+from datetime import date, datetime, tzinfo
 from pathlib import Path
 from typing import Literal
 
@@ -103,7 +103,8 @@ class EmailConfig(BaseModel):
     reply_label: str | None = None
     # Lets `optout daily` send without a typed confirmation. Off unless you turn it on.
     allow_unattended: bool = False
-    daily_limit: int = 40  # max campaign emails per UTC day
+    daily_limit: int = 40  # max campaign emails per day (your local day)
+    daily_send_time: str = "10:00"  # when unattended sending runs, in your time zone (HH:MM)
     send_delay_seconds: int = 5  # pause between campaign emails
 
     @model_validator(mode="after")
@@ -113,6 +114,14 @@ class EmailConfig(BaseModel):
         for name in (self.gmail_label, self.reply_label):
             if name is not None and not valid_label(name):
                 raise ValueError("Gmail labels may only use letters, digits, space, _ - /")
+        return self
+
+    @model_validator(mode="after")
+    def _send_time_is_hh_mm(self) -> EmailConfig:
+        import re as _re
+
+        if not _re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", self.daily_send_time):
+            raise ValueError("email.daily_send_time must be HH:MM (24-hour)")
         return self
 
     @model_validator(mode="after")
@@ -159,6 +168,29 @@ class UserConfig(BaseModel):
     playwright: PlaywrightConfig = PlaywrightConfig()
     monitoring: MonitoringConfig = MonitoringConfig()
     notify: NotifyConfig = NotifyConfig()
+    # IANA time zone for showing times and scheduling, e.g. "America/New_York". Blank: the
+    # computer's own zone.
+    timezone: str | None = None
+
+    @model_validator(mode="after")
+    def _timezone_exists(self) -> UserConfig:
+        if self.timezone:
+            from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+            try:
+                ZoneInfo(self.timezone)
+            except (ZoneInfoNotFoundError, ValueError):
+                raise ValueError(f"unknown time zone '{self.timezone}'") from None
+        return self
+
+
+def user_tz(config: UserConfig | None) -> tzinfo:
+    """The zone to show times in: the configured one, else this computer's."""
+    from zoneinfo import ZoneInfo
+
+    if config is not None and config.timezone:
+        return ZoneInfo(config.timezone)
+    return datetime.now().astimezone().tzinfo or ZoneInfo("UTC")
 
 
 # ---------------------------------------------------------------------------

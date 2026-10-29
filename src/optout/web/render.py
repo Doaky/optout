@@ -80,6 +80,7 @@ h2{font-size:16px;margin:0 0 12px;letter-spacing:-.01em}
   box-shadow:var(--shadow);padding:14px 16px}
 .stat .n{font-size:28px;font-weight:700;letter-spacing:-.02em;line-height:1.1;font-variant-numeric:tabular-nums}
 .stat .l{color:var(--text-2);font-size:13px;display:flex;align-items:center;gap:6px;margin-top:4px}
+.stat .sub{color:var(--muted);font-size:12px;margin-top:2px}
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
 .muted{color:var(--muted)}.small{font-size:13px}
 .ok{color:var(--good)}.bad{color:var(--critical)}
@@ -161,15 +162,26 @@ form.inline.pwform{align-items:flex-end;flex-wrap:nowrap}
 .pwform .fld{flex:0 1 320px}
 .pwform input,.pwform button{height:38px}
 .pwform button{white-space:nowrap}
-.att{display:flex;gap:16px;justify-content:space-between;align-items:flex-start;padding:14px 0;
+.how{margin:0 0 4px;color:var(--muted);font-size:13px}
+.att{display:flex;gap:16px;justify-content:space-between;align-items:center;padding:12px 0;
   border-bottom:1px solid var(--line)}
 .att:last-child{border-bottom:0}
 .att-main{flex:1;min-width:0}
 .att-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.att .quote{margin:6px 0 2px;padding-left:10px;border-left:3px solid var(--line);color:var(--text)}
-.att p{margin:4px 0}
-.att-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:440px}
-@media (max-width:700px){.att{flex-direction:column}.att-actions{justify-content:flex-start}}
+.att .quote{margin:4px 0 0;color:var(--text-2);font-size:14px;line-height:1.45;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.att p{margin:4px 0 0}
+details.mini{margin-top:2px}
+details.mini>summary{cursor:pointer;color:var(--accent);font-size:12.5px;width:max-content;
+  list-style:none}
+details.mini>summary::-webkit-details-marker{display:none}
+details.mini[open]>summary{margin-bottom:6px}
+.att-actions{display:flex;gap:6px;align-items:center;flex:none}
+.att-actions button{padding:6px 14px;font-size:13px}
+a.ibtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;
+  border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--text-2)}
+a.ibtn:hover{border-color:var(--accent);color:var(--text)}
+@media (max-width:700px){.att{flex-direction:column;align-items:flex-start}}
 a.btnlink{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:8px;
   border:1px solid var(--line);background:var(--surface);color:var(--text);text-decoration:none;
   font-weight:600;font-size:14px}
@@ -271,6 +283,7 @@ const swap = async (res) => {
   const box = d.getElementById('q');
   if (box && keepQ) box.value = keepQ;
   filter();
+  fillZone();
   const draft = d.getElementById('draft');
   const settings = d.getElementById('settings');
   if (draft) draft.scrollIntoView({ block: 'start' });
@@ -372,8 +385,16 @@ const start = () => {
   if (!polling && p && p.dataset.state === 'running') { polling = true; setTimeout(tick, 1000); }
 };
 
+const fillZone = () => {
+  const tz = d.getElementById('tz');
+  if (tz && !tz.value) {
+    try { tz.value = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_) {}
+  }
+};
+
 filter();
 start();
+fillZone();
 })();"""
 
 LIVE_JS_HASH = "sha256-" + base64.b64encode(hashlib.sha256(LIVE_JS.encode()).digest()).decode()
@@ -776,6 +797,7 @@ _REVIEW_OPTIONS = [
     ("denied", "They refused"),
     ("need-info", "They want me to do something"),
     ("auto-reply", "Automated reply only"),
+    ("close", "Doesn't apply to me (close it)"),
     ("ignore", "Not about my request"),
 ]
 
@@ -897,6 +919,23 @@ def _field(
     )
 
 
+_COMMON_TZ = [
+    "America/New_York",
+    "America/Chicago",
+    "America/Denver",
+    "America/Phoenix",
+    "America/Los_Angeles",
+    "America/Anchorage",
+    "Pacific/Honolulu",
+    "UTC",
+]
+_TZ_LIST = (
+    "<datalist id='tz-list'>"
+    + "".join(f"<option value='{z}'></option>" for z in _COMMON_TZ)
+    + "</datalist>"
+)
+
+
 def _settings_panel(ui: UI) -> str:
     v = ui.settings
     if not v:
@@ -976,10 +1015,26 @@ def _settings_panel(ui: UI) -> str:
             v["alias_pattern"],
             hint="Needs your own domain, e.g. optout-{slug}@yourdomain.com",
         )
+        + _field(
+            "Time zone",
+            "timezone",
+            v["timezone"],
+            attrs="list='tz-list' id='tz' autocomplete='off' placeholder='e.g. America/New_York'",
+            hint="For dates and the send time. Filled in from your browser if blank.",
+        )
+        + _field(
+            "Send automatically at",
+            "daily_send_time",
+            v["daily_send_time"],
+            kind="time",
+            attrs="required",
+            hint="Used when the box below is ticked, while optout is running.",
+        )
         + "</div><label class='check'><input type='checkbox' name='allow_unattended'"
-        f"{' checked' if v['allow_unattended'] == 'on' else ''}> Let the daily run send "
-        "batches without me clicking Send</label>"
-        f"<p class='muted small'>Sending from <b>{e(v['sender'])}</b> via {e(v['host'])}. "
+        f"{' checked' if v['allow_unattended'] == 'on' else ''}> Send each day's batch "
+        "automatically at that time (no clicking Send)</label>"
+        + _TZ_LIST
+        + f"<p class='muted small'>Sending from <b>{e(v['sender'])}</b> via {e(v['host'])}. "
         "To change the account, run <code>optout init</code>.</p></fieldset>"
     )
     password = (
@@ -1019,33 +1074,65 @@ def _link_note(host: str) -> str:
     return f" Their link goes to <b>{e(host)}</b>."
 
 
+_GMAIL_ICON = (
+    "<svg viewBox='0 0 24 24' width='18' height='18' aria-hidden='true'>"
+    "<path fill='#4285F4' d='M2 7v11.5c0 .55.45 1 1 1h3V10.2z'/>"
+    "<path fill='#34A853' d='M18 10.2v9.3h3c.55 0 1-.45 1-1V7z'/>"
+    "<path fill='#FBBC04' d='M18 5.2v5l4-3.2V6c0-1.3-1.5-2-2.5-1.2z'/>"
+    "<path fill='#EA4335' d='M6 10.2V5.2l6 4.5 6-4.5v5l-6 4.5z'/>"
+    "<path fill='#C5221F' d='M2 6v1l4 3.2v-5L4.5 4.8C3.5 4 2 4.7 2 6z'/></svg>"
+)
+_LINK_ICON = (
+    "<svg viewBox='0 0 24 24' width='17' height='17' aria-hidden='true' fill='none' "
+    "stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
+    "<path d='M14 4h6v6'/><path d='M20 4l-9 9'/><path d='M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7"
+    "a1 1 0 0 1 1-1h5'/></svg>"
+)
+_URL_IN_TEXT = re.compile(r"\s*[<(]?https?://[^\s>)]+[>)]?")
+
+
 def _attention_item(a: Attention, csrf: str) -> str:
-    def act(action: str, label: str, primary: bool = False) -> str:
+    def act(action: str, label: str, cls: str = "secondary") -> str:
         return (
             "<form method='post' action='/act/row' class='inline'>"
             f"{_hidden(csrf, slug=a.slug, action=action)}"
-            f"<button type='submit' class='{'' if primary else 'secondary'}'>{e(label)}</button>"
-            "</form>"
+            f"<button type='submit' class='{cls}'>{e(label)}</button></form>"
         )
 
+    icons: list[str] = []
+    if a.gmail_url:
+        icons.append(
+            f"<a class='ibtn' href='{e(a.gmail_url)}' target='_blank' rel='noreferrer noopener' "
+            "title='Open this email in Gmail' aria-label='Open this email in Gmail'>"
+            f"{_GMAIL_ICON}</a>"
+        )
+    if a.link and a.kind == "need-info":
+        where = (
+            f"{a.link_host}: a click-tracking link (opening it tells them you clicked)"
+            if _TRACKERS.search(a.link_host)
+            else a.link_host
+        )
+        icons.append(
+            f"<a class='ibtn' href='{e(a.link)}' target='_blank' rel='noreferrer noopener' "
+            f"title='Open their link: {e(where)}' aria-label='Open their link ({e(a.link_host)})'>"
+            f"{_LINK_ICON}</a>"
+        )
     buttons: list[str] = []
     if a.kind == "need-info":
-        if a.link:
-            buttons.append(
-                f"<a class='btnlink' href='{e(a.link)}' target='_blank' "
-                f"rel='noreferrer noopener' title='{e(a.link)}'>Open their link ↗</a>"
-            )
-        buttons.append(act("status:awaiting_broker_confirmation", "I've done it", primary=True))
+        buttons.append(act("status:awaiting_broker_confirmation", "Done", cls=""))
     elif a.kind == "refused":
-        buttons.append(act("draft:appeal", "Write an appeal", primary=True))
+        buttons.append(act("draft:appeal", "Appeal", cls=""))
     elif a.kind == "overdue":
-        buttons.append(act("draft:followup", "Write a follow-up", primary=True))
+        buttons.append(act("draft:followup", "Follow up", cls=""))
     if a.kind in ("need-info", "refused", "overdue"):
         buttons.append(act("status:closed", "Close"))
-    quote = f"<p class='quote'>“{e(a.quote)}”</p>" if a.quote else ""
+
+    quote = _URL_IN_TEXT.sub("", a.quote).replace("  ", " ").strip()
+    quote_html = (
+        f"<p class='quote'>“{e(quote)}”</p>" if quote else f"<p class='muted'>{e(a.hint)}</p>"
+    )
     email = (
-        f"<details class='email'><summary>Their email</summary><div><pre>{e(a.email)}</pre>"
-        "</div></details>"
+        f"<details class='mini'><summary>Show email</summary><pre>{e(a.email)}</pre></details>"
         if a.email
         else ""
     )
@@ -1055,10 +1142,8 @@ def _attention_item(a: Attention, csrf: str) -> str:
     return (
         "<li class='att'><div class='att-main'>"
         f"<div class='att-head'><b>{e(a.name)}</b> <span class='pill t-{tone}'>{e(a.why)}</span>"
-        f"</div>{quote}<p class='muted small'>{e(a.hint)}"
-        + (_link_note(a.link_host) if a.link_host and a.kind == "need-info" else "")
-        + f"</p>{email}</div>"
-        f"<div class='att-actions'>{''.join(buttons)}</div></li>"
+        f"</div>{quote_html}{email}</div>"
+        f"<div class='att-actions'>{''.join(icons)}{''.join(buttons)}</div></li>"
     )
 
 
@@ -1160,25 +1245,45 @@ def _stats(d: Dashboard, ui: UI | None) -> str:
     for r in d.rows:
         by[r.status] = by.get(r.status, 0) + 1
     sent = sum(1 for r in d.rows if r.submitted != "—")
-    tiles: list[tuple[object, str, str]] = [
-        (sent, "Requests sent", "var(--s1)"),
+    # (number, label, colour, one-line explanation)
+    tiles: list[tuple[object, str, str, str]] = [
+        (sent, "Requests sent", "var(--s1)", "Deletion requests that went out"),
         (
             by.get("awaiting_broker_confirmation", 0) + by.get("submitted", 0),
             "Awaiting reply",
             _tone_var("submitted"),
+            "Sent; no answer yet",
         ),
-        (by.get("confirmed", 0), "Broker says done", _tone_var("confirmed")),
-        (by.get("removed", 0), "Verified removed", "var(--s3)"),
-        (len(d.attention), "Need your attention", _tone_var("awaiting_user_input")),
+        (
+            by.get("confirmed", 0),
+            "Broker says done",
+            _tone_var("confirmed"),
+            "They told you it's deleted",
+        ),
     ]
+    if d.verifiable or by.get("removed", 0):
+        # Only meaningful for sites the tool can search itself; hidden otherwise so a
+        # permanent 0 doesn't look like failure.
+        tiles.append(
+            (by.get("removed", 0), "Verified removed", "var(--s3)", "We searched; you're gone")
+        )
+    tiles.append(
+        (
+            len(d.attention),
+            "Need your attention",
+            _tone_var("awaiting_user_input"),
+            "Something for you to do",
+        )
+    )
     if ui and ui.limit:
-        tiles.append((f"{ui.used}/{ui.limit}", "Sent today", "var(--neutral)"))
+        tiles.append((f"{ui.used}/{ui.limit}", "Sent today", "var(--neutral)", "Daily limit"))
     return (
         "<section class='stats' aria-label='Summary'>"
         + "".join(
             f"<div class='stat'><div class='n'>{e(str(n))}</div>"
-            f"<div class='l'><span class='dot' style='background:{c}'></span>{e(label)}</div></div>"
-            for n, label, c in tiles
+            f"<div class='l'><span class='dot' style='background:{c}'></span>{e(label)}</div>"
+            f"<div class='sub'>{e(hint)}</div></div>"
+            for n, label, c, hint in tiles
         )
         + "</section>"
     )
@@ -1236,9 +1341,16 @@ def dashboard(
                 f"<li><span><b>{e(a.name)}</b> <span class='muted'>· {e(a.why)}</span></span></li>"
                 for a in d.attention[:40]
             )
+        how = (
+            "<p class='how'>Do what they ask (their link or the email in Gmail), then click "
+            "<b>Done</b>. Doesn't apply to you? <b>Close</b> it.</p>"
+            if with_actions
+            else ""
+        )
         attn = (
             "<section class='card' aria-labelledby='attn-h'>"
-            f"<h2 id='attn-h'>Needs your attention</h2><ul class='attn'>{items}</ul></section>"
+            f"<h2 id='attn-h'>Needs your attention</h2>{how}<ul class='attn'>{items}</ul>"
+            "</section>"
         )
 
     trs = "".join(

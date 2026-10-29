@@ -252,7 +252,7 @@ def resolve(
     from ..actions import apply_outcome
     from ..db import list_submissions
 
-    if outcome not in OUTCOMES:
+    if outcome not in OUTCOMES and outcome != "close":
         raise ValueError("unknown outcome")
     if outcome == "ignore":
         row.state = "ignored"
@@ -268,6 +268,17 @@ def resolve(
             row.submission_id, row.broker_slug, row.matched_by = sub.id, broker, "assigned"
     if sub is None:
         raise ValueError("this reply isn't matched to a request; pick the broker first")
+    if outcome == "close":
+        # "Doesn't apply to me": done with this broker (e.g. they only hold data on
+        # financial advisors and I'm not one).
+        from ..db import record_event, update_status
+
+        update_status(session, sub, "closed")
+        record_event(session, sub, "status_set", {"to": "closed", "source": source})
+        row.state = "resolved"
+        session.add(row)
+        session.commit()
+        return f"{sub.broker_slug}: closed"
     apply_outcome(session, sub, outcome, note, source)
     row.kind = {"deleted": "deleted"}.get(outcome, outcome)
     row.state = "resolved"

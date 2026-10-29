@@ -329,7 +329,7 @@ def campaign(
     from datetime import UTC, datetime
 
     from .brokers.registry import all_brokers
-    from .config import load_config
+    from .config import load_config, user_tz
     from .db import get_session, init_db
     from .engine.campaign import run_campaign, select_brokers, sent_today
     from .engine.methods.email import _contact_email, _render_body
@@ -346,7 +346,7 @@ def campaign(
 
     with get_session() as session:
         sel = select_brokers(all_brokers(), session, now=now, only=only or None)
-        used = sent_today(session, now)
+        used = sent_today(session, now, user_tz(config))
         quota = max(0, config.email.daily_limit - used)
         batch = sel.eligible[: min(limit, quota)]
 
@@ -1320,7 +1320,7 @@ def daily() -> None:
     from datetime import UTC, datetime
 
     from .brokers.registry import all_brokers, load_registry
-    from .config import load_config
+    from .config import load_config, user_tz
     from .db import get_session, init_db
     from .engine.campaign import run_campaign, select_brokers, sent_today
     from .notify import send_webhook
@@ -1337,7 +1337,7 @@ def daily() -> None:
 
     with get_session() as session:
         sel = select_brokers(all_brokers(), session, now=now)
-        quota = max(0, config.email.daily_limit - sent_today(session, now))
+        quota = max(0, config.email.daily_limit - sent_today(session, now, user_tz(config)))
         if config.email.allow_unattended:
             report = run_campaign(session, config, sel.eligible, limit=quota)
             lines.append(f"Emails sent: {len(report.sent)}, failed: {len(report.failed)}")

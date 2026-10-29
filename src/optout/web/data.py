@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
-from urllib.parse import urlsplit
+from datetime import UTC, datetime, tzinfo
+from urllib.parse import quote, urlsplit
 
 from sqlmodel import Session, select
 
@@ -47,6 +47,7 @@ class Attention:
     email: str = ""  # their latest reply, in full
     link: str = ""  # first web link in their reply (shown, never opened for you)
     link_host: str = ""
+    gmail_url: str = ""  # opens this exact email in Gmail (search by Message-ID)
 
 
 @dataclass
@@ -62,14 +63,25 @@ class Dashboard:
     drafts: int = 0
     # Daily cumulative progress: (ISO date, sent, broker replied, verified removed)
     series: list[tuple[str, int, int, int]] = field(default_factory=list)
+    verifiable: int = 0  # contacted brokers whose site we can re-search ourselves
 
 
 def _aware(dt: datetime) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
+_TZ: tzinfo = UTC  # set per request by collect()
+
+
 def _date(dt: datetime | None) -> str:
-    return dt.strftime("%Y-%m-%d") if dt else "—"
+    return _aware(dt).astimezone(_TZ).strftime("%Y-%m-%d") if dt else "—"
+
+
+def friendly_time(dt: datetime, tz: tzinfo) -> str:
+    """'Oct 28, 8:04 PM EDT'"""
+    local = dt.astimezone(tz)
+    hour = local.strftime("%I").lstrip("0") or "12"
+    return f"{local:%b} {local.day}, {hour}:{local:%M %p} {local.tzname() or ''}".strip()
 
 
 _DONE = {"confirmed", "removed", "closed"}
@@ -78,8 +90,12 @@ _DONE = {"confirmed", "removed", "closed"}
 def collect(
     session: Session, config: UserConfig | None, now: datetime, drafts: int = 0
 ) -> Dashboard:
+    global _TZ
+    from ..config import user_tz
+
+    _TZ = user_tz(config)
     names = {b.slug: b.name for b in all_brokers()}
-    dash = Dashboard(generated=now.strftime("%Y-%m-%d %H:%M UTC"), drafts=drafts)
+    dash = Dashboard(generated=friendly_time(now, _TZ), drafts=drafts)
     drift_cache: dict[str, bool] = {}
 
     newest_first = Submission.created_at.desc()  # type: ignore[attr-defined]
@@ -165,11 +181,13 @@ def collect(
             )
 
     dash.series = progress_series(session, subs, now)
+    scannable = {b.slug for b in all_brokers() if b.scan}
+    dash.verifiable = len({s.broker_slug for s in subs if s.submitted_at} & scannable)
 
     if config is not None:
         sel = select_brokers(all_brokers(), session, now=now)
         dash.eligible, dash.skipped = len(sel.eligible), len(sel.skipped)
-        dash.sent_today = sent_today(session, now)
+        dash.sent_today = sent_today(session, now, _TZ)
         dash.daily_limit = config.email.daily_limit
     return dash
 
@@ -183,7 +201,7 @@ def progress_series(
     """Cumulative counts per day from the first request sent until today."""
     from datetime import timedelta
 
-    sent_days = [_aware(s.submitted_at).date() for s in subs if s.submitted_at]
+    sent_days = [_aware(s.submitted_at).astimezone(_TZ).date() for s in subs if s.submitted_at]
     if not sent_days:
         return []
     ids = {s.id for s in subs}
@@ -192,13 +210,13 @@ def progress_series(
     for ev in session.exec(select(SubmissionEvent)):
         if ev.submission_id not in ids:
             continue
-        day = _aware(ev.created_at).date()
+        day = _aware(ev.created_at).astimezone(_TZ).date()
         if ev.event_type in _REPLY_EVENTS:
             first_reply[ev.submission_id] = min(day, first_reply.get(ev.submission_id, day))
         elif ev.event_type == "removed_verified":
             removed[ev.submission_id] = min(day, removed.get(ev.submission_id, day))
 
-    start, end = min(sent_days), now.date()
+    start, end = min(sent_days), now.astimezone(_TZ).date()
     out: list[tuple[str, int, int, int]] = []
     day = start
     while day <= end:
@@ -234,6 +252,9 @@ def _with_reply(session: Session, sub: Submission, a: Attention) -> Attention:
     if row is None:
         return a
     a.email = row.text
+    mid = row.message_id.strip().strip("<>")
+    if mid:
+        a.gmail_url = "https://mail.google.com/mail/u/0/#search/" + quote(f"rfc822msgid:{mid}")
     a.quote = deciding_sentence(row.text, row.kind or "")
     a.link = _best_link(row.text)
     a.link_host = urlsplit(a.link).hostname or "" if a.link else ""

@@ -12,7 +12,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from sqlmodel import Session, select
 
@@ -39,8 +39,10 @@ class CampaignReport:
     stopped_reason: str | None = None
 
 
-def sent_today(session: Session, now: datetime) -> int:
-    start = now.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+def sent_today(session: Session, now: datetime, tz=None) -> int:
+    """Emails sent since midnight in the user's zone (UTC if none given)."""
+    local = now.astimezone(tz or UTC)
+    start = local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
     stmt = select(Submission).where(
         Submission.method_used == "email", Submission.submitted_at >= start
     )
@@ -117,7 +119,9 @@ def run_campaign(
     on_progress: Callable[[str, str], None] | None = None,
 ) -> CampaignReport:
     report = CampaignReport()
-    quota = max(0, config.email.daily_limit - sent_today(session, now()))
+    from ..config import user_tz
+
+    quota = max(0, config.email.daily_limit - sent_today(session, now(), user_tz(config)))
     budget = min(limit, quota)
     if budget == 0:
         report.stopped_reason = f"daily limit of {config.email.daily_limit} already reached"
@@ -148,3 +152,39 @@ def run_campaign(
                 report.stopped_reason = f"{consecutive} failures in a row; last: {reason}"
                 break
     return report
+
+
+# --- automatic daily sending ------------------------------------------------
+
+
+def auto_send_due(now_local: datetime, send_time: str, last_run: date | None) -> bool:
+    """True once per local day, from the configured time onward (catches up if optout
+    starts later that day)."""
+    hh, mm = (int(x) for x in send_time.split(":"))
+    if last_run == now_local.date():
+        return False
+    return (now_local.hour, now_local.minute) >= (hh, mm)
+
+
+def _schedule_path():
+    from ..db import db_path
+
+    return db_path().parent / "schedule-state.json"
+
+
+def last_auto_run() -> date | None:
+    import json
+
+    try:
+        raw = json.loads(_schedule_path().read_text()).get("last_auto_run")
+        return date.fromisoformat(raw) if raw else None
+    except (OSError, ValueError):
+        return None
+
+
+def mark_auto_run(day: date) -> None:
+    import json
+
+    path = _schedule_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"last_auto_run": day.isoformat()}))

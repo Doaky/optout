@@ -948,3 +948,13 @@ def test_quote_prefers_a_real_sentence_over_headings():
     )
     quote = deciding_sentence(text, "need-info")
     assert "you must fill out the following form" in quote
+
+
+def test_doesnt_apply_closes_the_request(session, world):
+    brokers, subs = world
+    row = _review_row(session, "acme", text="We only hold data on financial advisors.")
+    assert assist.resolve(session, row, "close", "", "user_reported") == "acme: closed"
+    assert subs["acme"].status == "closed" and row.state == "resolved"
+    # Claude can't choose it: only the documented outcomes are accepted from an answer
+    verdicts, problems = assist.parse_answer('[{"id":"R1","outcome":"close"}]', {"R1"}, set())
+    assert verdicts == [] and problems
