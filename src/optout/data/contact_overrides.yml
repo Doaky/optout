@@ -13,3 +13,6 @@
 - broker: baron-app
   email: dataprotection@cameo.com
   note: The registry's safety@ alias is no longer an intake channel; their reply directs personal-data requests here.
+- broker: experian-marketing-solutions
+  email: optout@experian.com
+  note: The registry mailbox is not monitored; their reply says privacy opt-outs and limit requests go to this address.

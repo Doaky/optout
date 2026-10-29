@@ -539,6 +539,18 @@ def test_fetch_replies_reads_new_messages_only():
             "One more step is required. Please confirm your email by clicking on the button below.",
             "need-info",
         ),
+        (
+            "Re: request",
+            "If you would like to remove your listing, use the online opt-out. After you verify, "
+            "we will send you an email confirming that the record you selected has been opted out.",
+            "unknown",
+        ),
+        (
+            "Re: request",
+            "We cannot process your request until we have received the completed form. "
+            "Please use our request form.",
+            "need-info",
+        ),
     ],
 )
 def test_real_reply_wording(subject, body, kind):

@@ -168,7 +168,7 @@ RULES: list[tuple[str, str, re.Pattern[str]]] = [
             r"\b(further|additional|more) information (is )?(needed|required)\b|"
             r"(?<!if )(?<!should )(?<!in case )\b(we|will) (need|require)\b[^.]{0,50}"
             r"\b(information|identifiers?|details|verification)\b|\binsufficient\b|"
-            r"\bplease (provide|submit|complete|fill out|reply with|send us)\b|"
+            r"\bplease (provide|submit|complete|fill out|reply with|send us|use our)\b|"
             r"\b(web ?form|online form|portal)\b|\bnot monitored\b|"
             r"\b(do|does) not accept\b[^.]{0,40}\b(e-?mail|requests?)\b|"
             r"\b(you )?(must|need to|will need to) (fill out|fill in|complete|submit|use)\b|"
@@ -277,7 +277,8 @@ def known_reply(mail: ParsedMail, known: list[KnownReply]) -> KnownReply | None:
     return None
 
 
-_CONDITION = re.compile(r"\b(if|unless|without|should|in case|in the event|provided that)\b", re.I)
+_CONDITION = re.compile(r"\b(if|unless|without|once|after|should|in case|in the event|provided that)\b", re.I)
+_UNTIL = re.compile(r"\b(until|unless)\b", re.I)  # "cannot process it until you send the form"
 _SETTLING = {"denied", "no-data", "deleted"}
 
 
@@ -289,7 +290,8 @@ def _firm_match(kind: str, rx: re.Pattern[str], blob: str) -> bool:
         return rx.search(blob) is not None
     for m in rx.finditer(blob):
         start = max(blob.rfind(ch, 0, m.start()) for ch in ".!?") + 1
-        if not _CONDITION.search(blob[start : m.start()]):
+        end = min((i for i in (blob.find(ch, m.end()) for ch in ".!?") if i >= 0), default=len(blob))
+        if not _CONDITION.search(blob[start : m.start()]) and not _UNTIL.search(blob[m.end() : end]):
             return True
     return False
 

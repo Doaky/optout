@@ -41,6 +41,24 @@
 - {from: '@forager.ai', phrase: thank you for reaching out to forager's privacy team, outcome: auto-reply, broker: forager-ai}
 - {from: '@loopme.com', phrase: thanks for reaching out to us, outcome: auto-reply, broker: chartboost}
 - {from: '@missionwired.com', phrase: thanks for reaching out, outcome: auto-reply, broker: anne-lewis-strategies}
+- {from: '@truepeoplesearch.com', phrase: we do not accept privacy requests received via email, outcome: need-info, broker: free-data-services}
+- {from: '@datonics.com', phrase: please go to our your privacy choices page, outcome: need-info, broker: datonics, override: true}
+- {from: '@datasys.com', phrase: is no longer a designated method for submitting consumer privacy rights requests, outcome: need-info, broker: datasys-group, override: true}
+- {from: '@eltoro.com', phrase: we do not accept consumer data privacy requests via email, outcome: need-info, broker: el-toro-com}
+- {from: '@epsilon.com', phrase: visit our consumer privacy request portal, outcome: need-info, broker: epsilon-data-management}
+- {from: '@claritas.com', phrase: please use our onetrust request form, outcome: need-info, broker: claritas, override: true}
+- {from: '@civisanalytics.com', phrase: we cannot process your request until we have received the completed form, outcome: need-info, broker: civis-analytics, override: true}
+- {from: '@choreograph.com', phrase: is not the designated channel for consumer privacy requests, outcome: need-info, broker: choreograph, override: true}
+- {from: '@cadent.tv', phrase: to submit a data rights request, please complete the form, outcome: need-info, broker: cadent}
+- {from: '@bdo.com', phrase: no longer actively monitored for new inquiries, outcome: need-info, broker: bdo-gci}
+- {from: '@issgovernance.com', phrase: please complete the form designated for this purpose, outcome: need-info, broker: asset-international}
+- {from: '@blis.com', phrase: we need you to provide the mobile advertising id, outcome: need-info, broker: blis-global}
+- {from: '@accurateappend.com', phrase: we require that all submissions be made using our official online form, outcome: need-info, broker: accurate-append}
+- {from: '@beenverified.com', phrase: we provide an easy online opt-out process, outcome: need-info, broker: beenverified, override: true}
+- {from: '@disqus.com', phrase: you must submit the form below and complete the subsequent email verification, outcome: need-info, broker: disqus}
+- {from: '@cameo.com', phrase: is no longer a supported intake channel, outcome: no-data, broker: baron-app}
+- {from: '@costar.com', phrase: unable to locate records that can be reasonably associated with you, outcome: need-info, broker: costar-realty-information, override: true}
+- {from: '@completemedicallists.com', phrase: please visit the following webpage and complete the form, outcome: need-info, broker: complete-medical-lists, override: true}
 
 # --- shared platforms (never pin a broker) ---
 - {from: '@clearview-ai.zendesk.com', phrase: submit a request to exercise your consumer rights, outcome: need-info}

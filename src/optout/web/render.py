@@ -347,7 +347,9 @@ const swap = async (res) => {
   fillZone();
   const draft = d.getElementById('draft');
   const settings = d.getElementById('settings');
-  if (draft) draft.scrollIntoView({ block: 'start' });
+  const flash = d.querySelector('.flash');
+  if (flash) flash.scrollIntoView({ block: 'nearest' });  // say what happened, wherever you were
+  else if (draft) draft.scrollIntoView({ block: 'start' });
   else if (settings && settings.open) settings.scrollIntoView({ block: 'start' });
   else window.scrollTo(0, y);
   start();
