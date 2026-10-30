@@ -1378,6 +1378,12 @@ def _attention_item(a: Attention, csrf: str, contributor: bool = False) -> str:
         )
     if a.kind == "need-info":
         buttons.append(act("status:awaiting_broker_confirmation", "Done", cls=""))
+        buttons.append(
+            "<form method='post' action='/act/row' class='inline'>"
+            f"{_hidden(csrf, slug=a.slug, action='form-removed')}"
+            "<button type='submit' class='go' title='You filled in their form and it said your "
+            "data was removed'>Form said removed</button></form>"
+        )
     elif a.kind == "refused":
         buttons.append(act("draft:appeal", "Appeal", cls=""))
     elif a.kind == "overdue":

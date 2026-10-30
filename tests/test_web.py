@@ -1343,3 +1343,23 @@ def test_top_bar_has_a_fetch_emails_button_only_on_the_dashboard():
     assert "action='/act/inbox'" in on and "Fetch emails" in on and "tok" in on
     assert "Fetch emails" not in page("t", "<p>x</p>", nav=True)
     assert "Fetch emails" not in page("t", "<p>x</p>", nav=False, updated="now")
+
+
+def test_form_said_removed_marks_the_request_as_their_word(ui):
+    from optout.actions import record_reply
+    from optout.db import create_submission, get_session, list_submissions, update_status
+
+    with get_session() as session:
+        sub = create_submission(
+            session,
+            broker_slug="evil",
+            method_used="email",
+            legal_basis_cited=[],
+            statutory_response_days=45,
+        )
+        update_status(session, sub, "awaiting_user_input")
+    r, _ = ui.post("/act/row", {"slug": "evil", "action": "form-removed"})
+    assert r.status == 303
+    with get_session() as session:
+        (got,) = list_submissions(session, broker_slug="evil")
+        assert got.status == "confirmed"

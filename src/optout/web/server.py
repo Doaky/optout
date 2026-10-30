@@ -543,6 +543,11 @@ def _make_handler(app: App):
                 with get_session() as session:
                     actions.record_reply(session, slug, arg, None)
                 return self._redirect("/?m=reply")
+            if kind == "form-removed":
+                # Their web form said the data was removed: record it as their word.
+                with get_session() as session:
+                    actions.record_reply(session, slug, "deleted", "Their web form said removed.")
+                return self._redirect("/?m=toggle")
             if kind == "draft":
                 arg = actions.auto_draft_kind(slug) if arg == "auto" else arg
                 out = actions.write_draft_now(load_config(), slug, arg, datetime.now(UTC))
