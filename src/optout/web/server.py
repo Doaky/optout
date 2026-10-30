@@ -55,6 +55,7 @@ FLASH = {
     "drafts": "Checked. New drafts are listed under “Saved drafts”.",
     "started": "Batch started.",
     "cancelling": "Stopping after the email in progress. Everything sent so far is recorded.",
+    "backup_ok": "Backup written.",
     "finished": "Batch finished.",
     "imported": "Broker list loaded.",
     "inboxerr": "Couldn't read replies from Gmail. Check your app password and connection.",
@@ -94,28 +95,55 @@ class App:
         except Exception:
             pass
 
-    def schedule_forever(self, every: float = 60) -> None:
-        """Send each day's batch at the configured local time, if the user allowed it."""
+    def schedule_forever(self, every: float = 60, first: float = 20) -> None:
+        """Daily sending and backups, whenever they're due. Checked shortly after start and
+        then every minute, so a missed day (the app wasn't running) is caught up as soon as
+        you open it."""
         import time
 
+        from .. import backup
         from ..config import user_tz
         from ..engine.campaign import auto_send_due, last_auto_run, mark_auto_run
 
+        time.sleep(first)
         while True:
-            time.sleep(every)
             try:
                 config = load_config()
-                if not config.email.allow_unattended:
-                    continue
                 now_local = datetime.now(UTC).astimezone(user_tz(config))
-                if not auto_send_due(now_local, config.email.daily_send_time, last_auto_run()):
-                    continue
-                mark_auto_run(now_local.date())  # once per day, even if nothing is eligible
-                if self.job.get("state") != "running":
-                    self.start_campaign(config.email.daily_limit)
-                actions.write_escalation_drafts(config, datetime.now(UTC))
+                if config.email.allow_unattended and auto_send_due(
+                    now_local, config.email.daily_send_time, last_auto_run()
+                ):
+                    mark_auto_run(now_local.date())  # once per day, even if nothing is eligible
+                    if self.job.get("state") != "running":
+                        self.start_daily(config.email.daily_limit)
+                    actions.write_escalation_drafts(config, datetime.now(UTC))
+                if backup.due(config, now_local.date()):
+                    backup.run(config)
             except Exception:
-                _log_error("scheduled sending")
+                _log_error("scheduled work")
+            time.sleep(every)
+
+    def start_daily(self, count: int) -> str:
+        """The day's batch, then any follow-ups that are due, as one background job."""
+        with self.job_lock:
+            if self.job.get("state") == "running":
+                return "busy"
+            self.job = {"state": "running", "sent": [], "failed": [], "total": count}
+
+        def both() -> None:
+            job = self.job
+            self._run_campaign(count)
+            if job.get("cancel"):
+                return
+            # Same job, so the progress bar covers both; follow-ups add to the counts.
+            total, failed = job.get("total", 0), list(job.get("failed", []))
+            job["state"] = "running"
+            self._run_followups()
+            job["total"] = total + job.get("total", 0)
+            job["failed"] = failed + list(job.get("failed", []))
+
+        threading.Thread(target=both, daemon=True).start()
+        return "started"
 
     def poll_inbox_forever(self, every: float = 900, first: float = 5) -> None:
         """Check for replies shortly after start, then every 15 minutes."""
@@ -370,13 +398,14 @@ def _make_handler(app: App):
                     + (f", skipped {nums['s']}." if nums["s"] else "."),
                     ok=nums["a"] > 0,
                 )
-            elif code in ("settings_err", "pw_bad"):
+            elif code in ("settings_err", "pw_bad", "backup_bad"):
                 what = app.last_error or "something didn't validate"
-                flash = render.message_box(
-                    ("Couldn't save: " if code == "settings_err" else "That password didn't work: ")
-                    + what,
-                    ok=False,
-                )
+                lead = {
+                    "settings_err": "Couldn't save: ",
+                    "pw_bad": "That password didn't work: ",
+                    "backup_bad": "Couldn't back up: ",
+                }[code]
+                flash = render.message_box(lead + what, ok=False)
             if code in FLASH:
                 text = FLASH[code]
                 if code.startswith("conf_") and (said := query.get("n", [""])[0][:200]):
@@ -779,8 +808,25 @@ def _make_handler(app: App):
                     except ValueError as exc:
                         app.last_error = str(exc)[:120]
                         return self._redirect("/?m=settings_err#settings")
+                    if form.get("backup_key", "").strip():
+                        from ..backup import save_key
+
+                        try:
+                            save_key(form["backup_key"])
+                        except ValueError as exc:
+                            app.last_error = str(exc)[:120]
+                            return self._redirect("/?m=settings_err#settings")
                     save_config(new)
                     return self._redirect("/?m=settings_ok#settings")
+                if path == "/act/backup":
+                    from .. import backup
+
+                    try:
+                        backup.run(load_config())
+                    except ValueError as exc:
+                        app.last_error = str(exc)[:120]
+                        return self._redirect("/?m=backup_bad#settings")
+                    return self._redirect("/?m=backup_ok#settings")
                 if path == "/act/password":
                     from ..engine.methods.email import check_login, save_smtp_password
 
@@ -1027,7 +1073,25 @@ def _fill_replies(ui, session, config) -> None:
 
 
 def code_opens_settings(query: dict) -> bool:
-    return query.get("m", [""])[0] in ("settings_ok", "settings_err", "pw_ok", "pw_bad")
+    return query.get("m", [""])[0] in (
+        "settings_ok",
+        "settings_err",
+        "pw_ok",
+        "pw_bad",
+        "backup_ok",
+        "backup_bad",
+    )
+
+
+def _backup_status(config) -> str:
+    from .. import backup
+
+    last = backup.last_backup()
+    if why := backup.problem(config):
+        return f"Off: {why}."
+    if last is None:
+        return "Set up; the first backup is made within a minute."
+    return f"Last backup {last[0].isoformat()}: {last[1]}"
 
 
 def _settings_values(config) -> dict[str, str]:
@@ -1060,6 +1124,9 @@ def _settings_values(config) -> dict[str, str]:
         "groups_set": "1" if config.my_groups is not None else "",
         "contributor_tools": "on" if config.contributor_tools else "",
         "confirm_links": config.confirm_links,
+        "backup_dir": config.backup_dir or "",
+        "backup_every_days": str(config.backup_every_days),
+        "backup_status": _backup_status(config),
         "timezone": config.timezone or "",
         "sender": em.smtp.username if em.smtp else "",
         "host": em.smtp.host if em.smtp else "",

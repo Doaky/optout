@@ -308,12 +308,15 @@ def resend_to(
 
 
 def auto_send_due(now_local: datetime, send_time: str, last_run: date | None) -> bool:
-    """True once per local day, from the configured time onward (catches up if optout
-    starts later that day)."""
+    """True when a daily run has been missed: today's send time has passed, or the app wasn't
+    running at an earlier one (it's only started now and then). Catches up once, not once per
+    missed day: the daily limit caps it anyway. Before the very first run, waits for the time."""
     hh, mm = (int(x) for x in send_time.split(":"))
-    if last_run == now_local.date():
-        return False
-    return (now_local.hour, now_local.minute) >= (hh, mm)
+    passed_today = (now_local.hour, now_local.minute) >= (hh, mm)
+    if last_run is None:
+        return passed_today
+    latest = now_local.date() if passed_today else now_local.date() - timedelta(days=1)
+    return last_run < latest
 
 
 def _schedule_path():
@@ -322,22 +325,34 @@ def _schedule_path():
     return db_path().parent / "schedule-state.json"
 
 
-def last_auto_run() -> date | None:
+def _schedule_state() -> dict:
     import json
 
     try:
-        raw = json.loads(_schedule_path().read_text()).get("last_auto_run")
-        return date.fromisoformat(raw) if raw else None
+        data = json.loads(_schedule_path().read_text())
+        return data if isinstance(data, dict) else {}
     except (OSError, ValueError):
-        return None
+        return {}
 
 
-def mark_auto_run(day: date) -> None:
+def _save_schedule_state(**updates: str) -> None:
     import json
 
     path = _schedule_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"last_auto_run": day.isoformat()}))
+    path.write_text(json.dumps({**_schedule_state(), **updates}))
+
+
+def last_auto_run() -> date | None:
+    raw = _schedule_state().get("last_auto_run")
+    try:
+        return date.fromisoformat(raw) if raw else None
+    except ValueError:
+        return None
+
+
+def mark_auto_run(day: date) -> None:
+    _save_schedule_state(last_auto_run=day.isoformat())
 
 
 def next_resend(subs: list[Submission], resend_after_days: int) -> datetime | None:

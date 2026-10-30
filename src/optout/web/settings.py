@@ -11,7 +11,12 @@ from pydantic import ValidationError
 from ..audiences import GROUPS, expand_groups
 from ..config import Address, PreviousAddress, UserConfig
 
-LIMITS = {"daily_limit": (1, 500), "send_delay_seconds": (0, 120), "resend_after_days": (30, 730)}
+LIMITS = {
+    "daily_limit": (1, 500),
+    "send_delay_seconds": (0, 120),
+    "resend_after_days": (30, 730),
+    "backup_every_days": (1, 90),
+}
 
 
 def _list(raw: str) -> list[str]:
@@ -62,7 +67,10 @@ def apply_form(cfg: UserConfig, form: dict[str, str]) -> UserConfig:
     except ValueError:
         raise ValueError("date of birth (use YYYY-MM-DD)") from None
     nums = {}
-    current = {"resend_after_days": str(cfg.email.resend_after_days)}  # older forms lack it
+    current = {  # older forms lack these
+        "resend_after_days": str(cfg.email.resend_after_days),
+        "backup_every_days": str(cfg.backup_every_days),
+    }
     for key, (lo, hi) in LIMITS.items():
         try:
             nums[key] = int(form.get(key) or current.get(key, ""))
@@ -113,6 +121,9 @@ def apply_form(cfg: UserConfig, form: dict[str, str]) -> UserConfig:
     if form.get("groups_present") == "1":
         picked = [g for g in GROUPS if form.get(f"group_{g}") == "on"]
         data["my_groups"] = expand_groups(picked)
+    if "backup_dir" in form:
+        data["backup_dir"] = form.get("backup_dir", "").strip() or None
+    data["backup_every_days"] = nums["backup_every_days"]
     data["contributor_tools"] = form.get("contributor_tools") == "on"
     data["confirm_links"] = "auto" if form.get("confirm_links") == "auto" else "ask"
     try:

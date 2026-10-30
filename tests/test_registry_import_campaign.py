@@ -387,6 +387,10 @@ def test_auto_send_runs_once_per_local_day_from_the_set_time():
     assert auto_send_due(at, "10:00", None)
     assert auto_send_due(later, "10:00", _date(2026, 10, 27))  # catches up later that day
     assert not auto_send_due(later, "10:00", _date(2026, 10, 28))  # already ran today
+    # Started only now and then: a missed run is caught up as soon as the app starts,
+    # even before today's send time.
+    assert auto_send_due(before, "10:00", _date(2026, 10, 20))
+    assert not auto_send_due(before, "10:00", _date(2026, 10, 27))  # ran at yesterday's time
 
 
 def test_daily_limit_is_a_rolling_24_hours(session, config):

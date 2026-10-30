@@ -25,6 +25,7 @@ TITLES: dict[str, str] = {
     "real-estate-professionals": "Real estate professional",
     "students": "Student",
     "financial-account-holders": "Bank or brokerage customer",
+    "job-applicants": "Job applicant",
 }
 GROUPS: dict[str, str] = {
     "business-professionals": "You have a work email or job title that appears in business "
@@ -36,6 +37,8 @@ GROUPS: dict[str, str] = {
     "students": "You're a student",
     "financial-account-holders": "You have bank, card, or brokerage accounts. Those records "
     "stay with the institution, so ask it directly",
+    "job-applicants": "You've applied for jobs through company career sites. Those records "
+    "stay with the employer, so ask it directly",
 }
 # How the picker is laid out.
 SECTIONS: list[tuple[str, list[str]]] = [
@@ -49,7 +52,7 @@ SECTIONS: list[tuple[str, list[str]]] = [
             "real-estate-professionals",
         ],
     ),
-    ("Other", ["students", "financial-account-holders"]),
+    ("Other", ["students", "financial-account-holders", "job-applicants"]),
 ]
 # Belonging to a group usually means belonging to a broader one too: an educator or a
 # financial advisor is also listed in business contact databases. Ticking the narrow group
@@ -87,6 +90,7 @@ class Coverage:
             "students": "students",
             "financial-advisors": "financial advisors",
             "financial-account-holders": "bank/brokerage customers",
+            "job-applicants": "job applicants",
             "healthcare-providers": "healthcare workers",
             "real-estate-professionals": "real-estate professionals",
         }

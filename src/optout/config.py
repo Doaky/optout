@@ -184,6 +184,10 @@ class UserConfig(BaseModel):
     # "ask": press "Confirm for me" on each item. "auto": while checking replies, open confirm
     # links from senders matching a known flow (see engine/confirm.py) without asking.
     confirm_links: Literal["ask", "auto"] = "ask"
+    # Encrypted backups of your history (see optout/backup.py): the folder to write them to
+    # (blank: off), and how often. The passphrase lives in its own 0600 file, not here.
+    backup_dir: str | None = None
+    backup_every_days: int = 7
     # Shows coverage tools (judging who a broker covers, with Claude's help) in the dashboard.
     contributor_tools: bool = False
 

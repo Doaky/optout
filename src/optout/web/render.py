@@ -1275,7 +1275,7 @@ def _settings_panel(ui: UI) -> str:
         "<summary><h2>Settings</h2><span class='muted small'>Your details, sending, and "
         "Gmail</span></summary>"
         f"<form method='post' action='/act/settings'>{_hidden(ui.csrf)}{about}{sending}"
-        f"{_groups_fieldset(v)}"
+        f"{_groups_fieldset(v)}{_backup_fieldset(v)}"
         "<fieldset><legend>Contributor tools</legend><label class='check'>"
         "<input type='checkbox' name='contributor_tools'"
         f"{' checked' if v.get('contributor_tools') == 'on' else ''}> Show coverage tools on "
@@ -1285,7 +1285,38 @@ def _settings_panel(ui: UI) -> str:
         "so other people skip brokers that don't apply to them. Limits: Claude can be wrong, "
         "so check its answer; a broker's own reply is the best evidence.</p></fieldset>"
         "<button type='submit' class='big'>Save settings</button></form>"
+        "<form method='post' action='/act/backup' class='inline'>"
+        f"{_hidden(ui.csrf)}<button type='submit' class='secondary'>Back up now</button></form>"
         f"<hr>{password}</details>"
+    )
+
+
+def _backup_fieldset(v: dict[str, str]) -> str:
+    return (
+        "<fieldset><legend>Backups</legend><div class='fgrid'>"
+        + _field(
+            "Backup folder",
+            "backup_dir",
+            v.get("backup_dir", ""),
+            attrs="placeholder='/mnt/c/Users/you/OneDrive/optout'",
+            hint="Somewhere that isn't only this computer: a OneDrive or Dropbox folder (from "
+            "WSL, Windows drives are under /mnt/c), or a USB stick. Blank turns backups off.",
+        )
+        + _field(
+            "Back up every (days)",
+            "backup_every_days",
+            v.get("backup_every_days", "7"),
+            kind="number",
+            attrs="min='1' max='90' required",
+            hint="If the app wasn't running when one was due, it's made when you next open it.",
+        )
+        + "<label class='fld'><span>Backup passphrase</span>"
+        "<input type='password' name='backup_key' autocomplete='new-password' "
+        "placeholder='Leave blank to keep the current one' minlength='16'>"
+        "<small>At least 16 characters. Backups are encrypted with it; keep a copy somewhere "
+        "safe (a password manager), because without it a backup can't be opened. Restore "
+        "with <code>OPTOUT_STATE_KEY='…' optout state import FILE</code>.</small></label>"
+        f"</div><p class='muted small'>{e(v.get('backup_status', ''))}</p></fieldset>"
     )
 
 

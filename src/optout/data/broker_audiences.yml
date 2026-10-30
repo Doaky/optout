@@ -13,3 +13,9 @@
 - broker: aniline
   audiences: [business-professionals]
   note: Only company or work email addresses and the names tied to them; does not process personal emails or home addresses.
+- broker: greenhouse-software
+  audiences: [job-applicants]
+  note: Hiring software, not a data broker; holds applicant data for the employers you applied to, who must delete it. Account holders can delete at my.greenhouse.io.
+- broker: komodo-health
+  audiences: [healthcare-providers]
+  note: B2B only; identifiable data is business and professional details of healthcare professionals. Patient data is de-identified; no home addresses or personal phone numbers.

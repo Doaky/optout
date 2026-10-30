@@ -33,14 +33,14 @@ _CONFIG_SKIP = {"config.yml", "smtp_password"}
 _MAX_BYTES = 200_000_000
 
 
-def _key() -> str:
-    key = os.environ.get(KEY_ENV, "")
+def _key(given: str | None = None) -> str:
+    key = given if given is not None else os.environ.get(KEY_ENV, "")
     if len(key) < 16:
         raise ValueError(f"Set {KEY_ENV} to a passphrase of at least 16 characters.")
     return key
 
 
-def _openssl(args: list[str], data: bytes) -> bytes:
+def _openssl(args: list[str], data: bytes, key: str | None = None) -> bytes:
     if shutil.which("openssl") is None:
         raise ValueError("OpenSSL isn't installed; it's needed to encrypt the state.")
     base = ["openssl", "enc", "-aes-256-cbc", "-pbkdf2", "-iter", "600000", "-md", "sha256"]
@@ -48,7 +48,7 @@ def _openssl(args: list[str], data: bytes) -> bytes:
         [*base, *args, "-pass", f"env:{KEY_ENV}"],
         input=data,
         capture_output=True,
-        env={**os.environ, KEY_ENV: _key()},
+        env={**os.environ, KEY_ENV: _key(key)},
         check=False,
     )
     if proc.returncode != 0:
@@ -78,9 +78,9 @@ def _pack() -> bytes:
     return buf.getvalue()
 
 
-def export_state(path: Path) -> int:
+def export_state(path: Path, key: str | None = None) -> int:
     """Write the encrypted state to path. Returns its size in bytes."""
-    blob = _openssl(["-e", "-salt"], _pack())
+    blob = _openssl(["-e", "-salt"], _pack(), key)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "wb") as fh:
         fh.write(blob)
