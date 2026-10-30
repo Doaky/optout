@@ -1372,7 +1372,7 @@ def _attention_item(a: Attention, csrf: str, contributor: bool = False) -> str:
             "<form method='post' action='/act/resend-to' class='inline redirect'>"
             f"{_hidden(csrf, slug=a.slug, address=addr)}"
             f"<span class='muted small'>Their reply names <b>{e(addr)}</b>.</span>"
-            "<button type='submit' class='secondary mini'>Send my request there</button></form>"
+            "<button type='submit' class='mini'>Send my request there</button></form>"
             for addr in a.alt_emails
         )
     quote = _URL_IN_TEXT.sub("", a.quote).replace("  ", " ").strip()
