@@ -146,6 +146,20 @@ button.removed:hover{background:#a78bfa;border-color:#a78bfa}}
 form.inline{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
 form.inline.rowform{flex-wrap:nowrap}
 .rowform select{width:150px;padding:5px 8px;font-size:13px}.rowform button{padding:5px 12px;font-size:13px}
+details.rowmenu{position:relative;display:inline-block}
+details.rowmenu>summary{list-style:none;cursor:pointer;width:28px;height:24px;display:inline-flex;
+  align-items:center;justify-content:center;border:1px solid var(--line);border-radius:6px;
+  color:var(--text-2);font-size:16px;line-height:1;user-select:none}
+details.rowmenu>summary::-webkit-details-marker{display:none}
+details.rowmenu>summary:hover,details.rowmenu[open]>summary{border-color:var(--accent);color:var(--text)}
+details.rowmenu .menu{position:absolute;right:0;top:28px;z-index:20;min-width:210px;padding:6px;
+  background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);
+  display:flex;flex-direction:column;gap:1px}
+details.rowmenu .mgroup{font-size:11px;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--muted);padding:6px 8px 2px}
+details.rowmenu button.mitem{all:unset;cursor:pointer;padding:5px 8px;border-radius:5px;
+  font-size:13px;color:var(--text);white-space:nowrap}
+details.rowmenu button.mitem:hover,details.rowmenu button.mitem:focus-visible{background:var(--surface-2)}
 .search{display:flex;gap:6px}.search input{width:220px}
 input.combo{width:260px}
 .replies .rowform select{width:auto;max-width:280px}
@@ -370,13 +384,13 @@ const swap = async (res) => {
   start();
 };
 
-const post = async (form) => {
+const post = async (form, submitter) => {
   d.body.classList.add('busy');
-  const btn = form.querySelector('button[type=submit]:not(.nojs)');
+  const btn = submitter || form.querySelector('button[type=submit]:not(.nojs)');
   let dots = null;
   try {
     // Read the fields first: disabled fields are left out of a submission.
-    const body = new URLSearchParams(new FormData(form));
+    const body = new URLSearchParams(new FormData(form, submitter || undefined));
     if (btn) {
       btn.style.width = btn.offsetWidth + 'px';  // keep the size while the label changes
       let n = 0;
@@ -401,7 +415,13 @@ d.addEventListener('submit', (e) => {
   if (f.getAttribute('role') === 'search') { e.preventDefault(); filter(); return; }
   if ((f.getAttribute('method') || 'get').toLowerCase() !== 'post') return;
   e.preventDefault();
-  post(f);
+  post(f, e.submitter);
+});
+// Row menus: one open at a time, closed by a click elsewhere.
+d.addEventListener('click', (e) => {
+  d.querySelectorAll('details.rowmenu[open]').forEach((m) => {
+    if (!m.contains(e.target)) m.removeAttribute('open');
+  });
 });
 
 d.addEventListener('change', (e) => {
@@ -842,17 +862,20 @@ def _hidden(csrf: str, **fields: str) -> str:
 
 
 def row_form(slug: str, csrf: str, name: str = "") -> str:
-    opts = "<option value='' disabled selected>Choose…</option>" + "".join(
-        f"<optgroup label='{e(group)}'>"
-        + "".join(f"<option value='{e(v)}'>{e(t)}</option>" for v, t in items)
-        + "</optgroup>"
+    """A small ⋯ button that opens the row's actions: for the odd case the tool got wrong."""
+    groups = "".join(
+        f"<div class='mgroup'>{e(group)}</div>"
+        + "".join(
+            f"<button type='submit' name='action' value='{e(v)}' class='mitem'>{e(t)}</button>"
+            for v, t in items
+        )
         for group, items in ROW_ACTIONS
     )
     return (
-        "<form method='post' action='/act/row' class='inline rowform auto'>"
-        f"{_hidden(csrf, slug=slug)}"
-        f"<select name='action' required aria-label='Action for {e(name or slug)}'>{opts}"
-        "</select><button type='submit' class='nojs'>Go</button></form>"
+        "<details class='rowmenu'>"
+        f"<summary title='More actions' aria-label='Actions for {e(name or slug)}'>⋯</summary>"
+        f"<form method='post' action='/act/row' class='menu'>{_hidden(csrf, slug=slug)}"
+        f"{groups}</form></details>"
     )
 
 

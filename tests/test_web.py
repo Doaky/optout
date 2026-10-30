@@ -459,7 +459,7 @@ def test_instant_filters_and_auto_applying_menus(ui):
         page.evaluate("window.__noReload = 1")
         rows = page.locator("tr[data-name]")
         assert rows.count() == 2
-        assert page.locator("form.rowform button:visible").count() == 0  # no Go buttons
+        assert page.locator("details.rowmenu .menu:visible").count() == 0  # menus start closed
 
         page.fill("#q", "other")  # filters as you type, no Enter
         assert page.locator("tr[data-name]:visible").count() == 1
@@ -468,12 +468,13 @@ def test_instant_filters_and_auto_applying_menus(ui):
         page.fill("#q", "")
 
         # choosing from the menu applies at once; a false "done" can be moved back
-        evil = page.locator("tr[data-name*='evil'] select")
-        evil.select_option("status:confirmed")
+        def choose(label):
+            page.locator("tr[data-name*='evil'] details.rowmenu > summary").click()
+            page.locator("tr[data-name*='evil'] button.mitem", has_text=label).first.click()
+
+        choose("Broker says done")
         page.locator("tr[data-name*='evil'] .pill", has_text="Broker says done").wait_for()
-        page.locator("tr[data-name*='evil'] select").select_option(
-            "status:awaiting_broker_confirmation"
-        )
+        choose("Awaiting reply")
         page.locator("tr[data-name*='evil'] .pill", has_text="Awaiting reply").wait_for()
 
         page.locator("a.fpill", has_text="Awaiting reply").click()  # instant, no navigation
@@ -752,9 +753,9 @@ def test_row_menu_is_small_and_picks_the_right_email(ui):
 
     _sent_request()
     _, body = ui.req("GET", "/")
-    menu = body[body.index("class='inline rowform auto'") :]
-    menu = menu[: menu.index("</select>")]
-    assert len(_re.findall(r"<option value=", menu)) <= 9  # was 19
+    menu = body[body.index("<details class='rowmenu'>") :]
+    menu = menu[: menu.index("</details>")]
+    assert len(_re.findall(r"name='action' value=", menu)) <= 9  # was 19
     assert "Never contact this broker" in menu and "Set status" in menu
 
     for status, expected in (("awaiting_broker_confirmation", "followup"), ("rejected", "appeal")):
@@ -1387,6 +1388,8 @@ def test_expiry_is_read_from_their_wording_and_promises_are_ignored():
     )
     assert round(_expires_in(blis, got, now) or 0) == 13
     assert _expires_in("Thanks for writing to us.", got, now) is None
+    fifteen = "This link will expire 15 minutes after verification was sent."
+    assert (_expires_in(fifteen, got, now) or 0) < 0  # long gone: shown as Expired
 
 
 def test_the_link_picked_is_their_form_not_a_policy_terms_or_drop_page():
