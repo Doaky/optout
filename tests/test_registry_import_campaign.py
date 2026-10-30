@@ -247,7 +247,7 @@ def test_selection_skips_disabled_nonemail_active_and_recent(session):
     assert dict(sel.skipped) == {
         "off": "disabled",
         "busy": "request already in progress",
-        "recent": "contacted within 90 days",
+        "recent": "contacted within 180 days",
     }
 
 
@@ -594,3 +594,50 @@ def test_resend_leaves_attention_returns_to_awaiting_reply_and_remembers_the_add
     (row,) = [r for r in after.rows if r.slug == "experian"]
     assert row.status == "awaiting_broker_confirmation"  # back to awaiting a reply
     assert load_contacts()["experian"]["email"] == "optout@experian.example"
+
+
+def test_refused_or_closed_brokers_are_only_resent_by_hand(session):
+    from optout.engine.campaign import next_resend
+
+    b = _broker("nope")
+    sub = create_submission(
+        session,
+        broker_slug="nope",
+        method_used="email",
+        legal_basis_cited=[],
+        statutory_response_days=45,
+    )
+    mark_submitted(session, sub, {}, None, 45, submitted_at=NOW - timedelta(days=400))
+    sub.status = "rejected"
+    session.add(sub)
+    session.commit()
+    sel = select_brokers([b], session, now=NOW)
+    assert sel.eligible == [] and "send again by hand" in dict(sel.skipped)["nope"]
+    assert next_resend([sub], 180) is None  # no countdown for a held one
+    # Asked for by name with force: sent, even inside the window.
+    assert [
+        x.slug for x in select_brokers([b], session, now=NOW, only=["nope"], force=True).eligible
+    ] == ["nope"]
+
+
+def test_a_finished_request_comes_round_again_after_the_resend_window(session):
+    from optout.engine.campaign import next_resend
+
+    b = _broker("again")
+    sub = create_submission(
+        session,
+        broker_slug="again",
+        method_used="email",
+        legal_basis_cited=[],
+        statutory_response_days=45,
+    )
+    mark_submitted(session, sub, {}, None, 45, submitted_at=NOW - timedelta(days=100))
+    sub.status = "confirmed"
+    session.add(sub)
+    session.commit()
+    assert select_brokers([b], session, now=NOW).eligible == []  # 100 < 180
+    assert [
+        x.slug for x in select_brokers([b], session, now=NOW, resend_after_days=90).eligible
+    ] == ["again"]
+    when = next_resend([sub], 180)
+    assert when is not None and (when - NOW).days in (79, 80)

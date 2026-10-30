@@ -39,6 +39,7 @@ class Row:
     heard: bool = False  # the broker has replied in some way (even just an acknowledgement)
     retryable: bool = False  # an email that failed to send (not a bounce): can be resent
     failure: str = ""  # why it failed, for the tooltip
+    next_send: str = ""  # when this broker gets emailed again (finished email requests only)
 
 
 @dataclass
@@ -78,6 +79,8 @@ class Dashboard:
     contributor_tools: bool = False
     attention_prompt: str = ""
     attention_redactions: str = ""
+    resend_due_30d: int = 0  # brokers coming round for another email in the next 30 days
+    resend_after_days: int = 180
 
 
 def _aware(dt: datetime) -> datetime:
@@ -163,6 +166,13 @@ def collect(
         cur = latest_reply.get(m.submission_id)
         if cur is None or (m.received_at or datetime.min) >= (cur.received_at or datetime.min):
             latest_reply[m.submission_id] = m
+    from ..engine.campaign import next_resend
+
+    by_broker: dict[str, list[Submission]] = {}
+    for sub in subs:
+        by_broker.setdefault(sub.broker_slug, []).append(sub)
+    resend_days = config.email.resend_after_days if config is not None else 180
+    dash.resend_after_days = resend_days
     seen: set[str] = set()
     for sub in subs:  # newest first: keep one row per broker, the latest attempt
         if sub.broker_slug in seen:
@@ -203,6 +213,14 @@ def collect(
                 else ""
             ),
         )
+        when = (
+            next_resend(by_broker[sub.broker_slug], resend_days)
+            if sub.method_used == "email"
+            else None
+        )
+        if when is not None:
+            row.next_send = _date(when)
+            dash.resend_due_30d += (when - now).days <= 30
         dash.rows.append(row)
         dash.counts[row.label] = dash.counts.get(row.label, 0) + 1
         if overdue and days is not None:
@@ -282,7 +300,13 @@ def collect(
     dash.verifiable = len({s.broker_slug for s in subs if s.submitted_at} & scannable)
 
     if config is not None:
-        sel = select_brokers(all_brokers(), session, now=now, my_groups=config.my_groups)
+        sel = select_brokers(
+            all_brokers(),
+            session,
+            now=now,
+            my_groups=config.my_groups,
+            resend_after_days=config.email.resend_after_days,
+        )
         dash.eligible, dash.skipped = len(sel.eligible), len(sel.skipped)
         dash.sent_today = sent_today(session, now, _TZ)
         dash.daily_limit = config.email.daily_limit

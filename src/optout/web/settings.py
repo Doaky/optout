@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from ..audiences import GROUPS, expand_groups
 from ..config import Address, PreviousAddress, UserConfig
 
-LIMITS = {"daily_limit": (1, 500), "send_delay_seconds": (0, 120)}
+LIMITS = {"daily_limit": (1, 500), "send_delay_seconds": (0, 120), "resend_after_days": (30, 730)}
 
 
 def _list(raw: str) -> list[str]:
@@ -62,9 +62,10 @@ def apply_form(cfg: UserConfig, form: dict[str, str]) -> UserConfig:
     except ValueError:
         raise ValueError("date of birth (use YYYY-MM-DD)") from None
     nums = {}
+    current = {"resend_after_days": str(cfg.email.resend_after_days)}  # older forms lack it
     for key, (lo, hi) in LIMITS.items():
         try:
-            nums[key] = int(form.get(key, ""))
+            nums[key] = int(form.get(key) or current.get(key, ""))
         except ValueError:
             raise ValueError(key.replace("_", " ")) from None
         if not lo <= nums[key] <= hi:
@@ -97,6 +98,7 @@ def apply_form(cfg: UserConfig, form: dict[str, str]) -> UserConfig:
     data["email"].update(
         daily_limit=nums["daily_limit"],
         send_delay_seconds=nums["send_delay_seconds"],
+        resend_after_days=nums["resend_after_days"],
         gmail_label=form.get("gmail_label", "").strip() or None,
         reply_label=form.get("reply_label", "").strip() or None,
         alias_pattern=form.get("alias_pattern", "").strip() or None,

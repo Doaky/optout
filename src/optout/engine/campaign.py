@@ -23,6 +23,8 @@ from .dispatcher import run_submission
 from .methods import email as email_method
 
 ACTIVE = frozenset({"queued", "awaiting_user_input", "submitted", "awaiting_broker_confirmation"})
+# Finished in a way that a fresh email won't change by itself: they refused, or you closed it.
+HELD = frozenset({"rejected", "closed"})
 MAX_CONSECUTIVE_FAILURES = 3
 
 
@@ -56,14 +58,18 @@ def select_brokers(
     *,
     now: datetime,
     only: list[str] | None = None,
-    recontact_after_days: int = 90,
+    resend_after_days: int = 180,
     my_groups: list[str] | None = None,
+    force: bool = False,
 ) -> Selection:
+    """Brokers to email now. A broker comes round again resend_after_days after its last
+    request, once that one is finished. One that refused, or that you closed, is never
+    re-sent by itself: only when you ask for it by name with force=True."""
     from ..audiences import applies_to, load_coverage
 
     coverage = load_coverage()
     sel = Selection()
-    cutoff = now - timedelta(days=recontact_after_days)
+    cutoff = now - timedelta(days=resend_after_days)
     for b in brokers:
         if only and b.slug not in only:
             continue
@@ -79,9 +85,14 @@ def select_brokers(
         if any(s.status in ACTIVE for s in subs):
             sel.skipped.append((b.slug, "request already in progress"))
             continue
+        latest = max(subs, key=lambda s: s.created_at) if subs else None
+        explicit = force and only is not None and b.slug in only
+        if latest is not None and latest.status in HELD and not explicit:
+            sel.skipped.append((b.slug, f"{latest.status}: send again by hand if you want to"))
+            continue
         recent = [s for s in subs if s.submitted_at and _aware(s.submitted_at) >= cutoff]
-        if recent:
-            sel.skipped.append((b.slug, f"contacted within {recontact_after_days} days"))
+        if recent and not explicit:
+            sel.skipped.append((b.slug, f"contacted within {resend_after_days} days"))
             continue
         sel.eligible.append(b)
     return sel
@@ -305,3 +316,14 @@ def mark_auto_run(day: date) -> None:
     path = _schedule_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"last_auto_run": day.isoformat()}))
+
+
+def next_resend(subs: list[Submission], resend_after_days: int) -> datetime | None:
+    """When this broker comes round for another email, or None (in progress, held, never sent)."""
+    if not subs or any(s.status in ACTIVE for s in subs):
+        return None
+    latest = max(subs, key=lambda s: s.created_at)
+    if latest.status in HELD:
+        return None
+    sent = [_aware(s.submitted_at) for s in subs if s.submitted_at]
+    return max(sent) + timedelta(days=resend_after_days) if sent else None

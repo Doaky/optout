@@ -128,14 +128,15 @@ class App:
             time.sleep(every)
 
     # -- campaign job ----------------------------------------------------
-    def start_campaign(self, count: int, only: str | None = None) -> str:
+    def start_campaign(self, count: int, only: str | None = None, force: bool = False) -> str:
         """Send up to *count* emails in the background; *only* limits it to one broker
-        (used to resend a failed one)."""
+        (used to resend a failed one). *force* sends to that broker even if it refused, was
+        closed, or was emailed recently: only ever from an explicit "Send again"."""
         with self.job_lock:
             if self.job.get("state") == "running":
                 return "busy"
             self.job = {"state": "running", "sent": [], "failed": [], "total": count}
-        threading.Thread(target=self._run_campaign, args=(count, only), daemon=True).start()
+        threading.Thread(target=self._run_campaign, args=(count, only, force), daemon=True).start()
         return "started"
 
     def start_resend(self, slug: str, address: str) -> str:
@@ -166,7 +167,7 @@ class App:
         finally:
             job["state"] = "done"
 
-    def _run_campaign(self, count: int, only: str | None = None) -> None:
+    def _run_campaign(self, count: int, only: str | None = None, force: bool = False) -> None:
         job = self.job
         try:
             config = load_config()
@@ -179,6 +180,8 @@ class App:
                     now=now,
                     only=[only] if only else None,
                     my_groups=config.my_groups,
+                    resend_after_days=config.email.resend_after_days,
+                    force=force and only is not None,
                 )
                 batch = sel.eligible[:count]
                 job["total"] = len(batch)
@@ -392,7 +395,11 @@ def _make_handler(app: App):
                     ui.settings_open = bool(query.get("settings")) or code_opens_settings(query)
                     if config is not None:
                         sel = select_brokers(
-                            all_brokers(), session, now=now, my_groups=config.my_groups
+                            all_brokers(),
+                            session,
+                            now=now,
+                            my_groups=config.my_groups,
+                            resend_after_days=config.email.resend_after_days,
                         )
                         ui.used = sent_today(session, now, user_tz(config))
                         ui.limit = config.email.daily_limit
@@ -420,7 +427,11 @@ def _make_handler(app: App):
                     )
                 with get_session() as session:
                     sel = select_brokers(
-                        all_brokers(), session, now=now, my_groups=config.my_groups
+                        all_brokers(),
+                        session,
+                        now=now,
+                        my_groups=config.my_groups,
+                        resend_after_days=config.email.resend_after_days,
                     )
                     used = sent_today(session, now, user_tz(config))
                 eligible = [(b.slug, b.name) for b in sel.eligible]
@@ -448,7 +459,11 @@ def _make_handler(app: App):
                     want = 40
                 with get_session() as session:
                     sel = select_brokers(
-                        all_brokers(), session, now=now, my_groups=config.my_groups
+                        all_brokers(),
+                        session,
+                        now=now,
+                        my_groups=config.my_groups,
+                        resend_after_days=config.email.resend_after_days,
                     )
                     used = sent_today(session, now, user_tz(config))
                 room = max(0, config.email.daily_limit - used)
@@ -543,6 +558,12 @@ def _make_handler(app: App):
                 with get_session() as session:
                     actions.record_reply(session, slug, arg, None)
                 return self._redirect("/?m=reply")
+            if kind == "send-again":
+                # By hand only: email a broker that refused, was closed, or was emailed recently.
+                broker = next((b for b in all_brokers() if b.slug == slug), None)
+                if broker is None or broker.method != "email" or not broker.opt_out_email:
+                    raise ValueError("this broker isn't contacted by email")
+                return self._redirect(f"/?m={app.start_campaign(1, only=slug, force=True)}#send")
             if kind == "form-submitted":
                 from ..forms import mark_outcome
 
@@ -954,6 +975,7 @@ def _settings_values(config) -> dict[str, str]:
         "relatives": ", ".join(p.relatives),
         "previous": previous_text(config),
         "daily_limit": str(em.daily_limit),
+        "resend_after_days": str(em.resend_after_days),
         "send_delay_seconds": str(em.send_delay_seconds),
         "gmail_label": em.gmail_label or "",
         "reply_label": em.reply_label or "",

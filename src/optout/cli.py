@@ -348,7 +348,12 @@ def campaign(
 
     with get_session() as session:
         sel = select_brokers(
-            all_brokers(), session, now=now, only=only or None, my_groups=config.my_groups
+            all_brokers(),
+            session,
+            now=now,
+            only=only or None,
+            my_groups=config.my_groups,
+            resend_after_days=config.email.resend_after_days,
         )
         used = sent_today(session, now, user_tz(config))
         quota = max(0, config.email.daily_limit - used)
@@ -1611,7 +1616,13 @@ def daily() -> None:
     lines: list[str] = []
 
     with get_session() as session:
-        sel = select_brokers(all_brokers(), session, now=now, my_groups=config.my_groups)
+        sel = select_brokers(
+            all_brokers(),
+            session,
+            now=now,
+            my_groups=config.my_groups,
+            resend_after_days=config.email.resend_after_days,
+        )
         quota = max(0, config.email.daily_limit - sent_today(session, now, user_tz(config)))
         if config.email.allow_unattended:
             report = run_campaign(session, config, sel.eligible, limit=quota)

@@ -106,6 +106,10 @@ class EmailConfig(BaseModel):
     daily_limit: int = 40  # max campaign emails per day (your local day)
     daily_send_time: str = "10:00"  # when unattended sending runs, in your time zone (HH:MM)
     send_delay_seconds: int = 5  # pause between campaign emails
+    # Email a broker again this long after the last request, once that one has finished, to
+    # catch data they've bought back. Virginia and several other states let a company refuse
+    # more than two requests a year as "repetitive", so the default is twice a year.
+    resend_after_days: int = 180
 
     @model_validator(mode="after")
     def _label_is_plain(self) -> EmailConfig:

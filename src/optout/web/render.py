@@ -774,7 +774,10 @@ class UI:
 
 
 ROW_ACTIONS = [
-    ("Email", [("draft:auto", "Write a follow-up email")]),
+    (
+        "Email",
+        [("draft:auto", "Write a follow-up email"), ("send-again", "Send the request again now")],
+    ),
     (
         "Set status",
         [
@@ -1178,6 +1181,16 @@ def _settings_panel(ui: UI) -> str:
             "send, not just these. Raise this to send another batch now.",
         )
         + _field(
+            "Email each broker again after (days)",
+            "resend_after_days",
+            v.get("resend_after_days", "180"),
+            kind="number",
+            attrs="min='30' max='730' required",
+            hint="Brokers buy data back, so finished requests are sent again after this "
+            "long. 180 (twice a year) stays within what Virginia and similar laws allow "
+            "free of charge; shorter can be refused as repetitive.",
+        )
+        + _field(
             "Pause between emails (seconds)",
             "send_delay_seconds",
             v["send_delay_seconds"],
@@ -1386,6 +1399,7 @@ def _attention_item(a: Attention, csrf: str, contributor: bool = False) -> str:
         )
     elif a.kind == "refused":
         buttons.append(act("draft:appeal", "Appeal", cls=""))
+        buttons.append(act("send-again", "Send again"))
     elif a.kind == "overdue":
         buttons.append(act("draft:followup", "Follow up", cls=""))
     elif a.kind == "stalled":
@@ -1533,7 +1547,14 @@ def _short(iso: str) -> str:
 
 
 def _due(row: Row) -> str:
-    return f"due {e(_short(row.deadline))}" if row.days_left is not None else ""
+    if row.days_left is not None:
+        return f"due {e(_short(row.deadline))}"
+    if row.next_send and row.next_send != "—":
+        return (
+            f"<span title='Emailed again then, to catch data bought back'>"
+            f"again {e(_short(row.next_send))}</span>"
+        )
+    return ""
 
 
 def _days_cell(row: Row) -> str:
@@ -1583,6 +1604,15 @@ def _stats(d: Dashboard, ui: UI | None) -> str:
             "Something for you to do",
         )
     )
+    if d.resend_due_30d:
+        tiles.append(
+            (
+                d.resend_due_30d,
+                "Re-sends in 30 days",
+                "var(--neutral)",
+                f"Finished requests are sent again every {d.resend_after_days} days",
+            )
+        )
     if ui and ui.limit:
         tiles.append(
             (

@@ -511,6 +511,7 @@ def test_settings_edit_and_validate(ui):
         "previous": "9 Elm Rd, Norfolk, VA 23510",
         "daily_limit": "80",
         "send_delay_seconds": "3",
+        "resend_after_days": "365",
         "gmail_label": "OPTOUT",
         "reply_label": "OPTOUT Response",
         "from_address": "",
@@ -520,6 +521,7 @@ def test_settings_edit_and_validate(ui):
     assert r.getheader("Location") == "/?m=settings_ok#settings"
     cfg = load_config()
     assert cfg.email.daily_limit == 80 and cfg.email.reply_label == "OPTOUT Response"
+    assert cfg.email.resend_after_days == 365
     assert cfg.profile.current_address.state == "VA"
     assert cfg.profile.current_address.street2 == "Apt 2"
     assert cfg.profile.previous_addresses[0].city == "Norfolk"
@@ -527,6 +529,7 @@ def test_settings_edit_and_validate(ui):
 
     for bad in (
         {"daily_limit": "5000"},
+        {"resend_after_days": "7"},
         {"dob": "not-a-date"},
         {"previous": "nonsense"},
         {"gmail_label": 'BAD"LABEL'},
@@ -750,7 +753,7 @@ def test_row_menu_is_small_and_picks_the_right_email(ui):
     _, body = ui.req("GET", "/")
     menu = body[body.index("class='inline rowform auto'") :]
     menu = menu[: menu.index("</select>")]
-    assert len(_re.findall(r"<option value=", menu)) <= 8  # was 19
+    assert len(_re.findall(r"<option value=", menu)) <= 9  # was 19
     assert "Never contact this broker" in menu and "Set status" in menu
 
     for status, expected in (("awaiting_broker_confirmation", "followup"), ("rejected", "appeal")):
