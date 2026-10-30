@@ -77,3 +77,58 @@ def test_a_clean_recipe_is_saved_shared_and_loaded(cfg):
 def test_shared_recipes_file_is_valid_and_clean():
     for slug, r in forms.shared_recipes().items():
         assert slug == r.broker and "@" not in r.url and "?" not in r.url
+
+
+def test_prompt_carries_the_tasks_and_apply_records_outcomes(cfg, tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    from optout.db import create_submission, get_session, init_db, list_submissions, update_status
+
+    prompt = forms.build_prompt(
+        cfg,
+        [
+            {
+                "broker": "acme",
+                "name": "Acme",
+                "link": "https://acme.example/f",
+                "they_said": "Use the form.",
+                "email": "Hi\nUse the form.",
+                "recipe": False,
+            }
+        ],
+    )
+    assert (
+        "F1. broker: acme" in prompt
+        and "Jane Q Public" in prompt
+        and "https://acme.example/f" in prompt
+    )
+
+    init_db()
+    with get_session() as s:
+        sub = create_submission(
+            s,
+            broker_slug="acme",
+            method_used="email",
+            legal_basis_cited=[],
+            statutory_response_days=45,
+        )
+        update_status(s, sub, "awaiting_user_input")
+        lines = forms.apply_results(
+            s,
+            cfg,
+            [
+                {
+                    "broker": "acme",
+                    "outcome": "removed",
+                    "note": "ok",
+                    "recipe": {
+                        "broker": "acme",
+                        "url": "https://acme.example/f?t=1",
+                        "steps": [{"action": "fill", "field": "email", "label": "Email"}],
+                    },
+                },
+                {"broker": "other", "outcome": "skipped", "note": "needs ID"},
+            ],
+        )
+        assert lines[0] == "acme: removed, recipe saved" and "left alone" in lines[1]
+        assert list_submissions(s, broker_slug="acme")[0].status == "confirmed"
+    assert forms.load_recipes()["acme"].url == "https://acme.example/f"

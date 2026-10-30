@@ -1298,6 +1298,55 @@ def forms_save(
     console.print(f"Saved a recipe for [bold]{saved.broker}[/bold] ({len(saved.steps)} steps).")
 
 
+@forms_app.command("prompt")
+def forms_prompt(
+    limit: int = typer.Option(10, "--limit", "-n", help="How many forms per prompt."),
+    slugs: list[str] = typer.Argument(None, help="Only these brokers."),
+) -> None:
+    """Print one prompt to give a browser agent (Claude in Chrome, etc.) for the next forms."""
+    from . import forms
+    from .db import get_session, init_db
+
+    config = _forms_config()
+    init_db()
+    with get_session() as session:
+        items = [i for i in forms.todo(session, config) if not slugs or i["broker"] in slugs]
+    if not items:
+        console.print("Nothing is waiting on a form.", style="dim")
+        raise typer.Exit(code=0)
+    print(forms.build_prompt(config, items[:limit]))
+
+
+@forms_app.command("apply")
+def forms_apply(
+    file: str = typer.Argument("-", help="The agent's JSON answer, or - for stdin."),
+) -> None:
+    """Apply a browser agent's answer: record each outcome and save the recipes."""
+    import json
+    import re
+    import sys
+
+    from . import forms
+    from .db import get_session, init_db
+
+    config = _forms_config()
+    raw = sys.stdin.read() if file == "-" else open(file).read()
+    fenced = re.search(r"```(?:json)?\s*(.*?)```", raw, re.S)
+    try:
+        results = json.loads(fenced.group(1) if fenced else raw)
+        if not isinstance(results, list):
+            raise ValueError("expected a JSON array")
+    except ValueError as exc:
+        console.print(f"[red]Couldn't read that:[/red] {exc}")
+        raise typer.Exit(code=1)
+    init_db()
+    with get_session() as session:
+        for line in forms.apply_results(
+            session, config, [r for r in results if isinstance(r, dict)]
+        ):
+            console.print(line)
+
+
 @forms_app.command("show")
 def forms_show(slug: str) -> None:
     """Print the recipe for one broker."""
