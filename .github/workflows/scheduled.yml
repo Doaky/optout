@@ -1,0 +1,64 @@
+# Runs optout on a schedule from your own repository: sends the next batch of requests,
+# reads broker replies, writes follow-up drafts, and refreshes California's broker list.
+#
+# Off unless you turn it on. Setup (README: "Run it on a schedule with GitHub Actions"):
+#   - Use a PRIVATE copy of this repo. Your request history is encrypted, but it still
+#     shouldn't sit in a public repo. (Override at your own risk: OPTOUT_ALLOW_PUBLIC_REPO=yes.)
+#   - Secrets: OPTOUT_CONFIG_B64 (base64 of your config.yml, with
+#     email.allow_unattended: true), OPTOUT_SMTP_PASSWORD (Gmail app password),
+#     OPTOUT_STATE_KEY (a long passphrase; the same one you use locally).
+#   - Seed it once from your computer: OPTOUT_STATE_KEY=... optout state push
+#   - Variable OPTOUT_SCHEDULE=on to enable.
+name: Scheduled opt-out run
+
+on:
+  schedule:
+    - cron: "0 15 1 * *" # 1st of every month, 15:00 UTC. Weekly: "0 15 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: optout-scheduled
+  cancel-in-progress: false
+
+jobs:
+  run:
+    if: >-
+      vars.OPTOUT_SCHEDULE == 'on' &&
+      (github.event.repository.private || vars.OPTOUT_ALLOW_PUBLIC_REPO == 'yes')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      OPTOUT_STATE_KEY: ${{ secrets.OPTOUT_STATE_KEY }}
+      OPTOUT_SMTP_PASSWORD: ${{ secrets.OPTOUT_SMTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync
+
+      - name: Write config
+        env:
+          OPTOUT_CONFIG_B64: ${{ secrets.OPTOUT_CONFIG_B64 }}
+        run: |
+          mkdir -p ~/.config/optout
+          umask 077
+          printf '%s' "$OPTOUT_CONFIG_B64" | base64 -d > ~/.config/optout/config.yml
+          git config user.name "optout-bot"
+          git config user.email "optout-bot@users.noreply.github.com"
+
+      - name: Restore state
+        id: pull
+        run: uv run optout state pull
+
+      - name: Refresh the broker list
+        run: uv run optout brokers import
+        continue-on-error: true
+
+      - name: Send, read replies, draft follow-ups
+        run: uv run optout daily
+
+      - name: Save state
+        if: always() && steps.pull.outcome == 'success'
+        run: uv run optout state push

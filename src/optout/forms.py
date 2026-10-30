@@ -429,12 +429,9 @@ _EMAIL_NEXT = re.compile(
 
 
 def _needs(recipe: object) -> list[str]:
-    try:
-        return Recipe.model_validate(
-            {"broker": "x", "url": "https://x.io", "steps": [{"action": "click"}], **(recipe or {})}
-        ).needs_human  # type: ignore[arg-type]
-    except (ValidationError, TypeError):
-        return []
+    """What a reported recipe says needed a person, in our own terms."""
+    raw = recipe.get("needs_human") if isinstance(recipe, dict) else None
+    return list(Recipe._tidy_needs(raw))
 
 
 def apply_results(session: Session, config: UserConfig, results: list[dict]) -> list[str]:
@@ -558,7 +555,13 @@ def attach_followup(
     if recipe is None or recipe.then is not None:
         return False
     try:
-        then = Followup(sender=sender, phrase=phrase, action="confirm_link", link_hosts=[link_host])
+        then = Followup(
+            sender=sender,
+            phrase=phrase,
+            action="confirm_link",
+            link_hosts=[link_host],
+            wait_hours=24,
+        )
     except ValidationError:
         return False
     save_local(recipe.model_copy(update={"then": then}), config)
@@ -588,7 +591,7 @@ def link_followups(session: Session, slack_hours: int = 6) -> int:
         ).all()
         fresh = [r for r in rows if r.received_at is not None and r.received_at >= since]
         if fresh:
-            r = max(fresh, key=lambda x: x.received_at)
+            r = max(fresh, key=lambda x: x.received_at or since)
             note_followup(session, sub, r.from_addr, r.kind, r.message_id)
             linked += 1
     return linked

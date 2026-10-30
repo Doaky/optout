@@ -125,6 +125,32 @@ address, so spam to `optout-acme@…` tells you exactly who sold your data.
 
 ---
 
+## Run it on a schedule with GitHub Actions
+
+`.github/workflows/scheduled.yml` runs `optout daily` once a month (send the next batch,
+read replies, draft follow-ups) and refreshes California's broker list. It's off until you
+turn it on, and it only runs in a **private** repository.
+
+1. Make a private copy of this repo (GitHub: *Import repository*, or push a clone to a new
+   private repo).
+2. Pick a long passphrase and save your history to it, so nobody gets emailed twice:
+   ```
+   export OPTOUT_STATE_KEY='a long passphrase you keep somewhere safe'
+   optout state push        # encrypts your history onto the optout-state branch
+   ```
+3. Add repository **secrets**: `OPTOUT_STATE_KEY` (the same passphrase),
+   `OPTOUT_SMTP_PASSWORD` (your Gmail app password), and `OPTOUT_CONFIG_B64`
+   (`base64 -w0 ~/.config/optout/config.yml`, with `email.allow_unattended: true` set).
+4. Add the repository **variable** `OPTOUT_SCHEDULE` = `on`. Run it once from the Actions tab
+   to check.
+
+The workflow restores your history, runs, and saves it back. Before using the dashboard on
+your computer, `optout state pull` to see what it did, and `optout state push` afterwards, so
+both sides stay in step. The history is encrypted (AES-256, never your profile or password),
+and the branch keeps only the latest copy. Change the `cron:` line for weekly runs.
+
+---
+
 ## What to expect (honestly)
 
 - **Sent isn't deleted.** Many brokers reply with an automated message, ask for more
@@ -171,4 +197,5 @@ email-only lane (untested).
 
 AGPL-3.0. Derived from [Blake104/OptOut](https://github.com/Blake104/OptOut); ideas from
 [auto-identity-remove](https://github.com/stephenlthorn/auto-identity-remove) and
-[Privotron](https://github.com/kevinl95/Privotron) (both MIT). See `NOTICE`.
+[Privotron](https://github.com/kevinl95/Privotron) (both MIT). Extra brokers and form
+links from [Eraser](https://github.com/digisamroc/eraser) (MIT). See `NOTICE`.

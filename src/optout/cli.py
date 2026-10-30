@@ -1421,6 +1421,80 @@ def forms_share() -> None:
     console.print("[dim]Add to src/optout/data/form_recipes.yml, or open an issue.[/dim]")
 
 
+state_app = typer.Typer(
+    help="Encrypted copy of your history, to sync with a scheduled GitHub Actions run."
+)
+app.add_typer(state_app, name="state")
+
+
+def _state_call(fn, *args):
+    try:
+        return fn(*args)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+
+
+@state_app.command("push")
+def state_push(
+    remote: str = typer.Option("origin", help="Git remote of your own (private) repo."),
+) -> None:
+    """Encrypt your state (needs OPTOUT_STATE_KEY) and put it on the optout-state branch."""
+    from pathlib import Path
+
+    from . import state
+
+    size = _state_call(state.push_state, Path.cwd(), remote)
+    console.print(f"Pushed the encrypted state ({size // 1024} KB) to {remote}/{state.BRANCH}.")
+
+
+@state_app.command("pull")
+def state_pull(
+    remote: str = typer.Option("origin", help="Git remote of your own (private) repo."),
+    allow_empty: bool = typer.Option(
+        False, "--allow-empty", help="No saved state yet is fine (start fresh)."
+    ),
+) -> None:
+    """Replace your local state with the one on the optout-state branch."""
+    from pathlib import Path
+
+    from . import state
+
+    restored = _state_call(state.pull_state, Path.cwd(), remote)
+    if restored is None:
+        if allow_empty:
+            console.print("No saved state yet; starting fresh.")
+            return
+        console.print(
+            f"[red]No {state.BRANCH} branch on {remote}.[/red] Run `optout state push` from "
+            "the computer you've been using first, so nobody is emailed twice."
+        )
+        raise typer.Exit(code=1)
+    console.print(f"Restored: {', '.join(restored)}")
+
+
+@state_app.command("export")
+def state_export(path: str) -> None:
+    """Write the encrypted state to a file (needs OPTOUT_STATE_KEY)."""
+    from pathlib import Path
+
+    from . import state
+
+    size = _state_call(state.export_state, Path(path).expanduser())
+    console.print(f"Wrote {path} ({size // 1024} KB, encrypted).")
+
+
+@state_app.command("import")
+def state_import(path: str) -> None:
+    """Replace your local state with an encrypted state file."""
+    from pathlib import Path
+
+    from . import state
+
+    restored = _state_call(state.import_state, Path(path).expanduser())
+    console.print(f"Restored: {', '.join(restored)}")
+
+
 @app.command()
 def report(
     out: str = typer.Option(None, "--out", "-o", help="Where to write the HTML file."),
