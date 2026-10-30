@@ -252,3 +252,118 @@ def test_a_followup_read_before_the_form_was_recorded_is_still_linked(cfg, tmp_p
         forms.mark_outcome(s, "acme", "submitted", "ok", expects_email=True)
         assert forms.link_followups(s) == 1
         assert forms.pending_followup(s, sub, datetime.now(UTC)) is None
+
+
+def _sub(s, slug, status, days_ago):
+    from datetime import UTC, datetime, timedelta
+
+    from optout.db import create_submission, mark_submitted, update_status
+
+    sub = create_submission(
+        s,
+        broker_slug=slug,
+        method_used="web_form",
+        legal_basis_cited=[],
+        statutory_response_days=45,
+    )
+    mark_submitted(s, sub, {}, None, 45, submitted_at=datetime.now(UTC) - timedelta(days=days_ago))
+    update_status(s, sub, status)
+    return sub
+
+
+@pytest.fixture()
+def people(cfg, tmp_path, monkeypatch):
+    """A registry with one people-search site that has a search page."""
+    import yaml
+
+    from optout.brokers import registry as reg
+    from optout.db import init_db
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    d = tmp_path / "brokers"
+    d.mkdir()
+    (d / "findme.yml").write_text(
+        yaml.safe_dump(
+            {
+                "slug": "findme",
+                "name": "FindMe",
+                "domain": "findme.example",
+                "category": "people_search",
+                "method": "manual",
+                "opt_out_url": "https://findme.example/optout",
+                "search_url": "https://findme.example/",
+                "priority": 1,
+                "legal_basis": ["CCPA"],
+                "statutory_response_days": 45,
+            }
+        )
+    )
+    monkeypatch.setenv("OPTOUT_BROKERS_DIR", str(d))
+    reg._registry.clear()
+    reg._loaded = False
+    init_db()
+    yield cfg
+    reg._registry.clear()
+    reg._loaded = False
+
+
+def test_a_never_contacted_people_search_site_is_queued_and_its_form_starts_a_request(people):
+    from optout.db import get_session, list_submissions
+
+    with get_session() as s:
+        (item,) = forms.todo(s, people)
+        assert (item["broker"], item["priority"], item["link"]) == (
+            "findme",
+            1,
+            "https://findme.example/optout",
+        )
+        forms.mark_outcome(s, "findme", "submitted", "Page said: received")
+        (sub,) = list_submissions(s, broker_slug="findme")
+        assert sub.status == "awaiting_broker_confirmation" and sub.submitted_at is not None
+        assert forms.todo(s, people) == []  # under way: not queued again
+
+
+def test_recheck_confirms_removal_and_catches_relisting(people):
+    from optout.db import get_session
+
+    with get_session() as s:
+        sub = _sub(s, "findme", "awaiting_broker_confirmation", days_ago=10)
+        (due,) = forms.recheck_items(s)
+        assert due["search_url"] == "https://findme.example/"
+        prompt = forms.build_recheck_prompt(people, [due])
+        assert "R1. broker: findme" in prompt and "Richmond" in prompt
+        assert (
+            forms.apply_recheck(s, {"broker": "findme", "listed": False, "note": "no match"})
+            == "findme: not listed; removed"
+        )
+        s.refresh(sub)
+        assert sub.status == "removed"
+        assert forms.recheck_items(s) == []  # just checked
+        line = forms.apply_recheck(s, {"broker": "findme", "listed": True, "note": "back"})
+        s.refresh(sub)
+        assert "LISTED AGAIN" in line and sub.status == "awaiting_user_input"
+
+
+def test_recheck_that_cannot_tell_changes_nothing(people):
+    from optout.db import get_session
+
+    with get_session() as s:
+        sub = _sub(s, "findme", "confirmed", days_ago=10)
+        assert "couldn't tell" in forms.apply_recheck(
+            s, {"broker": "findme", "listed": None, "note": "blocked"}
+        )
+        s.refresh(sub)
+        assert sub.status == "confirmed"
+
+
+def test_people_search_list_is_valid():
+    from importlib.resources import files
+
+    import yaml
+
+    items = yaml.safe_load(files("optout").joinpath("data/people_search.yml").read_text())
+    known = {"listing_url", "email_verify", "phone_verify", "id_upload", "account", "payment"}
+    assert len(items) > 30
+    for it in items:
+        assert it["priority"] in (1, 2, 3) and it["opt_out_url"].startswith("https://")
+        assert set(it.get("needs") or []) <= known, it["name"]

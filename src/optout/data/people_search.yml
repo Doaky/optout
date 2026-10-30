@@ -1,0 +1,64 @@
+# People-search sites: the ones that show your address and relatives to anyone who looks.
+#
+# They mostly ignore email and use their own opt-out form, often after you find your own
+# listing and give them its URL. Each entry is applied on top of the broker list: an existing
+# broker with the same domain is updated (and stops being emailed: method becomes "manual",
+# i.e. the form queue), otherwise a new one is added. Re-checks open `search_url`.
+#
+#   priority: 1 = do these first, 2 = next, 3 = the rest
+#   needs:    listing_url (find your listing, give them its address), email_verify,
+#             phone_verify, id_upload, account (they want you to sign up; we skip those),
+#             payment (search or removal costs money)
+#   covers:   other sites the same opt-out also clears
+#
+# Which sites matter and what each requires were checked against BADBOOL (the Big Ass Data
+# Broker Opt-Out List, github.com/yaelwrites/Big-Ass-Data-Broker-Opt-Out-List, updated
+# 2026-09-27). Facts only, in our own words; see NOTICE. Pages change: if a link is dead, fix it
+# here (and run the form once with `optout forms prompt` to record a fresh recipe).
+
+- {name: BeenVerified, domain: beenverified.com, priority: 1, opt_out_url: "https://www.beenverified.com/app/optout/search", search_url: "https://www.beenverified.com/app/optout/search", needs: [email_verify], covers: [PeopleLooker, PeopleSmart], notes: "One opt-out per email address; a separate property-records opt-out exists at /app/optout/address-search."}
+- {name: CheckPeople, domain: checkpeople.com, priority: 1, opt_out_url: "https://checkpeople.com/opt-out", search_url: "https://checkpeople.com/privacy-rights", needs: [], notes: "Asks for full legal name and date of birth. Their privacy-rights page shows whether they hold anything."}
+- {name: Clustal, domain: clustal.org, priority: 1, opt_out_url: "https://www.clustal.org/privacy-control", search_url: "https://www.clustal.org/", needs: [listing_url], notes: "Use the URL of the full record page, not the search result."}
+- {name: Intelius, domain: intelius.com, priority: 1, opt_out_url: "https://suppression.peopleconnect.us/login", search_url: "https://www.intelius.com/", email: support@mailer.intelius.com, needs: [email_verify], covers: [PeopleConnect sites], notes: "Can also be done by email or phone (1-888-245-1655). May ask you to confirm details it already holds."}
+- {name: Men Stopping Violence people directory, domain: menstoppingviolence.org, priority: 1, opt_out_url: "https://www.menstoppingviolence.org/opt-out/", search_url: "https://www.menstoppingviolence.org/people/", needs: [listing_url, email_verify]}
+- {name: MyLife, domain: mylife.com, priority: 1, opt_out_url: "https://www.mylife.com/privacyrequest", search_url: "https://www.mylife.com/", email: privacy@mylife.com, needs: [listing_url], notes: "Pushes you toward an account and an ID upload; decline both. Email with your name and profile link also works."}
+- {name: Nuwber, domain: nuwber.com, priority: 1, opt_out_url: "https://nuwber.com/removal/link", search_url: "https://nuwber.com/", needs: [listing_url, email_verify], notes: "Filter results by state to get the person page URL. Ignore the paid report."}
+- {name: SmartBackgroundChecks, domain: smartbackgroundchecks.com, priority: 1, opt_out_url: "https://www.smartbackgroundchecks.com/optout", search_url: "https://www.smartbackgroundchecks.com/", needs: [], covers: [PeopleFinders]}
+- {name: Spokeo, domain: spokeo.com, priority: 1, opt_out_url: "https://www.spokeo.com/optout", search_url: "https://www.spokeo.com/search", needs: [listing_url, email_verify, payment], notes: "The opt-out form is lower on the page. Searching in depth is paid; the opt-out is free."}
+- {name: That's Them, domain: thatsthem.com, priority: 1, opt_out_url: "https://thatsthem.com/optout", search_url: "https://thatsthem.com/", needs: [], notes: "Skip the identity-protection upsell."}
+- {name: Whitepages, domain: whitepages.com, priority: 1, opt_out_url: "https://www.whitepages.com/suppression_requests", search_url: "https://www.whitepages.com/", needs: [listing_url, phone_verify, payment], notes: "Verifies by an automated phone call with a code; that step needs you."}
+
+- {name: Acxiom, domain: acxiom.com, priority: 2, category: data_broker, opt_out_url: "https://www.acxiom.com/optout/", needs: [], notes: "Marketing data, hard to see your own record; the US opt-out form is enough."}
+- {name: Ancestry, domain: ancestry.com, priority: 2, opt_out_url: "https://www.ancestry.com/", needs: [account], notes: "Needs a free account to find the records; removal is by emailing them the record links."}
+- {name: FamilyTreeNow, domain: familytreenow.com, priority: 2, opt_out_url: "https://www.familytreenow.com/optout", search_url: "https://www.familytreenow.com/", needs: [email_verify]}
+- {name: FastPeopleSearch, domain: fastpeoplesearch.com, priority: 2, opt_out_url: "https://www.fastpeoplesearch.com/optout", search_url: "https://www.fastpeoplesearch.com/", needs: [], notes: "Expect a CAPTCHA."}
+- {name: USPhoneBook, domain: usphonebook.com, priority: 2, opt_out_url: "https://www.usphonebook.com/opt-out/", search_url: "https://www.usphonebook.com/", email: support+optout@usphonebook.com, needs: [], notes: "If the opt-out page hangs, email them."}
+
+- {name: Archives.com, domain: archives.com, priority: 3, opt_out_url: "https://www.archives.com/Optout", needs: [account], notes: "Searching needs a trial account."}
+- {name: Cyber Background Checks, domain: cyberbackgroundchecks.com, priority: 3, opt_out_url: "https://www.cyberbackgroundchecks.com/removal", search_url: "https://www.cyberbackgroundchecks.com/", needs: []}
+- {name: EveryJoe, domain: everyjoe.com, priority: 3, opt_out_url: "https://www.everyjoe.com/do-not-sell/", search_url: "https://www.everyjoe.com/", needs: [listing_url]}
+- {name: FaceCheck.ID, domain: facecheck.id, priority: 3, opt_out_url: "https://facecheck.id/Face-Search/RemoveMyPhotos", needs: [id_upload], notes: "Face search; removal wants a photo and an ID."}
+- {name: FamilySearch, domain: familysearch.org, priority: 3, opt_out_url: "https://www.familysearch.org/", needs: [account, email_verify], notes: "Needs a free account to find records; removal is a TrustArc form with the record links."}
+- {name: FreePeopleDirectory, domain: freepeopledirectory.com, priority: 3, opt_out_url: "https://www.spokeo.com/optout", search_url: "https://www.freepeopledirectory.com/", needs: [listing_url, email_verify], notes: "Removed through Spokeo's opt-out."}
+- {name: InfoTracer, domain: infotracer.com, priority: 3, opt_out_url: "https://infotracer.com/optout/", search_url: "https://www.infotracer.com/", needs: []}
+- {name: National Public Data, domain: nationalpublicdata.com, priority: 3, opt_out_url: "https://nationalpublicdata.com/optout.html", search_url: "https://nationalpublicdata.com/search", needs: [listing_url, email_verify]}
+- {name: PeopleByName, domain: peoplebyname.com, priority: 3, opt_out_url: "https://www.peoplebyname.com/remove.php", search_url: "https://www.peoplebyname.com/people", needs: [listing_url], notes: "One removal per record."}
+- {name: PeopleSearchNow, domain: peoplesearchnow.com, priority: 3, opt_out_url: "https://www.peoplesearchnow.com/opt-out", search_url: "https://www.peoplesearchnow.com/", needs: []}
+- {name: PimEyes, domain: pimeyes.com, priority: 3, opt_out_url: "https://pimeyes.com/", needs: [id_upload], notes: "Face search; opting out wants an ID image."}
+- {name: PrivateEye, domain: privateeye.com, priority: 3, opt_out_url: "https://www.privateeye.com/removal", search_url: "https://www.privateeye.com/", needs: [email_verify], notes: "Emails you a link to the actual removal form."}
+- {name: PrivateRecords, domain: privaterecords.net, priority: 3, opt_out_url: "https://www.privaterecords.net/api/helper/optOutLight/search", search_url: "https://www.privaterecords.net/name/landing", needs: []}
+- {name: PropertyRecs, domain: propertyrecs.com, priority: 3, opt_out_url: "https://dashboard.propertyrecs.com/opt-out", search_url: "https://dashboard.propertyrecs.com/opt-out", needs: []}
+- {name: Searchbug, domain: searchbug.com, priority: 3, opt_out_url: "https://www.searchbug.com/contact-us.aspx", needs: [payment], notes: "Searching needs a card; ask them through the contact form to block your listing."}
+- {name: SearchPeopleFree, domain: searchpeoplefree.com, priority: 3, opt_out_url: "https://www.searchpeoplefree.com/opt-out", search_url: "https://www.searchpeoplefree.com/", needs: [], notes: "Search by name, phone, address and email: each can be a separate listing."}
+- {name: SearchQuarry, domain: searchquarry.com, priority: 3, opt_out_url: "https://members.searchquarry.com/removeMyData/", search_url: "https://www.searchquarry.com/", needs: [email_verify]}
+- {name: Social Catfish, domain: socialcatfish.com, priority: 3, opt_out_url: "https://socialcatfish.com/opt-out/", search_url: "https://socialcatfish.com/", needs: [listing_url, email_verify], notes: "Only ask to remove details you've actually seen listed."}
+- {name: SpyFly, domain: spyfly.com, priority: 3, opt_out_url: "https://www.spyfly.com/help-center/privacy-requests", search_url: "https://www.spyfly.com/", email: support@spyfly.com, needs: [payment], notes: "Wants name, age, address and email; check they list you first."}
+- {name: TruePeopleSearch, domain: truepeoplesearch.com, priority: 2, opt_out_url: "https://www.truepeoplesearch.com/removal", search_url: "https://www.truepeoplesearch.com/", needs: [], notes: "Several CAPTCHAs before you see whether you're listed."}
+- {name: TruePeopleSearch.net, domain: truepeoplesearch.net, priority: 3, opt_out_url: "https://docs.google.com/forms/d/e/1FAIpQLSeCPggzv4iXE20iUjcr6vdVWxBOblCyGwDLcO-jZA5j2YF5fQ/viewform", search_url: "https://truepeoplesearch.net/", needs: [listing_url], notes: "A different site from truepeoplesearch.com. Its removal form is a Google Form. Ignore its pop-ups and ads."}
+- {name: UN Public Administration Network directory, domain: unpan.org, priority: 3, opt_out_url: "https://unpan.org/opt-out", search_url: "https://unpan.org/", needs: [listing_url, email_verify], notes: "Search by first and last name only."}
+- {name: United States Phone Book, domain: unitedstatesphonebook.com, priority: 3, opt_out_url: "https://www.unitedstatesphonebook.com/contact.php", search_url: "https://www.unitedstatesphonebook.com/search.php", needs: [], notes: "Removal asks for the listed phone number and ZIP code."}
+- {name: UnMask, domain: unmask.com, priority: 3, opt_out_url: "https://unmask.com/opt-out/", search_url: "https://unmask.com/", needs: [email_verify]}
+- {name: USA People Search, domain: usa-people-search.com, priority: 3, opt_out_url: "https://www.usa-people-search.com/removal", search_url: "https://www.usa-people-search.com/", needs: []}
+- {name: Veripages, domain: veripages.com, priority: 3, opt_out_url: "https://veripages.com/inner/control-privacy", search_url: "https://veripages.com/", needs: [listing_url, email_verify]}
+- {name: VoterRecords, domain: voterrecords.com, priority: 3, opt_out_url: "https://voterrecords.com/", search_url: "https://voterrecords.com/", needs: [listing_url, email_verify], notes: "The opt-out link is at the bottom of your own record's page."}
+- {name: ZoomInfo, domain: zoominfo.com, priority: 3, category: data_broker, opt_out_url: "https://privacyrequest.zoominfo.com/remove/verify", needs: [email_verify], notes: "Work-contact data; emails you a code."}

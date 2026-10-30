@@ -191,6 +191,11 @@ class BrokerDef(BaseModel):
     requires_email_verification: bool = False
     requires_id_upload: bool = False
     requires_notarization: bool = False
+    requires_account: bool = False  # they want you to sign up first (we don't)
+    requires_payment: bool = False  # searching or removal costs money
+
+    priority: int = 3  # 1 = do first (people-search sites that show your address), 3 = normal
+    search_url: str | None = None  # where to look yourself up, to find a listing or re-check
 
     enabled: bool = True
     source: str | None = None  # set for bulk-imported brokers, e.g. "ca-registry-2025"

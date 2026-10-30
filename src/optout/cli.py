@@ -1302,6 +1302,9 @@ def forms_save(
 def forms_prompt(
     limit: int = typer.Option(10, "--limit", "-n", help="How many forms per prompt."),
     slugs: list[str] = typer.Argument(None, help="Only these brokers."),
+    recheck: bool = typer.Option(
+        False, "--recheck", help="Instead: check whether listings are gone (or came back)."
+    ),
 ) -> None:
     """Print one prompt to give a browser agent (Claude in Chrome, etc.) for the next forms."""
     from . import forms
@@ -1309,6 +1312,14 @@ def forms_prompt(
 
     config = _forms_config()
     init_db()
+    if recheck:
+        with get_session() as session:
+            due = [i for i in forms.recheck_items(session) if not slugs or i["broker"] in slugs]
+        if not due:
+            console.print("No re-checks are due.", style="dim")
+            raise typer.Exit(code=0)
+        print(forms.build_recheck_prompt(config, due[:limit]))
+        return
     with get_session() as session:
         items = [i for i in forms.todo(session, config) if not slugs or i["broker"] in slugs]
     if not items:

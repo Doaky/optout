@@ -9,6 +9,12 @@ Data from:
   src/optout/data/form_links.yml (opt-out form links). A few reply-wording patterns in
   src/optout/engine/inbox.py were adapted from its classifier.
 
+Facts (no text copied) from:
+- BADBOOL, the Big Ass Data Broker Opt-Out List by Yael Grauer
+  (github.com/yaelwrites/Big-Ass-Data-Broker-Opt-Out-List, CC BY-NC-SA), as updated
+  2026-09-27: which people-search sites matter most, their opt-out and search addresses, and
+  what each requires. src/optout/data/people_search.yml is written in our own words.
+
 Ideas (no code copied) from:
 - stephenlthorn/auto-identity-remove (MIT), audited at 99fb638d31ff
 - kevinl95/Privotron (MIT), audited at 1609be98b03f

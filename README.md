@@ -198,4 +198,6 @@ email-only lane (untested).
 AGPL-3.0. Derived from [Blake104/OptOut](https://github.com/Blake104/OptOut); ideas from
 [auto-identity-remove](https://github.com/stephenlthorn/auto-identity-remove) and
 [Privotron](https://github.com/kevinl95/Privotron) (both MIT). Extra brokers and form
-links from [Eraser](https://github.com/digisamroc/eraser) (MIT). See `NOTICE`.
+links from [Eraser](https://github.com/digisamroc/eraser) (MIT); people-search priorities
+checked against [BADBOOL](https://github.com/yaelwrites/Big-Ass-Data-Broker-Opt-Out-List).
+See `NOTICE`.

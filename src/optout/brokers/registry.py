@@ -12,6 +12,7 @@ leniently (a bad file is reported, not fatal) and win over the bundled set:
 from __future__ import annotations
 
 import os
+import re
 from importlib.resources import files
 from pathlib import Path
 
@@ -123,6 +124,90 @@ def _apply_form_links(merged: dict[str, BrokerDef]) -> dict[str, BrokerDef]:
     return merged
 
 
+_NEEDS = {
+    "listing_url": "requires_listing_url",
+    "email_verify": "requires_email_verification",
+    "phone_verify": "requires_phone_verification",
+    "id_upload": "requires_id_upload",
+    "account": "requires_account",
+    "payment": "requires_payment",
+}
+
+
+def _site(host: str) -> str:
+    parts = host.lower().removeprefix("www.").split(".")
+    return ".".join(parts[-2:])
+
+
+def _apply_people_search(merged: dict[str, BrokerDef]) -> dict[str, BrokerDef]:
+    """People-search sites (data/people_search.yml): update the broker with the same domain,
+    or add it. They're done through their own form, so they leave the email queue."""
+    by_site: dict[str, list[str]] = {}
+    for slug, b in merged.items():
+        hosts = {
+            _site(h) for h in (b.domain, (b.opt_out_email or "").rsplit("@", 1)[-1]) if "." in h
+        }
+        for host in hosts:
+            by_site.setdefault(host, []).append(slug)
+    for item in _shared_list("people_search.yml"):
+        if not isinstance(item, dict) or not item.get("domain") or not item.get("name"):
+            continue
+        domain = str(item["domain"]).lower()
+        needs = {str(n) for n in item.get("needs") or []}
+        category = str(item.get("category", "people_search"))
+        update: dict = {
+            "priority": int(item.get("priority", 3)),
+            "category": category,
+            **{flag: key in needs for key, flag in _NEEDS.items()},
+        }
+        form_only = category == "people_search"  # their own form, not email
+        for key in ("opt_out_url", "search_url"):
+            if str(item.get(key, "")).startswith("https://"):
+                update[key] = str(item[key])
+        if item.get("email") and category == "people_search":
+            update["opt_out_email"] = str(item["email"])
+        notes = str(item.get("notes", "")).strip()
+        covers = [str(c) for c in item.get("covers") or []]
+        slugs = by_site.get(_site(domain), [])
+        try:
+            for slug in slugs:  # every broker on that site: one company, one form
+                b = merged[slug]
+                note = " ".join(x for x in (notes, b.notes or "") if x)[:1000] or None
+                # An automated web form we already have stays; only email moves to the queue.
+                method = "manual" if form_only and b.method == "email" else b.method
+                merged[slug] = BrokerDef.model_validate(
+                    {
+                        **b.model_dump(),
+                        **update,
+                        "method": method,
+                        "notes": note,
+                        "covers": b.covers + covers,
+                    }
+                )
+            if not slugs:
+                new_slug = re.sub(r"[^a-z0-9]+", "-", domain.split(".")[0]).strip("-")
+                while new_slug in merged:
+                    new_slug += "-site"
+                merged[new_slug] = BrokerDef.model_validate(
+                    {
+                        "slug": new_slug,
+                        "name": str(item["name"]),
+                        "domain": domain,
+                        "method": "manual",
+                        "legal_basis": ["CCPA"],
+                        "statutory_response_days": 45,
+                        "source": "people-search-list",
+                        "notes": notes or None,
+                        "covers": covers,
+                        **update,
+                    }
+                )
+                by_site[_site(domain)] = [new_slug]
+        except (ValueError, TypeError):
+            continue
+    return merged
+
+
 def load_registry(brokers_dir: Path | None = None) -> None:
     global _registry, _loaded
     load_errors.clear()
@@ -141,6 +226,7 @@ def load_registry(brokers_dir: Path | None = None) -> None:
 
     merged = _add_extra_brokers(merged)
     merged = _apply_form_links(merged)
+    merged = _apply_people_search(merged)
 
     from .contacts import apply_contact_overrides
 
