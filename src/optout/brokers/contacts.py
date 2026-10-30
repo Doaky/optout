@@ -21,6 +21,8 @@ from .schema import BrokerDef
 
 _EMAIL_OK = re.compile(r"^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$")
 _SLUG_OK = re.compile(r"^[a-z0-9-]{1,80}$")
+# Reserved for examples and tests (RFC 2606/6761): never a broker's real mailbox.
+_RESERVED = re.compile(r"(\.|@)(example|test|invalid|localhost)$|[.@]example\.(com|net|org)$")
 
 
 def _parse(data: object) -> dict[str, dict[str, str]]:
@@ -82,10 +84,16 @@ def apply_contact_overrides(brokers: dict[str, BrokerDef]) -> dict[str, BrokerDe
 
 
 def learned_contacts() -> list[dict[str, str]]:
-    """The user's corrections that the shared list doesn't already have, for sharing."""
+    """The user's corrections that the shared list doesn't already have, for sharing.
+    Leaves out placeholder addresses and brokers that aren't in the list."""
+    from .registry import all_brokers
+
+    known = {b.slug for b in all_brokers()}
     shared = shared_contacts()
     return [
         {"broker": s, "email": v["email"], "note": v["note"]}
         for s, v in sorted(local_contacts().items())
         if shared.get(s, {}).get("email") != v["email"]
+        and s in known
+        and not _RESERVED.search(v["email"])
     ]

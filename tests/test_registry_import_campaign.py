@@ -563,6 +563,24 @@ def test_a_correction_is_applied_over_the_registry_and_survives_reimport(tmp_pat
     reg._loaded = False
 
 
+def test_placeholder_addresses_and_unknown_brokers_are_never_shared(tmp_path, monkeypatch):
+    import optout.brokers.registry as reg
+    from optout.brokers.contacts import learned_contacts, save_local
+
+    monkeypatch.delenv("OPTOUT_BROKERS_DIR", raising=False)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    from types import SimpleNamespace
+
+    slugs = ("6sense-insights", "baron-app", "adstra")
+    monkeypatch.setattr(reg, "all_brokers", lambda: [SimpleNamespace(slug=s) for s in slugs])
+    save_local("6sense-insights", "new@6sense.com", "theirs")
+    save_local("6sense-insights-typo", "new@6sense.com")  # no such broker
+    save_local("baron-app", "optout@cameo.example")  # a test address, not theirs
+    save_local("adstra", "privacy@mail.example.org")
+    assert [c["broker"] for c in learned_contacts()] == ["6sense-insights"]
+
+
 def test_resend_leaves_attention_returns_to_awaiting_reply_and_remembers_the_address(
     session, config, tmp_path, monkeypatch
 ):

@@ -125,6 +125,7 @@
 - {from: '@usphonebook.com', phrase: "if you waited longer than 24 hours to click the link below, you will need to start over and generate another link", outcome: need-info, broker: usphonebook}
 - {from: '@zetaglobal.com', phrase: "you will need to complete the email verification to validate that it is you—this is a security measure to prevent unauthorized access to data about you", outcome: need-info, broker: liveintent}
 
+- {from: '@quorum.us', phrase: it is time for me to move on, outcome: need-info, broker: knowwho}
 # --- shared platforms (never pin a broker) ---
 - {from: '@clearview-ai.zendesk.com', phrase: submit a request to exercise your consumer rights, outcome: need-info}
 - {from: '@discotechnology.zendesk.com', phrase: thank you for reaching out to disco with your request, outcome: auto-reply}
