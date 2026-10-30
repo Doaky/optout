@@ -207,3 +207,24 @@ def test_a_registry_row_keeps_a_hand_built_definitions_automation():
         and got.source == "ca-registry"
         and got.opt_out_email == "privacy@s.example"
     )
+
+
+def test_learned_traits_are_remembered_applied_and_offered_for_sharing():
+    from optout.brokers.schema import BrokerDef
+    from optout.brokers.traits import apply_traits, learned_traits, note
+
+    b = BrokerDef(
+        slug="acme",
+        name="Acme",
+        domain="acme.example",
+        category="data_broker",
+        method="email",
+        opt_out_email="p@acme.example",
+        legal_basis=["CCPA"],
+        statutory_response_days=45,
+    )
+    assert note("acme", "requires_email_verification") is True
+    assert note("acme", "requires_email_verification") is False  # already known
+    assert note("acme", "enabled") is False  # only "this needs a step" flags, never others
+    assert apply_traits({"acme": b})["acme"].requires_email_verification is True
+    assert learned_traits() == [{"broker": "acme", "traits": ["requires_email_verification"]}]

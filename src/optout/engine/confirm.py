@@ -371,6 +371,9 @@ def confirm_reply(
         },
     )
     if result == "confirmed":
+        from ..brokers.traits import note
+
+        note(sub.broker_slug, "requires_email_verification")  # learned: this step exists
         if sub.status == "awaiting_user_input":
             update_status(session, sub, "awaiting_broker_confirmation")
         row.state = "resolved"

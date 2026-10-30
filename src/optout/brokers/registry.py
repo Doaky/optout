@@ -276,8 +276,10 @@ def load_registry(brokers_dir: Path | None = None) -> None:
     merged = _apply_aliases(merged)
 
     from .contacts import apply_contact_overrides
+    from .traits import apply_traits
 
     merged = apply_contact_overrides(merged)
+    merged = apply_traits(merged)
 
     ov = load_overrides()
     for slug, broker in list(merged.items()):

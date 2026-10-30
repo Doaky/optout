@@ -1,0 +1,3 @@
+# What brokers' opt-out processes require, learned from what happened (e.g. a confirm link
+# that had to be clicked). Applied on top of the broker list. See src/optout/brokers/traits.py.
+[]

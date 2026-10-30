@@ -931,7 +931,10 @@ def _fill_replies(ui, session, config) -> None:
     from ..brokers.contacts import learned_contacts
 
     contacts = learned_contacts()
-    if learned or coverage or contacts:
+    from ..brokers.traits import learned_traits
+
+    traits = learned_traits()
+    if learned or coverage or contacts or traits:
         import yaml
 
         parts = []
@@ -950,8 +953,13 @@ def _fill_replies(ui, session, config) -> None:
                 "# add to data/contact_overrides.yml\n"
                 + yaml.safe_dump(contacts, sort_keys=False, allow_unicode=True)
             )
+        if traits:
+            parts.append(
+                "# add to data/broker_traits.yml\n"
+                + yaml.safe_dump(traits, sort_keys=False, allow_unicode=True)
+            )
         ui.learned_yaml = "\n".join(parts)
-        ui.learned_count = len(learned) + len(coverage) + len(contacts)
+        ui.learned_count = len(learned) + len(coverage) + len(contacts) + len(traits)
 
 
 def code_opens_settings(query: dict) -> bool:
