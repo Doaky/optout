@@ -177,6 +177,7 @@ def run_campaign(
     sleep: Callable[[float], None] = time.sleep,
     now: Callable[[], datetime] = lambda: datetime.now(UTC),
     on_progress: Callable[[str, str], None] | None = None,
+    should_stop: Callable[[], bool] = lambda: False,
 ) -> CampaignReport:
     report = CampaignReport()
     from ..config import user_tz
@@ -185,12 +186,25 @@ def run_campaign(
         if not got:
             report.stopped_reason = "another batch is already sending"
             return report
+        recover_interrupted(session, now())
         return _run_locked(
-            session, config, brokers, limit, runner, sleep, now, on_progress, report, user_tz
+            session,
+            config,
+            brokers,
+            limit,
+            runner,
+            sleep,
+            now,
+            on_progress,
+            report,
+            user_tz,
+            should_stop,
         )
 
 
-def _run_locked(session, config, brokers, limit, runner, sleep, now, on_progress, report, user_tz):
+def _run_locked(
+    session, config, brokers, limit, runner, sleep, now, on_progress, report, user_tz, should_stop
+):
     quota = max(0, config.email.daily_limit - sent_today(session, now(), user_tz(config)))
     budget = min(limit, quota)
     if budget == 0:
@@ -200,6 +214,9 @@ def _run_locked(session, config, brokers, limit, runner, sleep, now, on_progress
     consecutive = 0
     with email_method.batch_session(config):
         for i, broker in enumerate(brokers[:budget]):
+            if should_stop():
+                report.stopped_reason = "cancelled by you"
+                break
             if already_contacted(session, broker, now()):
                 report.skipped.append(broker.slug)
                 continue
@@ -332,3 +349,27 @@ def next_resend(subs: list[Submission], resend_after_days: int) -> datetime | No
         return None
     sent = [_aware(s.submitted_at) for s in subs if s.submitted_at]
     return max(sent) + timedelta(days=resend_after_days) if sent else None
+
+
+INTERRUPTED_AFTER = timedelta(minutes=10)
+
+
+def recover_interrupted(session: Session, now: datetime) -> int:
+    """A request still 'queued' long after its batch means the app stopped mid-send (closed,
+    crashed). Left alone it would block that broker for good as "in progress". It may or may
+    not have gone out, so it becomes a failed attempt you can check and resend."""
+    stale = session.exec(select(Submission).where(Submission.status == "queued")).all()
+    n = 0
+    for sub in stale:
+        if _aware(sub.created_at) <= now - INTERRUPTED_AFTER:
+            from ..db import update_status
+
+            update_status(
+                session,
+                sub,
+                "failed",
+                failure_reason="Interrupted while sending: it may or may not have gone out. "
+                "Check your Sent mail before resending.",
+            )
+            n += 1
+    return n

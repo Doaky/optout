@@ -54,6 +54,7 @@ FLASH = {
     "sent": "Marked as sent.",
     "drafts": "Checked. New drafts are listed under “Saved drafts”.",
     "started": "Batch started.",
+    "cancelling": "Stopping after the email in progress. Everything sent so far is recorded.",
     "finished": "Batch finished.",
     "imported": "Broker list loaded.",
     "inboxerr": "Couldn't read replies from Gmail. Check your app password and connection.",
@@ -84,6 +85,14 @@ class App:
         self.job_lock = threading.Lock()
         self.inbox_lock = threading.Lock()
         self.last_error = ""  # shown once after a failed settings save (never from the URL)
+        try:  # a send cut off by closing the app last time must not block that broker
+            from ..db import get_session as _gs
+            from ..engine.campaign import recover_interrupted
+
+            with _gs() as session:
+                recover_interrupted(session, datetime.now(UTC))
+        except Exception:
+            pass
 
     def schedule_forever(self, every: float = 60) -> None:
         """Send each day's batch at the configured local time, if the user allowed it."""
@@ -174,7 +183,12 @@ class App:
                     )
 
                 report = followups.send(
-                    session, config, items, limit=len(items), on_progress=progress
+                    session,
+                    config,
+                    items,
+                    limit=len(items),
+                    on_progress=progress,
+                    should_stop=lambda: bool(job.get("cancel")),
                 )
                 job["failed"] = report.failed
                 job["stopped"] = report.stopped_reason
@@ -227,7 +241,14 @@ class App:
                         slug if state == "sent" else (slug, "see optout status")
                     )
 
-                report = run_campaign(session, config, batch, limit=count, on_progress=progress)
+                report = run_campaign(
+                    session,
+                    config,
+                    batch,
+                    limit=count,
+                    on_progress=progress,
+                    should_stop=lambda: bool(job.get("cancel")),
+                )
                 job["failed"] = report.failed
                 job["stopped"] = report.stopped_reason
         except Exception as exc:  # never leak a traceback into the page
@@ -883,6 +904,11 @@ def _make_handler(app: App):
                 if path == "/act/make-drafts":
                     actions.write_escalation_drafts(load_config(), datetime.now(UTC))
                     return self._redirect("/?m=drafts")
+                if path == "/act/cancel":
+                    # Stops after the email in progress; everything sent so far is recorded.
+                    if app.job.get("state") == "running":
+                        app.job["cancel"] = True
+                    return self._redirect("/?m=cancelling#send")
                 if path == "/act/followups":
                     return self._redirect(f"/?m={app.start_followups()}#send")
                 if path == "/act/campaign":

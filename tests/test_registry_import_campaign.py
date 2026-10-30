@@ -641,3 +641,58 @@ def test_a_finished_request_comes_round_again_after_the_resend_window(session):
     ] == ["again"]
     when = next_resend([sub], 180)
     assert when is not None and (when - NOW).days in (79, 80)
+
+
+def test_cancel_stops_between_emails_and_keeps_what_was_sent(session, config):
+    brokers = [_broker(f"c{i}") for i in range(3)]
+    runner, calls = _fake_runner({})
+    stop = {"now": False}
+
+    def counting_runner(s, sub, broker, profile, cfg):
+        runner(s, sub, broker, profile, cfg)
+        stop["now"] = True  # the user clicks Cancel while the first email goes out
+
+    report = run_campaign(
+        session,
+        config,
+        brokers,
+        limit=10,
+        runner=counting_runner,
+        sleep=lambda s: None,
+        now=lambda: NOW,
+        should_stop=lambda: stop["now"],
+    )
+    assert calls == ["c0"] and report.sent == ["c0"]
+    assert report.stopped_reason == "cancelled by you"
+
+
+def test_a_send_cut_off_by_closing_the_app_does_not_block_the_broker(session):
+    from datetime import timedelta
+
+    from optout.engine.campaign import recover_interrupted
+
+    sub = create_submission(
+        session,
+        broker_slug="cut",
+        method_used="email",
+        legal_basis_cited=[],
+        statutory_response_days=45,
+    )
+    sub.created_at = NOW - timedelta(minutes=30)
+    session.add(sub)
+    session.commit()
+    fresh = create_submission(
+        session,
+        broker_slug="live",
+        method_used="email",
+        legal_basis_cited=[],
+        statutory_response_days=45,
+    )
+    fresh.created_at = NOW - timedelta(minutes=1)  # a batch sending right now: left alone
+    session.add(fresh)
+    session.commit()
+    assert recover_interrupted(session, NOW) == 1
+    session.refresh(sub)
+    session.refresh(fresh)
+    assert sub.status == "failed" and "Sent mail" in (sub.failure_reason or "")
+    assert fresh.status == "queued"

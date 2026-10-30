@@ -835,7 +835,17 @@ def _send_panel(ui: UI) -> str:
         )
     n = len(ui.previews)
     if job.get("state") == "running":
-        inner = "<p class='muted small'>This updates by itself; you can keep using the page.</p>"
+        cancel = (
+            "<p class='muted small'>Stopping after the email in progress…</p>"
+            if job.get("cancel")
+            else "<form method='post' action='/act/cancel' class='inline'>"
+            f"{_hidden(ui.csrf)}<button type='submit' class='secondary'>Cancel batch</button>"
+            "</form>"
+        )
+        inner = (
+            "<p class='muted small'>This updates by itself; you can keep using the page. "
+            "Closing the app is safe too: every email is recorded as it goes out.</p>" + cancel
+        )
     elif not ui.configured:
         inner = "<p class='bad'>No config found. Run <code>optout init</code> first.</p>"
     elif n == 0 and ui.limit and ui.used >= ui.limit:

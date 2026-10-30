@@ -104,6 +104,7 @@ def send(
     sleep: Callable[[float], None] = time.sleep,
     now: Callable[[], datetime] = lambda: datetime.now(UTC),
     on_progress: Callable[[str, str], None] | None = None,
+    should_stop: Callable[[], bool] = lambda: False,
 ) -> FollowupReport:
     report = FollowupReport()
     smtp = config.email.smtp
@@ -123,6 +124,9 @@ def send(
         consecutive = 0
         with email_method.batch_session(config) as batch:
             for i, (sub, broker) in enumerate(items[:budget]):
+                if should_stop():
+                    report.stopped_reason = "cancelled by you"
+                    break
                 if "followup" in _sent_kinds(session, sub):  # sent by another run meanwhile
                     continue
                 if i:
