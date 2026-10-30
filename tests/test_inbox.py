@@ -555,6 +555,18 @@ def test_fetch_replies_reads_new_messages_only():
             "Please use our request form.",
             "need-info",
         ),
+        (
+            "Re: request",
+            "We do not process requests via email. Please use our web form.",
+            "need-info",
+        ),
+        ("Re: request", "This email is not intended for privacy requests.", "need-info"),
+        ("Re: request", "We no longer hold your personal data.", "no-data"),
+        (
+            "Re: request",
+            "We do not process privacy requests that do not contain a company email.",
+            "denied",
+        ),
     ],
 )
 def test_real_reply_wording(subject, body, kind):

@@ -217,3 +217,38 @@ def test_agent_wording_for_needs_human_is_normalised_and_implies_a_followup():
 def test_overlong_labels_are_clipped_not_rejected():
     r = _recipe(steps=[{"action": "check", "label": "I certify " * 20}])
     assert len(r.steps[0].label) == 80
+
+
+def test_a_followup_read_before_the_form_was_recorded_is_still_linked(cfg, tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    from datetime import UTC, datetime, timedelta
+
+    from optout.db import InboxMessage, create_submission, get_session, init_db
+
+    init_db()
+    with get_session() as s:
+        sub = create_submission(
+            s,
+            broker_slug="acme",
+            method_used="email",
+            legal_basis_cited=[],
+            statutory_response_days=45,
+        )
+        s.add(
+            InboxMessage(
+                message_id="<v1>",
+                submission_id=sub.id,
+                broker_slug="acme",
+                from_addr="noreply@acme.example",
+                subject="Complete your request",
+                received_at=datetime.now(UTC) - timedelta(minutes=12),
+                text="Click to verify",
+                kind="need-info",
+                rule="x",
+                state="applied",
+            )
+        )
+        s.commit()
+        forms.mark_outcome(s, "acme", "submitted", "ok", expects_email=True)
+        assert forms.link_followups(s) == 1
+        assert forms.pending_followup(s, sub, datetime.now(UTC)) is None

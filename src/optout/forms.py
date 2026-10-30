@@ -275,27 +275,35 @@ def recipe_flows() -> list:
 
 def todo(session: Session, config: UserConfig, now: datetime | None = None) -> list[dict]:
     """Requests waiting on a web form, with the broker's own words and the link to open."""
+    from .brokers.registry import all_brokers
     from .engine.assist import redact, trim_for_prompt
     from .web.data import collect
 
     recipes = load_recipes()
+    brokers = {b.slug: b for b in all_brokers()}
     out = []
     for a in collect(session, config, now or datetime.now(UTC)).attention:
-        if a.kind != "need-info" or not a.link:
+        b = brokers.get(a.slug)
+        recipe = recipes.get(a.slug)
+        # Their reply's link first; else the recipe's form, else the broker's known form.
+        link = a.link or (recipe.url if recipe else "") or (b.opt_out_url if b else "") or ""
+        if a.kind != "need-info" or not link:
             continue
         out.append(
             {
                 "broker": a.slug,
                 "name": a.name,
-                "link": a.link,
-                "link_host": a.link_host,
+                "category": b.category if b else "",
+                "link": link,
+                "link_host": urlsplit(link).hostname or "",
                 "they_said": a.quote,
                 "email": redact(trim_for_prompt(a.email, 3000), config.profile),
                 "recipe": a.slug in recipes,
                 "covers_only": a.coverage,
             }
         )
-    return out
+    # People-search sites first: they show your address to anyone who looks.
+    return sorted(out, key=lambda i: i["category"] != "people_search")
 
 
 def mark_outcome(
@@ -555,3 +563,32 @@ def attach_followup(
         return False
     save_local(recipe.model_copy(update={"then": then}), config)
     return True
+
+
+def link_followups(session: Session, slack_hours: int = 6) -> int:
+    """Catch up: link a follow-up email that was read before its form was recorded (forms are
+    often applied a while after they're submitted), or by an older version. Returns how many."""
+    from datetime import timedelta
+
+    from sqlmodel import select
+
+    from .db import InboxMessage, Submission
+
+    linked = 0
+    for sub in session.exec(select(Submission)).all():
+        ev = pending_followup(session, sub, datetime.now(UTC))
+        if ev is None:
+            continue
+        since = ev.created_at - timedelta(hours=slack_hours)
+        rows = session.exec(
+            select(InboxMessage).where(
+                InboxMessage.submission_id == sub.id,
+                InboxMessage.kind.in_(("need-info", "deleted", "no-data")),  # type: ignore[attr-defined]
+            )
+        ).all()
+        fresh = [r for r in rows if r.received_at is not None and r.received_at >= since]
+        if fresh:
+            r = max(fresh, key=lambda x: x.received_at)
+            note_followup(session, sub, r.from_addr, r.kind, r.message_id)
+            linked += 1
+    return linked

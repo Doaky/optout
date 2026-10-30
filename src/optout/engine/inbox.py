@@ -26,7 +26,7 @@ from ..db import InboxMessage, Submission, update_status
 
 MAX_TEXT = 8000
 # Bump when matching or classification changes: saved replies are re-checked once.
-RULES_VERSION = 9
+RULES_VERSION = 10
 PARSER_VERSION = 2  # bump when parsing changes: saved replies are re-read from Gmail once
 
 # --- parsing -----------------------------------------------------------------
@@ -154,7 +154,8 @@ RULES: list[tuple[str, str, re.Pattern[str]]] = [
             r"\b(cannot|can't|can not|will not|won't) (process|honou?r|comply|delete|"
             r"fulfil?l|assist)\b|\bnot subject to\b|\bexempt(ion)?\b|"
             r"\b(we )?(must )?decline\b|\b(request|it) (is|was|has been) denied\b|"
-            r"\bdoes not apply to\b|\bwe do not process\b[^.]{0,40}\brequests?\b",
+            r"\bdoes not apply to\b|"
+            r"\bwe do not process\b[^.]{0,40}\brequests?\b(?!\s+(via|by|through|over) e-?mail)",
             _I,
         ),
     ),
@@ -172,7 +173,13 @@ RULES: list[tuple[str, str, re.Pattern[str]]] = [
             r"\b(web ?form|online form|portal)\b|\bnot monitored\b|"
             r"\b(do|does) not accept\b[^.]{0,40}\b(e-?mail|requests?)\b|"
             r"\b(you )?(must|need to|will need to) (fill out|fill in|complete|submit|use)\b|"
-            r"\bfill (out|in) (the|our|this|a) (following )?form\b",
+            r"\bfill (out|in) (the|our|this|a) (following )?form\b|"
+            # From Eraser's classifier (MIT): "use the form instead" in other words.
+            r"\b(do not|don't|cannot|can't) (process|accept)\b[^.]{0,30}\brequests?\s+"
+            r"(via|by|through|over) e-?mail\b|\bis not (intended|monitored) for privacy\b|"
+            r"\bnot (a|the) (mechanism|channel) for\b|"
+            r"\bestablished a dedicated (online |web )?(form|portal)\b|"
+            r"\bverification (link|code)\b",
             _I,
         ),
     ),
@@ -196,7 +203,8 @@ RULES: list[tuple[str, str, re.Pattern[str]]] = [
             r"\bwe (have )?(deleted|removed|erased|suppressed|purged)\b|"
             r"\bsuccessfully (deleted|removed|processed|opted)\b|"
             r"\brequest[^.]{0,60}\b(has been|was|is) (completed|processed|fulfilled|"
-            r"honou?red)\b|\b(you are|you've been|you have been) opted out\b",
+            r"honou?red)\b|\b(you are|you've been|you have been) opted out\b|"
+            r"\bno longer (have|hold|store|retain) (any of )?your (personal )?(data|information)\b",
             _I,
         ),
     ),
@@ -746,6 +754,9 @@ def run_sync(config, *, dry_run: bool = False) -> SyncReport:
             if not dry_run:
                 report.closed = auto_close_out_of_scope(session, config)
                 disable_bounced(session)
+                from ..forms import link_followups
+
+                link_followups(session)
                 if config.confirm_links == "auto":
                     from .confirm import auto_confirm, load_flows
 

@@ -127,3 +127,37 @@ def test_vcdpa_is_known():
     from optout.utils.statutes import STATUTES
 
     assert STATUTES["VCDPA"].citation == "Va. Code § 59.1-577(A)(3)"
+
+
+def test_extra_brokers_and_form_links_files_are_valid():
+    """The shared lists from other public sources parse, and never collide with each other."""
+    from importlib.resources import files
+
+    import yaml
+
+    from optout.brokers.schema import BrokerDef
+
+    extra = yaml.safe_load(files("optout").joinpath("data/extra_brokers.yml").read_text())
+    slugs = [BrokerDef.model_validate(e).slug for e in extra]
+    assert len(slugs) == len(set(slugs)) and len(slugs) > 100
+    links = yaml.safe_load(files("optout").joinpath("data/form_links.yml").read_text())
+    assert all(x["url"].startswith("https://") and not x["url"].endswith(".pdf") for x in links)
+
+
+def test_extra_brokers_never_duplicate_a_loaded_one():
+    from optout.brokers.registry import _add_extra_brokers
+    from optout.brokers.schema import BrokerDef
+
+    have = BrokerDef(
+        slug="fps",
+        name="FPS",
+        domain="fastpeoplesearch.com",
+        category="people_search",
+        method="email",
+        opt_out_email="privacy@fastpeoplesearch.com",
+        legal_basis=["CCPA"],
+        statutory_response_days=45,
+    )
+    merged = _add_extra_brokers({"fps": have})
+    assert "fastpeoplesearch" not in merged  # same domain and email: kept once
+    assert len(merged) > 100

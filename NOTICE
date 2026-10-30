@@ -2,6 +2,13 @@ This project is derived from Blake104/OptOut (declared AGPL-3.0-only),
 upstream commit 7a310242eca38517a483d75a6a3832bc9424c01b. Provenance note:
 upstream pyproject.toml lists author "gr8p3"; repo owner is "Blake104".
 
+Data from:
+- digisamroc/eraser (MIT, per its README: "MIT — do whatever you want with it."), commit
+  ff6cd50e84dfca809a2e08c18b9358a7b3e2e448: its broker list, converted into
+  src/optout/data/extra_brokers.yml (brokers California's registry lacks) and
+  src/optout/data/form_links.yml (opt-out form links). A few reply-wording patterns in
+  src/optout/engine/inbox.py were adapted from its classifier.
+
 Ideas (no code copied) from:
 - stephenlthorn/auto-identity-remove (MIT), audited at 99fb638d31ff
 - kevinl95/Privotron (MIT), audited at 1609be98b03f

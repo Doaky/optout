@@ -84,6 +84,45 @@ def _load_lenient(directory: Path) -> list[BrokerDef]:
     return found
 
 
+def _shared_list(name: str) -> list:
+    try:
+        data = yaml.safe_load(files("optout").joinpath(f"data/{name}").read_text())
+    except (OSError, yaml.YAMLError):
+        return []
+    return data if isinstance(data, list) else []
+
+
+def _add_extra_brokers(merged: dict[str, BrokerDef]) -> dict[str, BrokerDef]:
+    """Brokers from other public lists (data/extra_brokers.yml) that the loaded registry
+    doesn't already have, matched by slug, contact email, or domain. Bad entries are skipped."""
+    emails = {(b.opt_out_email or "").lower() for b in merged.values()}
+    domains = {b.domain.lower().removeprefix("www.") for b in merged.values()}
+    for item in _shared_list("extra_brokers.yml"):
+        try:
+            b = BrokerDef.model_validate(item)
+        except (ValueError, TypeError):
+            continue
+        email, domain = (b.opt_out_email or "").lower(), b.domain.lower().removeprefix("www.")
+        if b.slug in merged or email in emails or domain in domains:
+            continue
+        merged[b.slug] = b
+        emails.add(email)
+        domains.add(domain)
+    return merged
+
+
+def _apply_form_links(merged: dict[str, BrokerDef]) -> dict[str, BrokerDef]:
+    """Fill in a broker's opt-out form link from data/form_links.yml when it has none."""
+    for item in _shared_list("form_links.yml"):
+        if not isinstance(item, dict):
+            continue
+        slug, url = str(item.get("broker", "")), str(item.get("url", ""))
+        b = merged.get(slug)
+        if b is not None and not b.opt_out_url and url.startswith("https://"):
+            merged[slug] = b.model_copy(update={"opt_out_url": url})
+    return merged
+
+
 def load_registry(brokers_dir: Path | None = None) -> None:
     global _registry, _loaded
     load_errors.clear()
@@ -99,6 +138,9 @@ def load_registry(brokers_dir: Path | None = None) -> None:
     merged = {b.slug: b for b in load_all_brokers(_brokers_dir())}
     for layer in (imported_dir(), user_dir()):
         merged.update({b.slug: b for b in _load_lenient(layer)})
+
+    merged = _add_extra_brokers(merged)
+    merged = _apply_form_links(merged)
 
     from .contacts import apply_contact_overrides
 

@@ -1,0 +1,4445 @@
+# Generated from Eraser's broker list (github.com/digisamroc/eraser, MIT, commit ff6cd50).
+# Brokers that California's registry doesn't list. Contact emails are unverified:
+# a bounce takes one off the send list automatically. Regenerate rather than hand-edit; see NOTICE.
+- slug: fastpeoplesearch
+  name: FastPeopleSearch
+  domain: fastpeoplesearch.com
+  category: people_search
+  method: email
+  opt_out_email: privacy@fastpeoplesearch.com
+  opt_out_url: https://www.fastpeoplesearch.com/removal
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: usphonebook
+  name: USPhonebook
+  domain: usphonebook.com
+  category: people_search
+  method: email
+  opt_out_email: info@usphonebook.com
+  opt_out_url: https://www.usphonebook.com/opt-out
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: thatsthem
+  name: ThatsThem
+  domain: thatsthem.com
+  category: people_search
+  method: email
+  opt_out_email: support@thatsthem.com
+  opt_out_url: https://thatsthem.com/optout
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: zabasearch
+  name: ZabaSearch
+  domain: zabasearch.com
+  category: people_search
+  method: email
+  opt_out_email: privacy@zabasearch.com
+  opt_out_url: https://www.zabasearch.com/block_records
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: publicrecordsnow
+  name: PublicRecordsNow
+  domain: publicrecordsnow.com
+  category: people_search
+  method: email
+  opt_out_email: privacy@publicrecordsnow.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: addresses-com
+  name: Addresses.com
+  domain: addresses.com
+  category: people_search
+  method: email
+  opt_out_email: privacy@addresses.com
+  opt_out_url: https://www.addresses.com/optout.php
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: publicrecords360
+  name: PublicRecords360
+  domain: publicrecords360.com
+  category: people_search
+  method: email
+  opt_out_email: privacy@publicrecords360.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: searchpeoplefree
+  name: SearchPeopleFree
+  domain: searchpeoplefree.com
+  category: people_search
+  method: email
+  opt_out_email: privacy@searchpeoplefree.com
+  opt_out_url: https://www.searchpeoplefree.com/optout
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: corelogic
+  name: CoreLogic
+  domain: corelogic.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@corelogic.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: tapad-experian
+  name: Tapad (Experian)
+  domain: tapad.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@tapad.com
+  opt_out_url: https://www.tapad.com/privacy-policy
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: lotame
+  name: Lotame
+  domain: lotame.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@lotame.com
+  opt_out_url: https://www.lotame.com/about-lotame/privacy/opt-out/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: checkr
+  name: Checkr
+  domain: checkr.com
+  category: people_search
+  method: email
+  opt_out_email: privacy@checkr.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: goodhire
+  name: GoodHire
+  domain: goodhire.com
+  category: people_search
+  method: email
+  opt_out_email: privacy@goodhire.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: sterling
+  name: Sterling
+  domain: sterlingcheck.com
+  category: people_search
+  method: email
+  opt_out_email: privacy@sterlingcheck.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: hireright
+  name: HireRight
+  domain: hireright.com
+  category: people_search
+  method: email
+  opt_out_email: privacy@hireright.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: peoplesmart
+  name: PeopleSmart
+  domain: peoplesmart.com
+  category: people_search
+  method: email
+  opt_out_email: privacy@peoplesmart.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: ussearch
+  name: USSearch
+  domain: ussearch.com
+  category: people_search
+  method: email
+  opt_out_email: privacy@ussearch.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: neighborwho
+  name: NeighborWho
+  domain: neighborwho.com
+  category: people_search
+  method: email
+  opt_out_email: privacy@neighborwho.com
+  opt_out_url: https://neighborwho.com/remove
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: centeda
+  name: Centeda
+  domain: centeda.com
+  category: people_search
+  method: email
+  opt_out_email: support@centeda.com
+  opt_out_url: https://centeda.com/ng/control/privacy
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: idtrue
+  name: IDTrue
+  domain: idtrue.com
+  category: people_search
+  method: email
+  opt_out_email: privacy@idtrue.com
+  opt_out_url: https://www.idtrue.com/optout
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: towerdata
+  name: TowerData
+  domain: towerdata.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@towerdata.com
+  opt_out_url: https://www.towerdata.com/company/privacy_policy
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: veromi
+  name: Veromi
+  domain: veromi.net
+  category: people_search
+  method: email
+  opt_out_email: privacy@veromi.net
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: 180-by-two
+  name: 180 By Two, LLC
+  domain: 180bytwo.com
+  category: data_broker
+  method: email
+  opt_out_email: karl@180bytwo.com
+  opt_out_url: https://privacyportal.onetrust.com/webform/e32c5e49-85c5-4969-bfa8-8cde49952e1f/6034339d-69de-41fc-829f-7b8b51d9fabe
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: 4c-insights
+  name: 4C Insights Inc.
+  domain: mediaocean.com
+  category: data_broker
+  method: email
+  opt_out_email: ccpa@mediaocean.com
+  opt_out_url: https://www.mediaocean.com/your-privacy-rights
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: 4eyes-ai
+  name: 4Eyes.Ai, Inc.
+  domain: 4-eyes.ai
+  category: data_broker
+  method: email
+  opt_out_email: privacy@4-eyes.ai
+  opt_out_url: https://www.4-eyes.ai/privacy-policy?cord_section=privacy_options_dns
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: open-dealer-exchange
+  name: Open Dealer Exchange, LLC
+  domain: 700credit.com
+  category: data_broker
+  method: email
+  opt_out_email: mshannon@opendealerexchange.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: accenture
+  name: Accenture LLP
+  domain: accenture.com
+  category: data_broker
+  method: email
+  opt_out_email: regulatory.licenses@accenture.com
+  opt_out_url: https://www.accenture.com/us-en/support/form-do-not-sell-my-personal-information
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: ace-agents
+  name: ACE Agents Inc.
+  domain: degree.me
+  category: data_broker
+  method: email
+  opt_out_email: admin@academixdirect.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: acuant
+  name: Acuant, Inc.
+  domain: idology.com
+  category: data_broker
+  method: email
+  opt_out_email: compliance@gbgplc.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: acutraq-background-screening
+  name: ACUTRAQ Background Screening, Inc.
+  domain: acutraq.com
+  category: data_broker
+  method: email
+  opt_out_email: admin@acutraq.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: adadapted
+  name: Adadapted Inc.
+  domain: adadapted.com
+  category: data_broker
+  method: email
+  opt_out_email: billing@adadapted.com
+  opt_out_url: https://www.adadapted.com/legal/do-not-sell
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: adrea-rubin-marketing
+  name: Adrea Rubin Marketing, Inc.
+  domain: adrearubin.com
+  category: data_broker
+  method: email
+  opt_out_email: jenniferv@adrearubin.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: advantage-credit
+  name: Advantage Credit, Inc.
+  domain: advcredit.com
+  category: data_broker
+  method: email
+  opt_out_email: evon@advcredit.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: advantage-sales-marketing
+  name: Advantage Sales & Marketing LLC
+  domain: take5mg.com
+  category: data_broker
+  method: email
+  opt_out_email: alex@take5mg.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: ais-portfolio-services
+  name: AIS Portfolio Services LLC
+  domain: aisinfo.com
+  category: data_broker
+  method: email
+  opt_out_email: arsllc@aisinfo.com
+  opt_out_url: https://www.aisinfo.com/privacy?hsLang=en#california-privacy-rights
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: all-global-resources
+  name: All Global Resources, LLC
+  domain: executiveenergy.com
+  category: data_broker
+  method: email
+  opt_out_email: drieke@executiveenergy.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: altisource-holdings
+  name: Altisource Holdings, LLC
+  domain: altisource.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@altisource.com
+  opt_out_url: https://www.altisource.com/us-consumer-privacy-notice
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: american-city-business-journals
+  name: American City Business Journals, Inc.
+  domain: acbj.com
+  category: data_broker
+  method: email
+  opt_out_email: legal@bizjournals.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: amerilist
+  name: Amerilist Inc
+  domain: amerilist.com
+  category: data_broker
+  method: email
+  opt_out_email: info@amerilist.com
+  opt_out_url: https://www.amerilist.com/optout
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: andrews-wharton
+  name: Andrews Wharton, Inc.
+  domain: andrewswharton.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@andrewswharton.com
+  opt_out_url: https://www.andrewswharton.com/your-privacy-choices
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: anexinet
+  name: Anexinet Corp.
+  domain: anexinet.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@anexinet.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: apihub
+  name: Apihub, Inc.
+  domain: clearbit.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@clearbit.com
+  opt_out_url: https://www.clearbit.com/ccpa-opt-out
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: arity-875
+  name: Arity 875, LLC
+  domain: arity.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@arity.com
+  opt_out_url: https://arity.com/yourprivacychoices/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: arrakis-technologies
+  name: Arrakis Technologies Corp.
+  domain: arrakis.ai
+  category: data_broker
+  method: email
+  opt_out_email: privacy@arrakis.ai
+  opt_out_url: https://www.arrakis.ai/optout
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: american-spirit-data-solutions
+  name: AMERICAN SPIRIT DATA SOLUTIONS LLC
+  domain: aspire-north.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@aspire-north.com
+  opt_out_url: https://www.aspire-north.com/do-not-sell-my-personal-information--out-out-request-form.html
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: assurance-iq
+  name: Assurance Iq, Inc.
+  domain: assurance.com
+  category: data_broker
+  method: email
+  opt_out_email: swenson@assurance.com
+  opt_out_url: https://assurance.com/assurance-privacy-practices.html#CRPDYourConsumerRightsRightToOptOut
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: atlantic-fox-technologies
+  name: Atlantic Fox Technologies, Inc.
+  domain: atlanticfox.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@atlanticfox.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: attom-data-solutions
+  name: ATTOM Data Solutions LLC
+  domain: attomdata.com
+  category: data_broker
+  method: email
+  opt_out_email: erik.wind@attomdata.com
+  opt_out_url: https://www.attomdata.com/privacy/ccpa-request-form-7233695024/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: audiencerate
+  name: Audiencerate Ltd
+  domain: audiencerate.com
+  category: data_broker
+  method: email
+  opt_out_email: gl@audiencerate.com
+  opt_out_url: https://www.audiencerate.com/optout
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: automotive-mastermind
+  name: Automotive Mastermind
+  domain: automotivemastermind.com
+  category: data_broker
+  method: email
+  opt_out_email: info@automotivemastermind.com
+  opt_out_url: https://www.automotivemastermind.com/do-not-sell-or-share-my-personal-information-request/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: background-information-services
+  name: Background Information Services, Inc.
+  domain: bisi.com
+  category: data_broker
+  method: email
+  opt_out_email: compliance@bisi.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: best-pick-reports
+  name: Best Pick Reports, LLC
+  domain: bestpickreports.com
+  category: data_broker
+  method: email
+  opt_out_email: support@bestpickreports.com
+  opt_out_url: https://www.bestpickreports.com/do-not-sell
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: birchwood-credit-services
+  name: Birchwood Credit Services Inc
+  domain: birchwoodcreditservices.com
+  category: data_broker
+  method: email
+  opt_out_email: billing@birchwoodcreditservices.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: bliss-point-media
+  name: Bliss Point Media, Inc.
+  domain: blisspointmedia.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@blisspointmedia.com
+  opt_out_url: https://www.blisspointmedia.com/privacy
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: bridgevine
+  name: Bridgevine Inc.
+  domain: bridgevine.com
+  category: data_broker
+  method: email
+  opt_out_email: dwayne.landry@bridgevine.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: brightcheck
+  name: Brightcheck Inc.
+  domain: brightcheck.com
+  category: data_broker
+  method: email
+  opt_out_email: admin@brightcheck.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: brigthswipe
+  name: Brigthswipe Inc
+  domain: brightswipe.com
+  category: data_broker
+  method: email
+  opt_out_email: admin@brightswipe.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: btrs-holdings
+  name: BTRS Holdings Inc
+  domain: billtrust.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@billtrust.com
+  opt_out_url: https://privacyportal.onetrust.com/webform/82a6a736-b3a7-4e87-a2fd-04a39b7d2b19/2f5dc7b8-7698-4623-82d2-b2b969ef901e
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: business-com
+  name: Business.Com
+  domain: business.com
+  category: data_broker
+  method: email
+  opt_out_email: customercare@business.com
+  opt_out_url: https://www.business.com/optout/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: carco-group
+  name: CARCO Group, Inc.
+  domain: cisive.com
+  category: data_broker
+  method: email
+  opt_out_email: compliance@cisive.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: careerbuilder
+  name: Careerbuilder, LLC
+  domain: careerbuilder.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@careerbuilder.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: car-market-solutions
+  name: Car Market Solutions LLC
+  domain: carmarketsolutions.com
+  category: data_broker
+  method: email
+  opt_out_email: ben@carmarketsolutions.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: catalyze-ai
+  name: Catalyze Ai, Inc
+  domain: catalyzeai.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@catalyzeai.com
+  opt_out_url: https://www.catalyzeai.com/opt-out
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: cic-mortgage-credit
+  name: CIC Mortgage Credit, Inc
+  domain: ciccredit.com
+  category: data_broker
+  method: email
+  opt_out_email: compliance@ciccredit.com
+  opt_out_url: https://www.optoutprescreen.com/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: civitech
+  name: Civitech
+  domain: civitech.io
+  category: data_broker
+  method: email
+  opt_out_email: jake.london@civitech.io
+  opt_out_url: https://www.civitech.io/privacy-policy/#section5
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: collateral-analytics
+  name: Collateral Analytics, LLC
+  domain: mortgagetech.ice.com
+  category: data_broker
+  method: email
+  opt_out_email: compliancemortgagetech@ice.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: commercial-real-estate-exchange
+  name: COMMERCIAL REAL ESTATE EXCHANGE Inc
+  domain: crexi.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@crexi.com
+  opt_out_url: https://crexi.bigidprivacy.cloud/consumer/#/o2TCsG9LJ7
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: connect-computer
+  name: Connect Computer LLC
+  domain: calltruth.com
+  category: data_broker
+  method: email
+  opt_out_email: support@calltruth.com
+  opt_out_url: https://www.calltruth.com/opt_out.php
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: connext-digital
+  name: Connext Digital, LLC
+  domain: connextdigital.com
+  category: data_broker
+  method: email
+  opt_out_email: rob.fitzgerald@connextdigital.com
+  opt_out_url: https://www.connextdigital.com/opt-out/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: consider
+  name: Consider, Inc.
+  domain: consider.com
+  category: data_broker
+  method: email
+  opt_out_email: ralph@consider.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: consolidated-information-services-solutions
+  name: Consolidated Information Services Solutions LLC
+  domain: universalcis.com
+  category: data_broker
+  method: email
+  opt_out_email: ccasey@universalcredit.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: contemporary-information
+  name: CONTEMPORARY INFORMATION CORP.
+  domain: cicreports.com
+  category: data_broker
+  method: email
+  opt_out_email: compliance@cicreports.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: contentgine
+  name: Contentgine Inc.
+  domain: contentgine.com
+  category: data_broker
+  method: email
+  opt_out_email: paul@contentgine.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: crawlbee
+  name: Crawlbee Corp
+  domain: crawlbee.com
+  category: data_broker
+  method: email
+  opt_out_email: ryan@crawlbee.io
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: credit-bureau-of-council-bluffs
+  name: Credit Bureau Of Council Bluffs, Inc
+  domain: creditinfosystems.com
+  category: data_broker
+  method: email
+  opt_out_email: heather@creditinfosystems.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: crosswalk-technologies
+  name: Crosswalk Technologies Inc
+  domain: crosswalknyc.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@crosswalknyc.com
+  opt_out_url: https://www.crosswalknyc.com/optout
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: cyndx-networks
+  name: Cyndx Networks LLC
+  domain: cyndx.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@cyndx.com
+  opt_out_url: https://www.cyndx.com/california-do-not-track/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: datadojo-cdp
+  name: Datadojo CDP Inc.
+  domain: datadojo.ai
+  category: data_broker
+  method: email
+  opt_out_email: contact@datadojo.ai
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: data-facts
+  name: Data Facts, Inc.
+  domain: datafacts.com
+  category: data_broker
+  method: email
+  opt_out_email: compliance@datafacts.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: data-marketing-solutions
+  name: Data Marketing Solutions, Inc.
+  domain: businesswatchnetwork.com
+  category: data_broker
+  method: email
+  opt_out_email: support@bizwatchnetwork.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: deluxe
+  name: Deluxe Corporation
+  domain: deluxe.com
+  category: data_broker
+  method: email
+  opt_out_email: privacyprogramoffice@deluxe.com
+  opt_out_url: https://www.deluxe.com/policy/donotsell/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: dataskip
+  name: Dataskip
+  domain: dataskip.io
+  category: data_broker
+  method: email
+  opt_out_email: support@dataskip.io
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: corelogic-credco-of-puerto-rico
+  name: Corelogic Credco of Puerto Rico
+  domain: teletrack.com
+  category: data_broker
+  method: email
+  opt_out_email: licensing.erm@corelogic.com
+  opt_out_url: https://www.optoutprescreen.com/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: david-rickenbacher
+  name: David Rickenbacher
+  domain: datamasters.org
+  category: data_broker
+  method: email
+  opt_out_email: sales@datamasters.org
+  opt_out_url: https://www.datamasters.org/opt-out/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: deeptrace
+  name: Deeptrace Inc.
+  domain: coresignal.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@coresignal.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: delivr-ai
+  name: Delivr.Ai Inc
+  domain: delivr.ai
+  category: data_broker
+  method: email
+  opt_out_email: support@delivr.ai
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: demyst-data
+  name: Demyst Data, Ltd
+  domain: demyst.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@demystdata.com
+  opt_out_url: https://www.demystdata.com/data-subject-action-request
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: diablo-media
+  name: Diablo Media
+  domain: diablomedia.com
+  category: data_broker
+  method: email
+  opt_out_email: data@diablomedia.com
+  opt_out_url: https://diablomedia.com/privacy-request/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: digicenter
+  name: Digicenter, LLC.
+  domain: digicenter.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@digicenter.com
+  opt_out_url: https://www.collectivedata.io/opt-out-do-not-sell-request-process/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: digital-segment
+  name: DIGITAL SEGMENT LLC
+  domain: digitalsegment.com
+  category: data_broker
+  method: email
+  opt_out_email: info@digitalsegment.com
+  opt_out_url: https://www.digitalsegment.com/about/consumer-opt-out/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: diligent
+  name: Diligent Corporation
+  domain: diligent.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@diligent.com
+  opt_out_url: https://diligentlegal.results.highbond.com/survey_responses/9Wrc_yiuertX-uLJ4bJA/edit
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: direct-marketing-solutions
+  name: DIRECT MARKETING SOLUTIONS Inc
+  domain: teamdms.com
+  category: data_broker
+  method: email
+  opt_out_email: dataanalytics@teamdms.com
+  opt_out_url: https://www.teamdms.com/opt-out
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: distribution-processing-center
+  name: Distribution Processing Center LLC
+  domain: dpcoptout.com
+  category: data_broker
+  method: email
+  opt_out_email: customerservice@distpc.com
+  opt_out_url: https://dpcoptout.com/opt-out/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: driveniq
+  name: Driveniq Corporation
+  domain: driveniq.com
+  category: data_broker
+  method: email
+  opt_out_email: support@driveniq.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: drobu-media
+  name: Drobu Media LLC
+  domain: drobu.com
+  category: data_broker
+  method: email
+  opt_out_email: dblackman@drobu.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: dynata
+  name: Dynata, LLC
+  domain: dynata.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@dynata.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: early-warning-services
+  name: Early Warning Services, LLC
+  domain: earlywarning.com
+  category: data_broker
+  method: email
+  opt_out_email: darla.nutting@earlywarning.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: efunds
+  name: Efunds Corporation
+  domain: worldpay.com
+  category: data_broker
+  method: email
+  opt_out_email: chexsystems.compliance@fisglobal.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: ekata
+  name: Ekata, Inc.
+  domain: ekata.com
+  category: data_broker
+  method: email
+  opt_out_email: privacysupport@ekata.com
+  opt_out_url: https://www.mastercard.us/public/my-data/dgr-public/personal-data-request.html?locale=en-us&region=NAM#/ekata/request/personalinfo
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: electronic-commerce-a-to-z
+  name: Electronic Commerce A To Z
+  domain: electroniccommerceatoz.com
+  category: data_broker
+  method: email
+  opt_out_email: azuttah@ubiquitysystemsusa.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: email-marketing-services
+  name: Email Marketing Services, Inc
+  domain: listmatch.com
+  category: data_broker
+  method: email
+  opt_out_email: dataprivacy@listmatch.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: emailmovers
+  name: Emailmovers Ltd
+  domain: emailmovers.com
+  category: data_broker
+  method: email
+  opt_out_email: compliance@emailmovers.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: emerges-com-incorporated
+  name: EMERGES.COM INCORPORATED
+  domain: emerges.com
+  category: data_broker
+  method: email
+  opt_out_email: shawn@emerges.com
+  opt_out_url: https://www.emerges.com/Government-Record-Opt-Out_ep_51-1.html
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: eprodirect
+  name: Eprodirect
+  domain: eprodirect.com
+  category: data_broker
+  method: email
+  opt_out_email: optout@eprodirect.com
+  opt_out_url: https://www.eprodirect.com/do-not-sell-my-personal-information/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: exponential-interactive
+  name: Exponential Interactive, Inc.
+  domain: vdx.tv
+  category: data_broker
+  method: email
+  opt_out_email: privacy@vdx.tv
+  opt_out_url: https://www.vdx.tv/policies/privacy#opting-out
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: factori-technologies
+  name: Factori Technologies LLC
+  domain: factori.ai
+  category: data_broker
+  method: email
+  opt_out_email: privacy@factori.ai
+  opt_out_url: https://www.factori.ai/do-not-sell-my-information/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: fair-screen
+  name: Fair Screen, Inc.
+  domain: fairscreen.com
+  category: data_broker
+  method: email
+  opt_out_email: compliance@fairscreen.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: fanspoko
+  name: Fanspoko, LLC
+  domain: fantasysportsknockout.com
+  category: data_broker
+  method: email
+  opt_out_email: info@fanspoko.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: first-american-data-tree
+  name: First American Data Tree LLC
+  domain: datatree.com
+  category: data_broker
+  method: email
+  opt_out_email: tree-trace-legal.sna@firstam.com
+  opt_out_url: https://www.firstam.com/privacy-policy/#california
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: first-movers-advantage
+  name: First Movers Advantage, LLC
+  domain: fmadata.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@fmadata.com
+  opt_out_url: https://www.fmadata.com/opt-out-requests/new
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: stefan-certic
+  name: Stefan Certic
+  domain: myflashcloud.com
+  category: data_broker
+  method: email
+  opt_out_email: legal@myflashcloud.com
+  opt_out_url: https://www.flashintel.ai/dont-sell-my-information
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: forewarn
+  name: FOREWARN LLC
+  domain: forewarn.com
+  category: data_broker
+  method: email
+  opt_out_email: legal.compliance@forewarn.com
+  opt_out_url: https://www.forewarn.com/opt-out-policy/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: freemium-data-services
+  name: Freemium Data Services, LLC
+  domain: reachdata.com
+  category: data_broker
+  method: email
+  opt_out_email: compliance@reachdata.com
+  opt_out_url: https://www.reachdata.com/privacy
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: freshaddress
+  name: Freshaddress, LLC
+  domain: freshaddress.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@freshaddress.com
+  opt_out_url: https://instantdata.atdata.com/optout
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: fused-leads
+  name: Fused Leads, LLC
+  domain: fusedleads.com
+  category: data_broker
+  method: email
+  opt_out_email: greg@fusedleads.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: fyllo
+  name: Fyllo
+  domain: hellofyllo.com
+  category: data_broker
+  method: email
+  opt_out_email: legal@hellofyllo.com
+  opt_out_url: https://www.semasio.com/legal/privacy-choices
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: g2-bankruptcy-risk-solutions
+  name: G2 Bankruptcy Risk Solutions, Inc.
+  domain: g2risksolutions.com
+  category: data_broker
+  method: email
+  opt_out_email: ramtin.taheri@g2risksolutions.com
+  opt_out_url: https://g2risksolutions.com/consumer-center/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: cengage-learning
+  name: CENGAGE LEARNING Inc
+  domain: cengage.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@cengage.com
+  opt_out_url: https://info.cengage.com/LP=5633
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: glad-i-know
+  name: Glad I Know, Inc.
+  domain: gladiknow.com
+  category: data_broker
+  method: email
+  opt_out_email: support@gladiknow.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: good-boy-studios
+  name: Good Boy Studios, Inc
+  domain: parade.pet
+  category: data_broker
+  method: email
+  opt_out_email: hello@goodboystudios.com
+  opt_out_url: https://www.parade.pet/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: granite-lists
+  name: Granite Lists, LLC
+  domain: granitelists.com
+  category: data_broker
+  method: email
+  opt_out_email: erin@granitelists.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: grata
+  name: Grata Inc
+  domain: grata.com
+  category: data_broker
+  method: email
+  opt_out_email: hello@grata.com
+  opt_out_url: https://www.grata.com/legal/do-not-sell-my-information
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: gravy-analytics
+  name: Gravy Analytics, Inc.
+  domain: gravyanalytics.com
+  category: data_broker
+  method: email
+  opt_out_email: legal@gravyanalytics.com
+  opt_out_url: https://www.unacast.com/opt-out
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: greenhouse-software
+  name: Greenhouse Software, Inc.
+  domain: greenhouse.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@greenhouse.io
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: grin-technologies
+  name: Grin Technologies Inc.
+  domain: grin.co
+  category: data_broker
+  method: email
+  opt_out_email: legal@grin.co
+  opt_out_url: https://www.grin.co/data-privacy-form/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: gumgum
+  name: Gumgum, Inc.
+  domain: gumgum.com
+  category: data_broker
+  method: email
+  opt_out_email: talbert@gumgum.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: gunderson-direct
+  name: Gunderson Direct
+  domain: gundersondirect.com
+  category: data_broker
+  method: email
+  opt_out_email: jeff@gundir.com
+  opt_out_url: https://gundir.com/opt-out/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: hamza-online-services
+  name: Hamza Online Services, LLC
+  domain: hotmail.com
+  category: data_broker
+  method: email
+  opt_out_email: zohandurani@hotmail.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: harmon-research-group
+  name: Harmon Research Group, LLC
+  domain: harmonresearch.com
+  category: data_broker
+  method: email
+  opt_out_email: info@harmonresearch.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: hd-information
+  name: HD INFORMATION LLC
+  domain: hygenicsdata.com
+  category: data_broker
+  method: email
+  opt_out_email: hdi_support@hygenicsdata.com
+  opt_out_url: https://myprivacy.equifax.com/opt-in-opt-out/personal-info
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: health-is-wealth-marketing
+  name: Health Is Wealth Marketing LLC
+  domain: pickmedicare.com
+  category: data_broker
+  method: email
+  opt_out_email: info@pickmedicare.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: here-north-america
+  name: HERE North America LLC
+  domain: here.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@here.com
+  opt_out_url: https://legal.here.com/en-gb/privacy/do-not-sell
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: hexasoft-development-sdn-bhd
+  name: Hexasoft Development Sdn. Bhd.
+  domain: ip2location.com
+  category: data_broker
+  method: email
+  opt_out_email: support@ip2location.com
+  opt_out_url: https://www.ip2location.com/do-not-sell
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: general-information-solutions
+  name: General Information Solutions LLC
+  domain: backgroundchecks.com
+  category: data_broker
+  method: email
+  opt_out_email: cklafehn@backgroundchecks.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: home-contractors-review
+  name: Home Contractors Review, LLC
+  domain: fivestarrated.com
+  category: data_broker
+  method: email
+  opt_out_email: adminsupport@fivestarrated.com
+  opt_out_url: https://www.fivestarrated.com/do-not-sell
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: homeowners-marketing-services
+  name: Homeowners Marketing Services Inc
+  domain: homeownersmarketingservices.com
+  category: data_broker
+  method: email
+  opt_out_email: dnm@homeownersmarketingservices.com
+  opt_out_url: https://homeownersmarketingservices.com/list-removal-request-new/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: hybrid-theory
+  name: Hybrid Theory
+  domain: hybridtheory.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@hybridtheory.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: idengine
+  name: Idengine LLC
+  domain: idengine.com
+  category: data_broker
+  method: email
+  opt_out_email: chad@idengine.ai
+  opt_out_url: https://idengine.com/dnsmpi/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: imprint-analytics
+  name: Imprint Analytics LLC
+  domain: imprintanalytics.io
+  category: data_broker
+  method: email
+  opt_out_email: privacy@imprintanalytics.io
+  opt_out_url: https://imprintanalytics.io/limit-the-use-of-my-sensitive-personal-information/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: incheck
+  name: Incheck Inc
+  domain: inchecksolutions.com
+  category: data_broker
+  method: email
+  opt_out_email: jenwaite@inchecksolutions.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: indiemark
+  name: Indiemark LLC
+  domain: emailindustries.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@emailindustries.com
+  opt_out_url: https://www.emailindustries.com/legal/#ccpa
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: infinite-knot
+  name: Infinite Knot Inc.
+  domain: contacts411.com
+  category: data_broker
+  method: email
+  opt_out_email: barrygold@contacts411.com
+  opt_out_url: https://www.contacts411.com/opt-out
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: inflection-risk-solutions
+  name: Inflection Risk Solutions, LLC
+  domain: inflection.com
+  category: data_broker
+  method: email
+  opt_out_email: legal@inflection.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: infocore
+  name: Infocore Inc.
+  domain: infocore.com
+  category: data_broker
+  method: email
+  opt_out_email: bjupp@infocore.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: infofree-com
+  name: Infofree.Com LLC
+  domain: infofree.com
+  category: data_broker
+  method: email
+  opt_out_email: accounting@infofree.com
+  opt_out_url: https://privacycompliance.biz/databaseusa-opt-out-process/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: infogroup
+  name: Infogroup Inc.
+  domain: infogroup.com
+  category: data_broker
+  method: email
+  opt_out_email: privacyteam@infogroup.com
+  opt_out_url: https://www.data-axle.com/do-not-sell-my-data/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: inmobi
+  name: Inmobi
+  domain: trufactor.io
+  category: data_broker
+  method: email
+  opt_out_email: privacy@inmobi.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: innovis-data-solutions
+  name: Innovis Data Solutions, Inc.
+  domain: innovis.com
+  category: data_broker
+  method: email
+  opt_out_email: vtdata@innovis.com
+  opt_out_url: https://www.innovis.com/personal/optOutOptIn
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: insideview
+  name: InsideView, Inc.
+  domain: insideview.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@insideview.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: integrated-medical-data
+  name: Integrated Medical Data, LLC.
+  domain: integratedmedicaldata.com
+  category: data_broker
+  method: email
+  opt_out_email: bzink@integratedmedicaldata.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: intellicorp-records
+  name: Intellicorp Records, Inc.
+  domain: intellicorp.net
+  category: data_broker
+  method: email
+  opt_out_email: compliance@intellicorp.net
+  opt_out_url: https://www.intellicorp.net/marketing/Your-California-Privacy-Rights
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: intentgine
+  name: Intentgine Inc.
+  domain: intentgine.com
+  category: data_broker
+  method: email
+  opt_out_email: paul@intentgine.com
+  opt_out_url: https://www.intentgine.com/ccpa-privacy
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: intentmacro
+  name: Intentmacro Inc.
+  domain: intentmacro.com
+  category: data_broker
+  method: email
+  opt_out_email: paul@intentmacro.com
+  opt_out_url: https://www.intentmacro.com/ccpa-privacy
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: ihs-markit
+  name: IHS Markit
+  domain: ipreo.com
+  category: data_broker
+  method: email
+  opt_out_email: bruce.noll@ihsmarkit.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: ipsos
+  name: Ipsos
+  domain: ipsos.com
+  category: data_broker
+  method: email
+  opt_out_email: dpo.usa@ipsos.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: iq-data-systems
+  name: IQ Data Systems, Inc.
+  domain: backgroundsonline.com
+  category: data_broker
+  method: email
+  opt_out_email: nate.waymire@backgroundsonline.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: iso-services
+  name: ISO Services Inc
+  domain: jornaya.com
+  category: data_broker
+  method: email
+  opt_out_email: bgeorge@verisk.com
+  opt_out_url: https://privacy.infutor.com/s/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: ivy-tech-re
+  name: Ivy Tech Re, LLC
+  domain: getivydata.com
+  category: data_broker
+  method: email
+  opt_out_email: kyle@getivydata.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: jigyasa-analytics
+  name: Jigyasa Analytics LLC
+  domain: jigyasaanalytics.com
+  category: data_broker
+  method: email
+  opt_out_email: info@jigyasaanalytics.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: jverify
+  name: Jverify, Inc.
+  domain: jverify.com
+  category: data_broker
+  method: email
+  opt_out_email: admin@jverify.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: kbm-group
+  name: KBM GROUP LLC
+  domain: kbmg.com
+  category: data_broker
+  method: email
+  opt_out_email: john.petrillo@wundermandata.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: killi
+  name: Killi Ltd.
+  domain: killi.io
+  category: data_broker
+  method: email
+  opt_out_email: privacy@killi.io
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: klarifi
+  name: Klarifi
+  domain: klarifi.io
+  category: data_broker
+  method: email
+  opt_out_email: soren@klarifi.io
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: knower-tech-usa
+  name: Knower Tech Usa, LLC
+  domain: knowertech.com
+  category: data_broker
+  method: email
+  opt_out_email: info@knowertech.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: knowwho
+  name: Knowwho
+  domain: knowwho.com
+  category: data_broker
+  method: email
+  opt_out_email: bbrownson@knowwho.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: kochava
+  name: KOCHAVA Inc.
+  domain: kochava.com
+  category: data_broker
+  method: email
+  opt_out_email: legal@kochava.com
+  opt_out_url: https://www.kochava.com/opt-out-do-not-sell-request-process/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: kols-key-opinion-leaders
+  name: Kols (Key Opinion Leaders)
+  domain: keyopinionleaders.com
+  category: data_broker
+  method: email
+  opt_out_email: kol-privacy@keyopinionleaders.com
+  opt_out_url: https://www.keyopinionleaders.com/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: kyber-health-data
+  name: Kyber Health Data LLC
+  domain: cowen.com
+  category: data_broker
+  method: email
+  opt_out_email: kyberccpa@cowen.com
+  opt_out_url: https://www.cowen.com/kyber-data-science-disclosures/do-not-sell-my-information-request-form/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: leadership-connect
+  name: Leadership Connect
+  domain: leadershipconnect.io
+  category: data_broker
+  method: email
+  opt_out_email: privacy@leadershipconnect.io
+  opt_out_url: https://www.leadershipconnect.io/opt-out
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: leadloft
+  name: Leadloft Inc.
+  domain: leadloft.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@leadloft.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: leadsmarket-com
+  name: Leadsmarket.Com LLC
+  domain: leadsmarket.com
+  category: data_broker
+  method: email
+  opt_out_email: legal@leadsmarket.com
+  opt_out_url: https://www.leadsmarket.com/privacy-policy.
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: let-it-ride-sports
+  name: LET IT RIDE SPORTS LLC
+  domain: outlastdfs.com
+  category: data_broker
+  method: email
+  opt_out_email: brenton@outlastdfs.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: lifesight
+  name: Lifesight LLC
+  domain: lifesight.io
+  category: data_broker
+  method: email
+  opt_out_email: privacy@lifesight.io
+  opt_out_url: https://lifesight.io/opt-out/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: lighthouse-list
+  name: Lighthouse List
+  domain: lighthouselist.com
+  category: data_broker
+  method: email
+  opt_out_email: robert@lighthouselist.com
+  opt_out_url: https://unsubscribe.stirista.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: limeleads
+  name: Limeleads
+  domain: limeleads.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@limeleads.com
+  opt_out_url: https://www.limeleads.com/do-not-sell-my-data-request/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: listings-information-systems-and-tabulation-servic
+  name: Listings, Information, Systems And Tabulation Services, Inc
+  domain: lists-inc.com
+  category: data_broker
+  method: email
+  opt_out_email: info@lists-inc.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: list-service-direct
+  name: List Service Direct Inc.
+  domain: listservicedirect.com
+  category: data_broker
+  method: email
+  opt_out_email: dataremoval@listservicedirect.com
+  opt_out_url: https://listservicedirect.com/opt-out/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: listsonline
+  name: Listsonline
+  domain: listsonline.com
+  category: data_broker
+  method: email
+  opt_out_email: privacyofficer@listsonline.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: localblox
+  name: Localblox
+  domain: localblox.com
+  category: data_broker
+  method: email
+  opt_out_email: sabira@localblox.com
+  opt_out_url: https://consumer.localblox.com/privacy_policy
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: locatesmarter
+  name: Locatesmarter, LLC
+  domain: locatesmarter.com
+  category: data_broker
+  method: email
+  opt_out_email: teri.ettelson@locatesmarter.com
+  opt_out_url: https://www.locatesmarter.com/request-to-opt-out-do-not-sell-my-personal-information/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: logiq
+  name: Logiq, Inc
+  domain: logiq.com
+  category: data_broker
+  method: email
+  opt_out_email: compliance@logiq.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: lotadata
+  name: Lotadata, Inc.
+  domain: lotadata.com
+  category: data_broker
+  method: email
+  opt_out_email: apu@lotadata.com
+  opt_out_url: https://lotadata.com/personal_information
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: lucid-holdings
+  name: Lucid Holdings, LLC
+  domain: luc.id
+  category: data_broker
+  method: email
+  opt_out_email: privacy@luc.id
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: lundquist-consulting
+  name: Lundquist Consulting, Inc.
+  domain: lciinc.com
+  category: data_broker
+  method: email
+  opt_out_email: info@lciinc.com
+  opt_out_url: https://g2risksolutions.com/consumer-center/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: machintel
+  name: Machintel Inc.
+  domain: machintel.com
+  category: data_broker
+  method: email
+  opt_out_email: mark.choudhari@machintel.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: madison-logic
+  name: Madison Logic, Inc.
+  domain: madisonlogic.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@madisonlogic.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: marinus-analytics
+  name: Marinus Analytics
+  domain: marinusanalytics.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@marinusanalytics.com
+  opt_out_url: https://www.marinusanalytics.com/do-not-sell-my-personal-information
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: market-force
+  name: Market Force Corporation
+  domain: marketforcecorp.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@marketforcecorp.com
+  opt_out_url: https://www.marketforcecorp.com/opt-out/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: martin-data
+  name: Martin Data LLC
+  domain: usinfosearch.com
+  category: data_broker
+  method: email
+  opt_out_email: aj@usinfosearch.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: matchandappend-com
+  name: Matchandappend.Com LLC
+  domain: matchandappend.com
+  category: data_broker
+  method: email
+  opt_out_email: info@matchandappend.com
+  opt_out_url: https://www.matchandappend.com/do-not-sell-my-data/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: mch
+  name: MCH Inc
+  domain: mchdata.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@mchdata.com
+  opt_out_url: https://www.mchdata.com/about/ccpaemail
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: media-direct
+  name: Media Direct, Inc.
+  domain: digdevdirect.com
+  category: data_broker
+  method: email
+  opt_out_email: slubin@digdev.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: mediamath
+  name: Mediamath, Inc.
+  domain: mediamath.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@mediamath.com
+  opt_out_url: https://www.mediamath.com/privacy-policy/ccpa-optout/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: media-resource-group
+  name: Media Resource Group LLC
+  domain: mrginc.com
+  category: data_broker
+  method: email
+  opt_out_email: info@mrginc.com
+  opt_out_url: https://www.mrginc.com/opt-out/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: mediasoft
+  name: Mediasoft, LLC
+  domain: mediasoftstudio.com
+  category: data_broker
+  method: email
+  opt_out_email: info@mediasoftstudio.com
+  opt_out_url: https://www.mediasoftstudio.com/unsubscribe.php
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: media-source-solutions
+  name: Media Source Solutions
+  domain: mediasourcesolutions.com
+  category: data_broker
+  method: email
+  opt_out_email: mvolpe@mediasourcesolutions.com
+  opt_out_url: https://unsubscribe.stirista.com/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: mediazod
+  name: Mediazod LLC
+  domain: leadzod.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@leadzod.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: mfi-credit-solutions
+  name: MFI Credit Solutions
+  domain: mfidata.com
+  category: data_broker
+  method: email
+  opt_out_email: mfitzpatrick@mfidata.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: mightyrep
+  name: Mightyrep
+  domain: mightyrep.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@mightyrep.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: modernize
+  name: Modernize, Inc.
+  domain: modernize.com
+  category: data_broker
+  method: email
+  opt_out_email: support@modernize.com
+  opt_out_url: https://privacy-central.securiti.ai/#/dsr/1b319101-f00c-470f-a7f0-26aa81f057b8
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: mogean
+  name: Mogean, Inc.
+  domain: mogean.com
+  category: data_broker
+  method: email
+  opt_out_email: info@mogean.com
+  opt_out_url: https://www.mogean.com/opt-out
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: monevo
+  name: Monevo, Inc.
+  domain: monevo.com
+  category: data_broker
+  method: email
+  opt_out_email: usasupport@monevo.com
+  opt_out_url: https://www.monevo.us/privacy-portal.
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: msim
+  name: Msim, LLC
+  domain: none
+  category: data_broker
+  method: email
+  opt_out_email: dl-msim@move.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: national-consumer-telecom-utilities-exchange
+  name: National Consumer Telecom & Utilities Exchange, Inc.
+  domain: nctue.com
+  category: data_broker
+  method: email
+  opt_out_email: abby@nacmsw.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: national-student-clearinghouse
+  name: NATIONAL STUDENT CLEARINGHOUSE
+  domain: studentclearinghouse.org
+  category: data_broker
+  method: email
+  opt_out_email: legal@studentclearinghouse.org
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: nativo
+  name: Nativo, Inc.
+  domain: nativo.com
+  category: data_broker
+  method: email
+  opt_out_email: legal@nativo.com
+  opt_out_url: https://www.nativo.com/interest-based-ads#your-rights
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: ncr
+  name: NCR Corporation
+  domain: ncr.com
+  category: data_broker
+  method: email
+  opt_out_email: office.privacy@ncr.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: nc-ventures
+  name: NC VENTURES LLC
+  domain: ncsolutions.com
+  category: data_broker
+  method: email
+  opt_out_email: ncs.privacy@ncsolutions.com
+  opt_out_url: https://ncsolutions.com/do-not-sell-my-information/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: near-north-america
+  name: Near North America
+  domain: near.co
+  category: data_broker
+  method: email
+  opt_out_email: privacy@near.co
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: new-england-list-services
+  name: New England List Services
+  domain: nelists.com
+  category: data_broker
+  method: email
+  opt_out_email: dave@nelists.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: new-strata
+  name: New Strata Inc.
+  domain: fivestrata.com
+  category: data_broker
+  method: email
+  opt_out_email: info@fivestrata.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: nexsales-solutions
+  name: Nexsales Solutions Inc.
+  domain: nexsales.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@nexsales.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: nexxa-group
+  name: Nexxa Group, Inc.
+  domain: nexxagroup.com
+  category: data_broker
+  method: email
+  opt_out_email: consumerchoice@nexxagroup.com
+  opt_out_url: https://www.nexxagroup.com/corporate-overview/consumer-opt-out/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: north-american-media
+  name: North American Media LLC
+  domain: namericanmedia.com
+  category: data_broker
+  method: email
+  opt_out_email: angelan@namericanmedia.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: nova-list
+  name: NOVA List Company, LLC
+  domain: novalist.com
+  category: data_broker
+  method: email
+  opt_out_email: ckoch@novalist.com
+  opt_out_url: https://www.novalist.com/opt-out
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: nymblr
+  name: Nymblr, Inc.
+  domain: nymblr.com
+  category: data_broker
+  method: email
+  opt_out_email: support@nimbler.com
+  opt_out_url: https://www.nymblr.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: onemata
+  name: Onemata Corporation
+  domain: onemata.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@onemata.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: one-model
+  name: One Model, Inc.
+  domain: onemodel.co
+  category: data_broker
+  method: email
+  opt_out_email: privacy@onemodel.co
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: on-hold-america
+  name: On Hold-America, Inc.
+  domain: kycdata.com
+  category: data_broker
+  method: email
+  opt_out_email: consumers@kycdata.com
+  opt_out_url: https://www.kycdata.com/consumer-privacy/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: optimal-fusion
+  name: Optimal Fusion
+  domain: optimalfusion.com
+  category: data_broker
+  method: email
+  opt_out_email: dataprotectionofficer@optimalfusion.com
+  opt_out_url: https://www.optimalfusion.com/adpreferences/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: oracle-america
+  name: Oracle America, Inc.
+  domain: oracle.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy_ww@oracle.com
+  opt_out_url: https://datacloudoptout.oracle.com/optout.#maincontent
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: origin8
+  name: ORIGIN8 Inc
+  domain: pushint.com
+  category: data_broker
+  method: email
+  opt_out_email: compliance@pushint.com
+  opt_out_url: https://pushint.com/manage-my-data
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: owneriq
+  name: Owneriq, Inc.
+  domain: owneriq.com
+  category: data_broker
+  method: email
+  opt_out_email: tpowell@owneriq.com
+  opt_out_url: https://www.owneriq.com/privacy-notice.html#opt-out
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: parasol-media
+  name: Parasol Media Inc.
+  domain: parasolleads.com
+  category: data_broker
+  method: email
+  opt_out_email: jschwartz@parasolleads.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: partners-credit-and-verification-solutions
+  name: Partners Credit And Verification Solutions
+  domain: partnerscredit.com
+  category: data_broker
+  method: email
+  opt_out_email: support@partnerscredit.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: pathway-ventures
+  name: PATHWAY VENTURES LLC
+  domain: indivizio.com
+  category: data_broker
+  method: email
+  opt_out_email: privacyofficer@indivizio.com
+  opt_out_url: https://www.protectdataprivacy.com/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: peekyou
+  name: Peekyou LLC
+  domain: peekyou.com
+  category: data_broker
+  method: email
+  opt_out_email: info@peekyou.com
+  opt_out_url: https://www.peekyou.com/about/contact/ccpa_optout/do_not_sell/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: pension-benefit-information
+  name: Pension Benefit Information, LLC
+  domain: pbinfo.com
+  category: data_broker
+  method: email
+  opt_out_email: ccparequests@pbinfo.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: perf-labs
+  name: Perf Labs, Inc.
+  domain: interseller.io
+  category: data_broker
+  method: email
+  opt_out_email: privacy@interseller.io
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: permutive
+  name: Permutive, Inc
+  domain: permutive.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@permutive.com
+  opt_out_url: https://permutive.com/privacy/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: plexuss
+  name: Plexuss, Inc.
+  domain: plexuss.com
+  category: data_broker
+  method: email
+  opt_out_email: compliance@plexuss.com
+  opt_out_url: https://www.plexuss.com/ccpa-opt-out
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: plural-marketing-solutions
+  name: Plural Marketing Solutions Inc.
+  domain: plmrkg.com
+  category: data_broker
+  method: email
+  opt_out_email: george@plmrkg.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: polity
+  name: Polity
+  domain: polityinc.com
+  category: data_broker
+  method: email
+  opt_out_email: info@polityinc.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: preferred-communications
+  name: Preferred Communications
+  domain: preferredcommunications.com
+  category: data_broker
+  method: email
+  opt_out_email: opt-out-ccpa@preferredcommunications.com
+  opt_out_url: https://preferredcommunications.com/consumer-opt-out/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: prodpro
+  name: Prodpro Inc
+  domain: prodpro.com
+  category: data_broker
+  method: email
+  opt_out_email: contact@prodpro.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: project-applecart
+  name: Project Applecart LLC
+  domain: applecart.co
+  category: data_broker
+  method: email
+  opt_out_email: matt@applecart.co
+  opt_out_url: https://www.applecart.co/privacyrights
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: prospector-database
+  name: Prospector Database, LLC
+  domain: prospectordatabase.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@prospectordatabase.com
+  opt_out_url: https://www.prospectordatabase.com/privacy-center
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: proxima-platform
+  name: Proxima Platform
+  domain: proximaplatform.com
+  category: data_broker
+  method: email
+  opt_out_email: aleex.de.aybar@outlook.com
+  opt_out_url: https://www.proximaplatform.com/opt-out-portal
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: purecars-technologies
+  name: Purecars Technologies, LLC
+  domain: purecars.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@purecars.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: pwc-product-sales
+  name: Pwc Product Sales LLC
+  domain: pwc.com
+  category: data_broker
+  method: email
+  opt_out_email: us_privacy_office@pwc.com
+  opt_out_url: https://www.pwc.com/us/en/site/notice-of-right-to-opt-out.html
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: qwoted
+  name: Qwoted, Inc.
+  domain: qwoted.com
+  category: data_broker
+  method: email
+  opt_out_email: hello@qwoted.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: rategain-adara
+  name: Rategain Adara, Inc.
+  domain: adara.com
+  category: data_broker
+  method: email
+  opt_out_email: dpo@adara.com
+  opt_out_url: https://adara.com/opt-out/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: reach-marketing
+  name: Reach Marketing LLC
+  domain: reachmarketing.com
+  category: data_broker
+  method: email
+  opt_out_email: info@reachmarketing.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: reality-media
+  name: Reality Media, Inc.
+  domain: realitydebtsolutions.com
+  category: data_broker
+  method: email
+  opt_out_email: cform@realitymediainc.com
+  opt_out_url: https://www.realitydebtsolutions.com/do-not-sell-my-personal-information/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: recsolu
+  name: Recsolu Inc.
+  domain: yello.co
+  category: data_broker
+  method: email
+  opt_out_email: privacy@yello.co
+  opt_out_url: https://yello.co/do-not-sell-my-personal-information/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: redbird-direct
+  name: Redbird Direct LLC
+  domain: redbirddirect.com
+  category: data_broker
+  method: email
+  opt_out_email: carrie@redbirddirect.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: refinitiv-us
+  name: Refinitiv US LLC
+  domain: refinitiv.com
+  category: data_broker
+  method: email
+  opt_out_email: jonny.bell@refinitiv.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: regulatory-datacorp
+  name: Regulatory Datacorp, Inc.
+  domain: bvdinfo.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@bvdinfo.com
+  opt_out_url: https://survey.alchemer.com/s3/8249180/Do-Not-Sell-Request
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: reis
+  name: Reis Inc.
+  domain: cre.moodysanalytics.com
+  category: data_broker
+  method: email
+  opt_out_email: info@reis.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: rent-risk
+  name: Rent Risk LLC
+  domain: rentrisk.com
+  category: data_broker
+  method: email
+  opt_out_email: rich@rentrisk.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: researchusa
+  name: Researchusa LLC
+  domain: researchusallc.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@researchusallc.com
+  opt_out_url: https://privacycompliance.biz/researchusallc-ccpa/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: results-only-consulting-and-advertising
+  name: Results Only Consulting And Advertising
+  domain: rocadvertising.com
+  category: data_broker
+  method: email
+  opt_out_email: dataprivacy_rocadvertising@simpleoptoutcompliance.com
+  opt_out_url: https://www.rocadvertising.com/privacy-policy/#donotsell
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: rhetorik
+  name: Rhetorik Limited
+  domain: rhetorik.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@rhetorik.com
+  opt_out_url: https://rhetorik.com/do-not-sell-my-info/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: riv-data
+  name: Riv Data Corp.
+  domain: carpe.io
+  category: data_broker
+  method: email
+  opt_out_email: alexis.leitner@carpe.io
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: rooftop-digital
+  name: ROOFTOP DIGITAL LLC
+  domain: rooftopdigital.com
+  category: data_broker
+  method: email
+  opt_out_email: privacyofficer@therooftop.io
+  opt_out_url: https://www.consumerdataprotect.com/?ref=rooftopdigital.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: rp-on-site
+  name: RP On-Site LLC
+  domain: realpage.com
+  category: data_broker
+  method: email
+  opt_out_email: rponsitecompliance@realpage.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: safegraph
+  name: Safegraph Inc.
+  domain: safegraph.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@safegraph.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: saferent-solutions
+  name: Saferent Solutions, LLC
+  domain: saferentsolutions.com
+  category: data_broker
+  method: email
+  opt_out_email: licensing@saferentsolutions.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: saha-ventures
+  name: Saha Ventures LLC
+  domain: findtrueowner.com
+  category: data_broker
+  method: email
+  opt_out_email: harmik@propertyownerlookup.io
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: saleseer
+  name: Saleseer, Inc.
+  domain: saleseer.com
+  category: data_broker
+  method: email
+  opt_out_email: jean.vansoelen@saleseer.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: sawyer-lists
+  name: Sawyer Lists, LLC
+  domain: sawyerlists.com
+  category: data_broker
+  method: email
+  opt_out_email: admin@sawyerdatadirect.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: scanbuy
+  name: Scanbuy, Inc
+  domain: scanbuy.com
+  category: data_broker
+  method: email
+  opt_out_email: chai.outmezguine@scanbuy.com
+  opt_out_url: https://scanbuy.com/rights/data
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: scraping-robot
+  name: Scraping Robot, LLC
+  domain: scrapingrobot.com
+  category: data_broker
+  method: email
+  opt_out_email: support@scrapingrobot.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: scryer
+  name: Scryer, Inc.
+  domain: reonomy.com
+  category: data_broker
+  method: email
+  opt_out_email: info@reonomy.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: search-america
+  name: Search America LLC
+  domain: locateplus.com
+  category: data_broker
+  method: email
+  opt_out_email: dserrano@locateplus.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: searchbug
+  name: Searchbug
+  domain: searchbug.com
+  category: data_broker
+  method: email
+  opt_out_email: support@searchbug.zohodesk.com
+  opt_out_url: https://www.searchbug.com/ccpa.aspx#DoNoSell
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: sentilink
+  name: Sentilink Corp
+  domain: sentilink.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@sentilink.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: service-1st-information-solutions
+  name: Service 1St Information Solutions LLC
+  domain: srv1st.com
+  category: data_broker
+  method: email
+  opt_out_email: info@srv1st.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: skyhook-holding
+  name: Skyhook Holding, Inc.
+  domain: skyhook.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@skyhook.com
+  opt_out_url: https://www.skyhook.com/opt-out-of-skyhook-products.
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: sma-communications
+  name: SMA Communications, LLC.
+  domain: smacomm.com
+  category: data_broker
+  method: email
+  opt_out_email: steven@smacomm.com
+  opt_out_url: https://smacomm.com/do-not-sell/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: sourceit-technologies
+  name: Sourceit Technologies, Inc
+  domain: sourceitmarketing.com
+  category: data_broker
+  method: email
+  opt_out_email: dataprivacy@sourceitmarketing.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: sourcescrub
+  name: Sourcescrub LLC
+  domain: sourcescrub.com
+  category: data_broker
+  method: email
+  opt_out_email: dataprivacy@sourcescrub.com
+  opt_out_url: https://www.sourcescrub.com/legal/do-not-sell-my-personal-information
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: spectrum-mailing-lists
+  name: Spectrum Mailing Lists
+  domain: spectrumlists.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@spectrumlists.com
+  opt_out_url: https://spectrummailinglists.com/privacy-statement/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: staircase
+  name: Staircase, Inc.
+  domain: staircase.co
+  category: data_broker
+  method: email
+  opt_out_email: optout@staircase.co
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: start-io
+  name: Start.Io Inc.
+  domain: start.io
+  category: data_broker
+  method: email
+  opt_out_email: privay@start.io
+  opt_out_url: https://www.start.io/do-not-sell-or-sharemy-personal-information/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: step2success-marketing
+  name: STEP2SUCCESS Marketing
+  domain: step2successmarketing.com
+  category: data_broker
+  method: email
+  opt_out_email: mary@step2successmarketing.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: strata
+  name: Strata Company
+  domain: gostrata.com
+  category: data_broker
+  method: email
+  opt_out_email: dataprivacy@gostrata.com
+  opt_out_url: https://www.gostrata.com/opt-out-preferences
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: strategic-information-resources
+  name: Strategic Information Resources
+  domain: strategicinfo.com
+  category: data_broker
+  method: email
+  opt_out_email: jdrziak@strategicinfo.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: stratmish
+  name: Stratmish, LLC
+  domain: spoker.com
+  category: data_broker
+  method: email
+  opt_out_email: phil@spoker.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: structure
+  name: Structure
+  domain: structure.ac
+  category: data_broker
+  method: email
+  opt_out_email: thoran@structure.ac
+  opt_out_url: https://www.structure.ac/opt_outs/new
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: suus
+  name: Suus, LLC
+  domain: suus.inc
+  category: data_broker
+  method: email
+  opt_out_email: lcrocker@onboardpartners.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: tandem-marketing
+  name: Tandem Marketing, LLC
+  domain: fhamortgagefinder.com
+  category: data_broker
+  method: email
+  opt_out_email: info@tandemmarketingnv.com
+  opt_out_url: https://www.fhamortgagefinder.com/CCPArequest.php
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: telefi
+  name: Telefi LLC
+  domain: telefi.app
+  category: data_broker
+  method: email
+  opt_out_email: ccpa@telefi.app
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: terminus-software
+  name: Terminus Software, Inc.
+  domain: terminus.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@terminus.com
+  opt_out_url: https://home.terminusplatform.com/data-deletion-request
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: the-lead
+  name: The Lead Company, Inc.
+  domain: lead.co
+  category: data_broker
+  method: email
+  opt_out_email: dave@lead.co
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: the-open-data-people
+  name: The Open Data People, Inc.
+  domain: openpeoplesearch.com
+  category: data_broker
+  method: email
+  opt_out_email: info@openpeoplesearch.com
+  opt_out_url: https://www.openpeoplesearch.com/Consumer
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: throtle
+  name: THROTLE Inc
+  domain: throtle.io
+  category: data_broker
+  method: email
+  opt_out_email: mboyle@throtle.io
+  opt_out_url: https://www.throtle.io/website-privacy-policy/#cookie-id
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: tinuiti
+  name: Tinuiti, Inc.
+  domain: tinuiti.com
+  category: data_broker
+  method: email
+  opt_out_email: hello@tinuiti.com
+  opt_out_url: https://tinuiti.com/privacy-policy/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: tiplinks
+  name: Tiplinks Inc
+  domain: fetcher.ai
+  category: data_broker
+  method: email
+  opt_out_email: support@fetcher.ai
+  opt_out_url: https://app.fetcher.ai/opt-out
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: tracers-information-specialists
+  name: Tracers Information Specialists, Inc.
+  domain: tracersinfo.com
+  category: data_broker
+  method: email
+  opt_out_email: compliance@tracersinfo.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: true-opulence
+  name: True Opulence Corporation
+  domain: trueopulence.com
+  category: data_broker
+  method: email
+  opt_out_email: info@trueopulence.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: twine-data
+  name: Twine Data, Inc
+  domain: twinedata.com
+  category: data_broker
+  method: email
+  opt_out_email: bmorgan@twinedata.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: tymax-media
+  name: Tymax Media
+  domain: tymaxmedia.com
+  category: data_broker
+  method: email
+  opt_out_email: privacyofficer@datacomplianceportal.com
+  opt_out_url: https://www.tymaxmedia.com/ccpa.php
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: ubermedia
+  name: Ubermedia
+  domain: ubermedia.com
+  category: data_broker
+  method: email
+  opt_out_email: privacy@ubermedia.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: united-one-resources
+  name: United One Resources, Inc.
+  domain: unitedone.com
+  category: data_broker
+  method: email
+  opt_out_email: lbrady@unitedone.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: unity-technologies-sf
+  name: Unity Technologies SF
+  domain: unity.com
+  category: data_broker
+  method: email
+  opt_out_email: dpo@unity3d.com
+  opt_out_url: https://www.unity.com/legal/do-not-sell-my-personal-information
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: venpath
+  name: VENPATH Inc
+  domain: venpath.net
+  category: data_broker
+  method: email
+  opt_out_email: accounting@venpath.net
+  opt_out_url: https://www.venpath.net/legal/opt-out
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: verse-gaming
+  name: Verse Gaming
+  domain: versefantasysports.com
+  category: data_broker
+  method: email
+  opt_out_email: dan@versegaming.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: vertify
+  name: Vertify, Inc
+  domain: vertify.com
+  category: data_broker
+  method: email
+  opt_out_email: gpineda@vertify.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: wholesale-mail
+  name: Wholesale Mail
+  domain: domymail.com
+  category: data_broker
+  method: email
+  opt_out_email: jenny@helmerprinting.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: whoodle
+  name: Whoodle, LLC
+  domain: whoodle.com
+  category: data_broker
+  method: email
+  opt_out_email: support@whoodle.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: wisdom-media-group
+  name: Wisdom Media Group LLC
+  domain: wisdommediagroupllc.com
+  category: data_broker
+  method: email
+  opt_out_email: contact@wisdommediagroupllc.com
+  opt_out_url: https://www.wisdommediagroupllc.com/unsubscribe.php
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: xactus
+  name: Xactus, LLC
+  domain: xactus.com
+  category: data_broker
+  method: email
+  opt_out_email: carolyn.casey@xactus.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: x-mode-social
+  name: X-Mode Social, Inc.
+  domain: xmode.io
+  category: data_broker
+  method: email
+  opt_out_email: ap@xmodesocial.com
+  opt_out_url: https://outlogic.io/opt-out-form/
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: xome-leads
+  name: Xome Leads LLC
+  domain: xome.com
+  category: data_broker
+  method: email
+  opt_out_email: licensing@xome.com
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.
+- slug: zeotap-gmbh
+  name: Zeotap GmbH
+  domain: zeotap.com
+  category: data_broker
+  method: email
+  opt_out_email: team.legal@zeotap.com
+  opt_out_url: https://privacyportal-de.onetrust.com/webform/bdcc4a2f-2458-4e17-96c3-cf88f7115dfc/2c5e70e5-643a-4c1e-b9c2-1e71584d04ad
+  required_fields:
+  - full_name
+  - current_address
+  legal_basis:
+  - CCPA
+  statutory_response_days: 45
+  source: eraser
+  notes: From the Eraser broker list (MIT); contact email is unverified.

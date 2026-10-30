@@ -376,9 +376,15 @@ def _with_reply(session: Session, sub: Submission, a: Attention) -> Attention:
     if mid:
         a.gmail_url = "https://mail.google.com/mail/u/0/#search/" + quote(f"rfc822msgid:{mid}")
     a.quote = deciding_sentence(row.text, row.kind or "")
-    a.link = _best_link(row.text)
-    a.link_host = urlsplit(a.link).hostname or "" if a.link else ""
     from ..brokers.registry import get_broker
+
+    a.link = _best_link(row.text)
+    if not a.link and a.kind == "need-info":
+        try:  # their reply has no link: fall back to the broker's known opt-out form
+            a.link = get_broker(sub.broker_slug).opt_out_url or ""
+        except KeyError:
+            pass
+    a.link_host = urlsplit(a.link).hostname or "" if a.link else ""
 
     a.alt_emails = alternate_addresses(row.text, row.from_addr, sent_to(sub, get_broker))
     if a.kind == "need-info":
