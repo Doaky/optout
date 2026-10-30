@@ -23,7 +23,7 @@
 - {from: '@agile-ed.com', phrase: the information provided is insufficient for agile to identify or verify a matching record, outcome: need-info, broker: agile-education-marketing}
 - {from: '@aniline.io', phrase: we do not process privacy requests that do not contain a company email/company name combination, outcome: denied, broker: aniline}
 - {from: '@belardiwong.com', phrase: this email inbox is not monitored regularly, outcome: need-info, broker: belardi-ostroy-alc}
-- {from: '@bookyourdata.com', phrase: we have received your request to remove your information from our database, and we are acting on it, outcome: auto-reply, broker: a-direct-marketing}
+- {from: '@bookyourdata.com', phrase: "we have received your request to remove your information from our database, and we are acting on it", outcome: auto-reply, broker: a-direct-marketing}
 - {from: '@broadridge.com', phrase: we cannot assist you directly with requests related to information in client records, outcome: denied, broker: advisortarget}
 - {from: '@01advertising.com', phrase: our team is now working on your request, outcome: auto-reply, broker: 01advertising}
 - {from: '@catalist.us', phrase: thank you for contacting the privacy team at catalist, outcome: auto-reply, broker: catalist}
@@ -49,7 +49,7 @@
 - {from: '@claritas.com', phrase: please use our onetrust request form, outcome: need-info, broker: claritas, override: true}
 - {from: '@civisanalytics.com', phrase: we cannot process your request until we have received the completed form, outcome: need-info, broker: civis-analytics, override: true}
 - {from: '@choreograph.com', phrase: is not the designated channel for consumer privacy requests, outcome: need-info, broker: choreograph, override: true}
-- {from: '@cadent.tv', phrase: to submit a data rights request, please complete the form, outcome: need-info, broker: cadent}
+- {from: '@cadent.tv', phrase: "to submit a data rights request, please complete the form", outcome: need-info, broker: cadent}
 - {from: '@bdo.com', phrase: no longer actively monitored for new inquiries, outcome: need-info, broker: bdo-gci}
 - {from: '@issgovernance.com', phrase: please complete the form designated for this purpose, outcome: need-info, broker: asset-international}
 - {from: '@blis.com', phrase: we need you to provide the mobile advertising id, outcome: need-info, broker: blis-global}
@@ -59,6 +59,25 @@
 - {from: '@cameo.com', phrase: is no longer a supported intake channel, outcome: no-data, broker: baron-app}
 - {from: '@costar.com', phrase: unable to locate records that can be reasonably associated with you, outcome: need-info, broker: costar-realty-information, override: true}
 - {from: '@completemedicallists.com', phrase: please visit the following webpage and complete the form, outcome: need-info, broker: complete-medical-lists, override: true}
+- {from: '@accurateappend.com', phrase: "hi there, thank you for reaching out to us", outcome: auto-reply, broker: accurate-append}
+- {from: '@allantgroup.com', phrase: please click the button below to access your request in the privacy portal, outcome: need-info, broker: allant-group}
+- {from: '@allantgroup.com', phrase: we have removed your personal information from our national consumer database products and maintained the ability to delete your information from updates, outcome: deleted, broker: allant-group}
+- {from: '@allantgroup.com', phrase: your request has been successfully submitted, outcome: auto-reply, broker: allant-group}
+- {from: '@beenverified.com', phrase: how would you rate our customer service, outcome: auto-reply, broker: beenverified-llc-and-its-subsidiaries-and-affiliat, override: true}
+- {from: '@biscred.com', phrase: "we have no record of personal information matching the identifiers in your request, and we have closed this request accordingly", outcome: no-data, broker: biscred}
+- {from: '@blis.com', phrase: you do not need to verify your identity to make this request, outcome: need-info, broker: blis-global}
+- {from: '@connatix.com', phrase: connatix privacy auto response re, outcome: auto-reply, broker: connatix-native-exchange}
+- {from: '@connatix.com', phrase: please click the link below on the device for which you are seeking requests, outcome: need-info, broker: connatix-native-exchange}
+- {from: '@convexlabs.io', phrase: we checked our system thoroughly and were unable to locate any record of your data, outcome: no-data, broker: convex-labs}
+- {from: '@ctam.com', phrase: we have received your request to exercise data rights under data privacy laws, outcome: auto-reply, broker: ctam-leadshare}
+- {from: '@datonics.com', phrase: thank you for contacting the datonics accounting department, outcome: auto-reply, broker: datonics}
+- {from: '@demandbase.com', phrase: "thank you for sending us your details, and we confirm that we received your request", outcome: auto-reply, broker: demandbase}
+- {from: '@dstillery.com', phrase: "dear customer, thank you for reaching out to dstillery", outcome: auto-reply, broker: dstillery}
+- {from: '@eab.com', phrase: "in order to begin the verification process for your request, please complete and submit the data request form available here", outcome: need-info, broker: eab-global}
+- {from: '@exactmatch.io', phrase: "to activate this request, please click the button below to verify your identity", outcome: need-info, broker: exact-match-marketing}
+- {from: '@fogdatascience.com', phrase: thank you for contacting fog data science regarding your privacy request, outcome: auto-reply, broker: fog-data-science}
+- {from: '@rbarrel.com', phrase: "accordingly, no existing records required deletion", outcome: no-data, broker: cross-pixel-media}
+- {from: '@retention.com', phrase: we will process your request within 7 business days, outcome: auto-reply, broker: getemails}
 
 # --- shared platforms (never pin a broker) ---
 - {from: '@clearview-ai.zendesk.com', phrase: submit a request to exercise your consumer rights, outcome: need-info}
@@ -68,3 +87,5 @@
 - {from: '@m.onetrust.com', phrase: please confirm your email by clicking on the button below, outcome: need-info}
 - {from: '@m.onetrust.com', phrase: your request has been successfully submitted, outcome: auto-reply}
 - {from: '@trustsuperset.com', phrase: we are writing to confirm that your, outcome: deleted}
+- {from: '@disqus-ddef0e2fb08e.intercom-mail.com', phrase: "if you are looking for data access, opt-out/do not sell, or data deletion, you must submit the form below and complete the subsequent email verification", outcome: need-info}
+- {from: '@instantly.ai', phrase: "we are writing to confirm that your personal data has been deleted from the systems that process it, in accordance with applicable data protection law", outcome: deleted}

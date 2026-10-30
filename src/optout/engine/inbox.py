@@ -26,7 +26,7 @@ from ..db import InboxMessage, Submission, update_status
 
 MAX_TEXT = 8000
 # Bump when matching or classification changes: saved replies are re-checked once.
-RULES_VERSION = 8
+RULES_VERSION = 9
 PARSER_VERSION = 2  # bump when parsing changes: saved replies are re-read from Gmail once
 
 # --- parsing -----------------------------------------------------------------

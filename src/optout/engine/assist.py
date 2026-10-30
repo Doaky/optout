@@ -427,11 +427,17 @@ _GENERIC_PHRASE = re.compile(
 )
 
 
+_TIMESTAMP = re.compile(r"\d{1,2}:\d{2}\s*(am|pm)?\s*[a-z]{2,4}\b", re.I)
+_OUR_REQUEST = re.compile(r"i ask that you respond|respond within \d+ days|i am a resident", re.I)
+
+
 def _specific_enough(phrase: str) -> bool:
     """Reject phrases too vague to trust: a bare greeting or 'automated response' would
     match a broker's real answer too, and a known pattern outranks the general rules."""
     if re.search(r"[\[\]@<>]", phrase):  # leftovers of redaction or a forwarded header
         return False
+    if _TIMESTAMP.match(phrase.strip()) or _OUR_REQUEST.search(phrase):
+        return False  # a ticket's date line, or our own request quoted back
     cleaned = re.sub(r"\s+re$", "", phrase.strip())
     return len(cleaned.split()) >= 4 and not _GENERIC_PHRASE.match(cleaned)
 
