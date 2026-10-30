@@ -592,6 +592,8 @@ def _make_handler(app: App):
                 with get_session() as session:
                     queue = forms.todo(session, config, tier=tier)[:10]
                 text = forms.build_prompt(config, queue) if queue else ""
+                if query.get("format", [""])[0] == "json":  # the dashboard's one-click copy
+                    return self._send_json({"text": text, "count": len(queue)})
                 return self._send(200, render.prompt_page(titles[tier], text, len(queue), app.csrf))
 
             if path.startswith("/draft/"):

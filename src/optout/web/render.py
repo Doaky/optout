@@ -441,6 +441,24 @@ d.addEventListener('click', (e) => {
     filter();
     return;
   }
+  const fetchBtn = e.target.closest('[data-copy-url]');
+  if (fetchBtn) {
+    // Built fresh on the server; copied in the same click (ClipboardItem keeps the click's
+    // permission while the text is fetched). Falls back to the page that shows it.
+    const url = fetchBtn.dataset.copyUrl;
+    const label = fetchBtn.textContent;
+    const said = (t) => { fetchBtn.textContent = t; setTimeout(() => { fetchBtn.textContent = label; }, 2500); };
+    const text = fetch(url + '?format=json', { cache: 'no-store' })
+      .then((r) => r.json()).then((j) => { if (!j.text) throw new Error('empty'); return j; });
+    const blob = text.then((j) => new Blob([j.text], { type: 'text/plain' }));
+    const write = (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write)
+      ? navigator.clipboard.write([new ClipboardItem({ 'text/plain': blob })])
+      : text.then((j) => navigator.clipboard.writeText(j.text));
+    Promise.all([write, text])
+      .then(([, j]) => said('Copied ' + j.count + ' ✓ paste into Claude in Chrome'))
+      .catch(() => { location.href = url; });
+    return;
+  }
   const btn = e.target.closest('[data-copy]');
   if (!btn) return;
   const src = d.getElementById(btn.dataset.copy);
@@ -2067,7 +2085,12 @@ def _plan_panel(d: Dashboard, ui: UI) -> str:
                 else "<span class='muted small'>Daily limit reached; more tomorrow</span>"
             )
         elif t.key in _FORM_TIERS and (t.todo or t.needs_you):
-            action = f"<a class='fpill' href='/prompt/{t.key}'>Browser prompt for the next 10</a>"
+            action = (
+                f"<button type='button' class='mini go' data-copy-url='/prompt/{t.key}' "
+                "title='Copies a prompt for your browser agent (Claude in Chrome) with the next "
+                "10 forms in this group'>Copy browser prompt</button> "
+                f"<a class='small' href='/prompt/{t.key}'>view</a>"
+            )
         elif t.key == "too-much" and d.too_much:
             items = "".join(f"<li>{e(name)}: {e(why)}</li>" for name, why in d.too_much)
             action = (

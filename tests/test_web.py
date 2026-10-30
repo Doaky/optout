@@ -1413,3 +1413,65 @@ def test_the_link_picked_is_their_form_not_a_policy_terms_or_drop_page():
         == "https://preferences.example.io"
     )
     assert _best_link("Follow us https://twitter.com/x") == ""
+
+
+def _people_site(ui):
+    """A never-contacted people-search site, so the plan has a prompt to copy."""
+    import yaml as _yaml
+
+    from optout.brokers import registry as reg
+
+    d = reg._brokers_dir()
+    (d / "findme.yml").write_text(
+        _yaml.safe_dump(
+            {
+                "slug": "findme",
+                "name": "FindMe",
+                "domain": "findme.example",
+                "category": "people_search",
+                "method": "manual",
+                "opt_out_url": "https://findme.example/optout",
+                "priority": 1,
+                "legal_basis": ["CCPA"],
+                "statutory_response_days": 45,
+            }
+        )
+    )
+    reg._registry.clear()
+    reg._loaded = False
+
+
+def test_plan_prompt_comes_as_json_for_one_click_copy(ui):
+    import json as _json
+
+    _people_site(ui)
+    r, body = ui.req("GET", "/prompt/people-search?format=json")
+    got = _json.loads(body)
+    assert r.status == 200 and got["count"] == 1 and "F1. broker: findme" in got["text"]
+    _, page_ = ui.req("GET", "/")
+    assert "data-copy-url='/prompt/people-search'" in page_
+
+
+def test_copy_browser_prompt_puts_it_on_the_clipboard_in_one_click(ui):
+    sync_api = pytest.importorskip("playwright.sync_api")
+    _people_site(ui)
+    try:
+        pw = sync_api.sync_playwright().start()
+        browser = pw.chromium.launch()
+    except Exception as exc:
+        pytest.skip(f"no browser: {type(exc).__name__}")
+    try:
+        ctx = browser.new_context()
+        ctx.grant_permissions(
+            ["clipboard-read", "clipboard-write"], origin=f"http://127.0.0.1:{ui.port}"
+        )
+        page = ctx.new_page()
+        page.goto(f"http://127.0.0.1:{ui.port}/?t={ui.token}")
+        btn = page.locator("button[data-copy-url='/prompt/people-search']")
+        btn.click()
+        page.locator("button[data-copy-url]", has_text="Copied").wait_for(timeout=10000)
+        assert "F1. broker: findme" in page.evaluate("navigator.clipboard.readText()")
+        assert page.url.endswith(f"?t={ui.token}") or "/prompt/" not in page.url  # stayed put
+    finally:
+        browser.close()
+        pw.stop()
