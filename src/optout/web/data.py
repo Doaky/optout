@@ -60,6 +60,7 @@ class Attention:
     coverage_note: str = ""
     coverage_groups: list[str] = field(default_factory=list)
     coverage_prompt: str = ""  # redacted prompt for Claude (contributor tools only)
+    expires_in: float | None = None  # days left before their link/step lapses ("within 5 days")
 
 
 @dataclass
@@ -134,10 +135,11 @@ _DONE = {"confirmed", "removed", "closed"}
 def collect(
     session: Session, config: UserConfig | None, now: datetime, drafts: int = 0
 ) -> Dashboard:
-    global _TZ
+    global _TZ, _NOW
     from ..config import user_tz
 
     _TZ = user_tz(config)
+    _NOW = now
     names = {b.slug: b.name for b in all_brokers()}
     dash = Dashboard(
         generated=friendly_time(now, _TZ),
@@ -274,6 +276,8 @@ def collect(
                 )
             )
 
+    # Steps that lapse soonest first: a confirm link that expires tomorrow beats a refusal.
+    dash.attention.sort(key=lambda a: a.expires_in if a.expires_in is not None else 1e9)
     for item in dash.attention:
         cov = coverage.get(item.slug)
         if cov is not None:
@@ -379,6 +383,58 @@ def _stalled_form(session: Session, sub: Submission, now: datetime) -> Attention
     )
 
 
+_WORDS = {
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "seven": 7,
+    "ten": 10,
+    "fourteen": 14,
+    "fifteen": 15,
+    "thirty": 30,
+}
+_EXPIRY = re.compile(
+    r"\b(?:within|in|after|expires? in|expire within)\s+(?:(\w+)\s+\()?(\d+|[a-z]+)\)?\s*"
+    r"(business\s+)?(hours?|days?)\b",
+    re.I,
+)
+_EXPIRY_CUE = re.compile(r"expire|confirm|verif|click|closed|resubmit|re-initiate", re.I)
+# "We will process/respond within 45 days" is their promise, not a deadline for you.
+_THEIR_PROMISE = re.compile(
+    r"\b(we|our team)\s*('ll|\s+will|\s+aim to|\s+shall)(?!\s+not)[^.]{0,40}"
+    r"\b(process|respond|resolve|fulfil|review)",
+    re.I,
+)
+
+
+def _expires_in(text: str, received: datetime, now: datetime) -> float | None:
+    """Days left before a step they asked for lapses, from wording like "confirm your email
+    within five (5) days" or "this link will expire in 24 hours". None if they set no limit."""
+    flat = re.sub(r"\s+", " ", text)
+    best: float | None = None
+    for m in _EXPIRY.finditer(flat):
+        start = max(flat.rfind(".", 0, m.start()), 0)
+        end = flat.find(".", m.end())
+        sentence = flat[start : end if end > 0 else len(flat)]
+        if not _EXPIRY_CUE.search(sentence) or _THEIR_PROMISE.search(sentence):
+            continue
+        raw = m.group(2).lower()
+        n = int(raw) if raw.isdigit() else _WORDS.get(raw)
+        if not n or n > 60:
+            continue
+        days = n / 24 if m.group(4).lower().startswith("hour") else float(n)
+        if m.group(3):
+            days *= 7 / 5
+        left = days - (_aware(now) - _aware(received)).total_seconds() / 86400
+        best = left if best is None else min(best, left)
+    return best
+
+
+_NOW: datetime | None = None
+
+
 def _with_reply(session: Session, sub: Submission, a: Attention) -> Attention:
     """Attach the latest reply: the sentence that matters, the email, its first link."""
     from ..db import InboxMessage
@@ -396,6 +452,17 @@ def _with_reply(session: Session, sub: Submission, a: Attention) -> Attention:
     if row is None:
         return a
     a.email = row.text
+    if a.kind == "need-info":
+        # The tightest deadline across what they've asked for (a later "we left a comment"
+        # email doesn't cancel the "confirm within 5 days" one before it).
+        lefts = [
+            x
+            for r in rows
+            if r.kind == "need-info" and r.received_at is not None
+            for x in [_expires_in(r.text, r.received_at, _NOW or datetime.now(UTC))]
+            if x is not None
+        ]
+        a.expires_in = min(lefts) if lefts else None
     mid = row.message_id.strip().strip("<>")
     if mid:
         a.gmail_url = "https://mail.google.com/mail/u/0/#search/" + quote(f"rfc822msgid:{mid}")

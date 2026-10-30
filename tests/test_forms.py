@@ -323,6 +323,20 @@ def test_a_never_contacted_people_search_site_is_queued_and_its_form_starts_a_re
         assert forms.todo(s, people) == []  # under way: not queued again
 
 
+def test_a_site_emailed_first_leaves_the_queue_once_its_form_is_filled(people):
+    from optout.db import create_submission, get_session, mark_submitted
+
+    with get_session() as s:
+        sub = create_submission(
+            s, broker_slug="findme", method_used="email", legal_basis_cited=[],
+            statutory_response_days=45,
+        )
+        mark_submitted(s, sub, {}, None, 45)
+        assert [i["broker"] for i in forms.todo(s, people)] == ["findme"]  # email isn't enough
+        forms.mark_outcome(s, "findme", "submitted", "Page said: received")
+        assert forms.todo(s, people) == []
+
+
 def test_recheck_confirms_removal_and_catches_relisting(people):
     from optout.db import get_session
 

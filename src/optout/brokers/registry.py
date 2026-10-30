@@ -85,6 +85,30 @@ def _load_lenient(directory: Path) -> list[BrokerDef]:
     return found
 
 
+_AUTOMATION = (
+    "category",
+    "method",
+    "opt_out_url",
+    "required_fields",
+    "optional_fields",
+    "requires_listing_url",
+    "requires_phone_verification",
+    "requires_email_verification",
+    "requires_id_upload",
+    "requires_notarization",
+    "re_add_window_days",
+    "last_verified_at",
+    "scan",
+    "steps",
+)
+
+
+def _keep_automation(bundled: BrokerDef, imported: BrokerDef) -> BrokerDef:
+    keep = {k: getattr(bundled, k) for k in _AUTOMATION}
+    notes = " ".join(x for x in (bundled.notes or "", imported.notes or "") if x).strip()
+    return imported.model_copy(update={**keep, "notes": notes or None})
+
+
 def _shared_list(name: str) -> list:
     try:
         data = yaml.safe_load(files("optout").joinpath(f"data/{name}").read_text())
@@ -160,6 +184,10 @@ def _apply_people_search(merged: dict[str, BrokerDef]) -> dict[str, BrokerDef]:
             "category": category,
             **{flag: key in needs for key, flag in _NEEDS.items()},
         }
+        if category == "people_search":
+            # Their public-listing opt-out is open to anyone, whatever a registry exemption
+            # says about state deletion rights. (Your own "never contact" still wins.)
+            update["enabled"] = True
         form_only = category == "people_search"  # their own form, not email
         for key in ("opt_out_url", "search_url"):
             if str(item.get(key, "")).startswith("https://"):
@@ -236,8 +264,11 @@ def load_registry(brokers_dir: Path | None = None) -> None:
         return
 
     merged = {b.slug: b for b in load_all_brokers(_brokers_dir())}
-    for layer in (imported_dir(), user_dir()):
-        merged.update({b.slug: b for b in _load_lenient(layer)})
+    for b in _load_lenient(imported_dir()):
+        # A registry row for a broker we have a hand-built definition of adds its contact and
+        # registry facts; it must not throw away the automation (form steps, re-search).
+        merged[b.slug] = _keep_automation(merged[b.slug], b) if b.slug in merged else b
+    merged.update({b.slug: b for b in _load_lenient(user_dir())})  # yours win outright
 
     merged = _add_extra_brokers(merged)
     merged = _apply_form_links(merged)

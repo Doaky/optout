@@ -161,3 +161,49 @@ def test_extra_brokers_never_duplicate_a_loaded_one():
     merged = _add_extra_brokers({"fps": have})
     assert "fastpeoplesearch" not in merged  # same domain and email: kept once
     assert len(merged) > 100
+
+
+def test_a_registry_row_keeps_a_hand_built_definitions_automation():
+    from optout.brokers.registry import _keep_automation
+    from optout.brokers.schema import BrokerDef
+
+    base = {
+        "slug": "s",
+        "name": "S",
+        "domain": "s.example",
+        "legal_basis": ["CCPA"],
+        "statutory_response_days": 45,
+    }
+    bundled = BrokerDef.model_validate(
+        {
+            **base,
+            "category": "people_search",
+            "method": "web_form",
+            "opt_out_url": "https://s.example/optout",
+            "scan": {
+                "search_url_template": "https://s.example/{name_title_slug}",
+                "result_selector": "div",
+            },
+        }
+    )
+    imported = BrokerDef.model_validate(
+        {
+            **base,
+            "category": "data_broker",
+            "method": "email",
+            "opt_out_email": "privacy@s.example",
+            "source": "ca-registry",
+            "exemptions": ["GLBA"],
+        }
+    )
+    got = _keep_automation(bundled, imported)
+    assert (got.method, got.category, got.opt_out_url) == (
+        "web_form",
+        "people_search",
+        "https://s.example/optout",
+    )
+    assert (
+        got.scan is not None
+        and got.source == "ca-registry"
+        and got.opt_out_email == "privacy@s.example"
+    )

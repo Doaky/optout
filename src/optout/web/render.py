@@ -1347,6 +1347,26 @@ def _coverage_panel(a: Attention, csrf: str) -> str:
     )
 
 
+def _expiry_pill(days: float | None) -> str:
+    """How long before the step they asked for lapses (a confirm link, a 5-day window)."""
+    if days is None:
+        return ""
+    if days <= 0:
+        return (
+            " <span class='pill t-critical' title='Their deadline for this step has passed: "
+            "you may need to resubmit'>Expired</span>"
+        )
+    left = (
+        f"{round(days * 24)} hours"
+        if days < 1
+        else f"{int(days)} day{'s' if int(days) != 1 else ''}"
+    )
+    tone = "critical" if days < 2 else "warning"
+    return (
+        f" <span class='pill t-{tone}' title='Their own deadline for this step'>{left} left</span>"
+    )
+
+
 def _attention_item(a: Attention, csrf: str, contributor: bool = False) -> str:
     def act(action: str, label: str, cls: str = "secondary") -> str:
         return (
@@ -1431,7 +1451,7 @@ def _attention_item(a: Attention, csrf: str, contributor: bool = False) -> str:
     return (
         "<li class='att'><div class='att-main'>"
         f"<div class='att-head'><b>{e(a.name)}</b> <span class='pill t-{tone}'>{e(a.why)}</span>"
-        f"</div>{quote_html}{redirect}{email}"
+        f"{_expiry_pill(a.expires_in)}</div>{quote_html}{redirect}{email}"
         f"{_coverage_panel(a, csrf) if contributor else ''}</div>"
         f"<div class='att-actions'>{''.join(icons)}{''.join(buttons)}</div></li>"
     )

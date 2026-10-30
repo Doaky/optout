@@ -367,17 +367,29 @@ def _started_sites(session: Session, brokers: dict) -> set[str]:
     """Sites with a request already under way or done (any broker on the same site)."""
     from sqlmodel import select
 
-    from .db import Submission
+    from .db import Submission, SubmissionEvent
 
     done = {"confirmed", "removed", "closed"}
     waiting = {"submitted", "awaiting_broker_confirmation"}
+    form_sent = set(
+        session.exec(
+            select(SubmissionEvent.submission_id).where(
+                SubmissionEvent.event_type == "form_submitted"
+            )
+        ).all()
+    )
     sites = set()
     for sub in session.exec(select(Submission)).all():
         b = brokers.get(sub.broker_slug)
         if b is None:
             continue
-        # An email to a site that only acts on its own form doesn't count as started.
-        emailed_form_site = sub.method_used == "email" and b.method in ("manual", "web_form")
+        # An email to a site that only acts on its own form doesn't count as started,
+        # unless the form was filled in afterwards.
+        emailed_form_site = (
+            sub.method_used == "email"
+            and b.method in ("manual", "web_form")
+            and sub.id not in form_sent
+        )
         if sub.status in done or (sub.status in waiting and not emailed_form_site):
             sites.add(_site_of(b.domain))
     return sites

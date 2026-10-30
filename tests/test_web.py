@@ -1365,3 +1365,24 @@ def test_form_said_removed_marks_the_request_as_their_word(ui):
     with get_session() as session:
         (got,) = list_submissions(session, broker_slug="evil")
         assert got.status == "confirmed"
+
+
+def test_expiry_is_read_from_their_wording_and_promises_are_ignored():
+    from datetime import UTC, datetime, timedelta
+
+    from optout.web.data import _expires_in
+
+    now = datetime(2026, 10, 30, 12, tzinfo=UTC)
+    got = now - timedelta(days=1)
+    five = "You must confirm your email address within five (5) days. Click Confirm Email."
+    assert round(_expires_in(five, got, now) or 0) == 4
+    assert (
+        round((_expires_in("This verification link expires in 24 hours.", got, now) or 9), 1) == 0.0
+    )
+    assert _expires_in("We will process your request within 45 days.", got, now) is None
+    blis = (
+        "If we do not receive your MAID within 14 days, we will not be able to process it "
+        "and it will be closed."
+    )
+    assert round(_expires_in(blis, got, now) or 0) == 13
+    assert _expires_in("Thanks for writing to us.", got, now) is None

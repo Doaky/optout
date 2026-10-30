@@ -273,6 +273,11 @@ def resend_to(
                 save_local(broker.slug, address, "Their own reply named this address.")
             except ValueError:
                 pass
+            # It worked: a broker switched off because its old address bounced is back on.
+            from ..brokers.registry import load_overrides, set_enabled
+
+            if broker.slug in load_overrides()["disabled"]:
+                set_enabled(broker.slug, True)
             for prev in old:
                 if prev.id != sub.id and prev.status in ACTIVE | {"awaiting_user_input"}:
                     update_status(session, prev, "closed")
