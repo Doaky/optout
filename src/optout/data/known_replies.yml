@@ -78,6 +78,52 @@
 - {from: '@fogdatascience.com', phrase: thank you for contacting fog data science regarding your privacy request, outcome: auto-reply, broker: fog-data-science}
 - {from: '@rbarrel.com', phrase: "accordingly, no existing records required deletion", outcome: no-data, broker: cross-pixel-media}
 - {from: '@retention.com', phrase: we will process your request within 7 business days, outcome: auto-reply, broker: getemails}
+- {from: '@academixdirect.com', phrase: your data has been removed from our system and your opt-out has been completed, outcome: deleted, broker: ace-agents}
+- {from: '@atlanticfox.com', phrase: atlantic fox is no longer registered as an active data broker in any jurisdictions, outcome: no-data, broker: atlantic-fox-technologies}
+- {from: '@checkpeople.com', phrase: confirm your email address, outcome: need-info, broker: checkpeople}
+- {from: '@cisive.com', phrase: thank you for your message, outcome: auto-reply, broker: carco-group}
+- {from: '@clearbit.com', phrase: thank you for your message, outcome: auto-reply, broker: apihub}
+- {from: '@cyberbackgroundchecks.com', phrase: "if you waited longer than 24 hours to click the link below, you will need to start over and generate another link", outcome: need-info, broker: cyberbackgroundchecks}
+- {from: '@datonics.com', phrase: this is an automated response with information about how we will fulfill your request, outcome: auto-reply, broker: datonics}
+- {from: '@deluxe.com', phrase: thank you for contacting the consumer privacy team, outcome: auto-reply, broker: deluxe}
+- {from: '@digdev.com', phrase: "thank you for contacting datasys group, inc", outcome: auto-reply, broker: media-direct}
+- {from: '@familytreenow.com', phrase: "if you waited longer than 24 hours to click the link below, you will need to start over and generate another link", outcome: need-info, broker: family-tree-now}
+- {from: '@familytreenow.zendesk.com', phrase: this email address is dedicated to customer service inquiries and is not intended for privacy-related requests, outcome: need-info}
+- {from: '@fastpeoplesearch.com', phrase: "if you waited longer than 24 hours to click the link below, you will need to start over and generate another link", outcome: need-info, broker: fastpeoplesearch}
+- {from: '@getrev.ai', phrase: "requests to know, access/portability, correct, and delete: please go to the webform and provide the information necessary to process your privacy request", outcome: need-info, broker: leadcrunch}
+- {from: '@goodhire.com', phrase: thank you for reaching out to checkr support, outcome: auto-reply, broker: goodhire}
+- {from: '@grata.com', phrase: thank you for contacting grata, outcome: auto-reply, broker: grata}
+- {from: '@grayhairsoftware.com', phrase: acknowledgment of data subject request - redaction/nondisclosure request, outcome: auto-reply, broker: grayhair-software}
+- {from: '@greenhouse.io', phrase: "in the meantime, you can always check the status of your request by going to our privacy portal", outcome: need-info, broker: greenhouse-software}
+- {from: '@greenhouse.io', phrase: your request has been received, outcome: need-info, broker: greenhouse-software}
+- {from: '@grin.co', phrase: "if you are writing to make a request regarding your privacy or data, we need to verify the request, before taking action or releasing information", outcome: need-info, broker: grin-technologies}
+- {from: '@heartbeat.ai', phrase: "this is an automated response to let you know we’ve received your request, and a support ticket has been created", outcome: auto-reply, broker: heartbeat-ai}
+- {from: '@idatabasesolutions.com', phrase: thank you for contacting innovative database solutions regarding your privacy rights, outcome: auto-reply, broker: innovative-database-solutions}
+- {from: '@inboundinsight.com', phrase: your privacy opt-out request has been processed, outcome: deleted, broker: inbound-insight}
+- {from: '@jigyasaanalytics.com', phrase: "hi, thank you for contacting jigyasa analytics", outcome: auto-reply, broker: jigyasa-analytics}
+- {from: '@jmr-media.com', phrase: "if this message is a consumer privacy request, we do not accept email as a submission method", outcome: need-info, broker: jmr-media-consulting}
+- {from: '@jungroup.com', phrase: we do not have and therefore cannot provide records of your activities on other websites or apps, outcome: no-data, broker: jun-group-productions}
+- {from: '@koddi.com', phrase: "to ensure these requests are handled accurately, please submit them through our website's official form", outcome: need-info, broker: koddi}
+- {from: '@komodohealth.com', phrase: we do not accept requests submitted through email or other means, outcome: need-info, broker: komodo-health}
+- {from: '@leadiqhelp.zendesk.com', phrase: "please type your reply above this line -## hi , thank you for your inquiry with leadiq support", outcome: auto-reply}
+- {from: '@leadmemedia.com', phrase: we do not accept requests to register or enter any third-party platforms for any reason as the same presents a potential security threat, outcome: need-info, broker: lead-me-media}
+- {from: '@leadzod.com', phrase: "we do not have your name, email address or other personal information as a result of this process", outcome: no-data}
+- {from: '@lightcast.io', phrase: "your privacy and ensure we can properly verify and process your request, we require all data requests to be submitted through our secure web form", outcome: need-info, broker: lightcast}
+- {from: '@lotadata.com', phrase: lotadata is not operational re, outcome: deleted, broker: lotadata}
+- {from: '@madhive.com', phrase: madhive privacy - thank you re, outcome: need-info, broker: madhive}
+- {from: '@mchdata.com', phrase: "thank you for contacting mch, inc", outcome: auto-reply, broker: mch}
+- {from: '@messagedigital.com', phrase: thank you for contacting message digital, outcome: auto-reply, broker: message-digital}
+- {from: '@minerva.io', phrase: privacy regulations require us to verify the identity of anyone making a request about personal data before we can take action, outcome: need-info, broker: minerva-bi}
+- {from: '@moodys.com', phrase: thank you for contacting moody’s, outcome: auto-reply, broker: moody-s}
+- {from: '@proxima.ai', phrase: please confirm by clicking the link below or responding to this email, outcome: need-info}
+- {from: '@reachdata.zendesk.com', phrase: "hello, this is an automated response", outcome: auto-reply}
+- {from: '@smartbackgroundchecks.com', phrase: "if you waited longer than 24 hours to click the link below, you will need to start over and generate another link", outcome: need-info, broker: smartbackgroundchecks}
+- {from: '@transunion.com', phrase: please allow sufficient time for our team to verify your identity and process your request, outcome: need-info}
+- {from: '@truepeoplesearch.com', phrase: "if you have more than one record on our site, you may need to submit a second request with information matching the other records", outcome: need-info, broker: free-data-services}
+- {from: '@truepeoplesearch.com', phrase: "if you waited longer than 24 hours to click the link below, you will need to start over and generate another link", outcome: need-info, broker: free-data-services}
+- {from: '@truepeoplesearch.com', phrase: this email address is dedicated to customer service inquiries and is not intended for privacy-related requests, outcome: need-info, broker: free-data-services}
+- {from: '@usphonebook.com', phrase: "if you waited longer than 24 hours to click the link below, you will need to start over and generate another link", outcome: need-info, broker: usphonebook}
+- {from: '@zetaglobal.com', phrase: "you will need to complete the email verification to validate that it is you—this is a security measure to prevent unauthorized access to data about you", outcome: need-info, broker: liveintent}
 
 # --- shared platforms (never pin a broker) ---
 - {from: '@clearview-ai.zendesk.com', phrase: submit a request to exercise your consumer rights, outcome: need-info}

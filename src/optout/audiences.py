@@ -25,7 +25,7 @@ TITLES: dict[str, str] = {
     "real-estate-professionals": "Real estate professional",
     "students": "Student",
     "financial-account-holders": "Bank or brokerage customer",
-    "job-applicants": "Job applicant",
+    "job-applicants": "Applied through hiring software",
 }
 GROUPS: dict[str, str] = {
     "business-professionals": "You have a work email or job title that appears in business "
@@ -37,8 +37,8 @@ GROUPS: dict[str, str] = {
     "students": "You're a student",
     "financial-account-holders": "You have bank, card, or brokerage accounts. Those records "
     "stay with the institution, so ask it directly",
-    "job-applicants": "You've applied for jobs through company career sites. Those records "
-    "stay with the employer, so ask it directly",
+    "job-applicants": "You've applied for a job through an applicant-tracking system like "
+    "Greenhouse. Those records belong to the employer, so ask it directly",
 }
 # How the picker is laid out.
 SECTIONS: list[tuple[str, list[str]]] = [
@@ -90,7 +90,7 @@ class Coverage:
             "students": "students",
             "financial-advisors": "financial advisors",
             "financial-account-holders": "bank/brokerage customers",
-            "job-applicants": "job applicants",
+            "job-applicants": "applicants in hiring software",
             "healthcare-providers": "healthcare workers",
             "real-estate-professionals": "real-estate professionals",
         }

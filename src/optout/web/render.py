@@ -149,11 +149,11 @@ input.combo{width:260px}
 .hdr-link{display:inline-flex;align-items:center;gap:6px;color:var(--text-2);text-decoration:none;
   font-size:14px;font-weight:600;padding:6px 10px;border-radius:8px;border:1px solid var(--line)}
 .hdr-link:hover{color:var(--text);border-color:var(--accent)}
-details.settings>summary{display:flex;align-items:baseline;gap:12px;cursor:pointer;list-style:none}
-details.settings>summary::-webkit-details-marker{display:none}
-details.settings>summary h2{margin:0}
-details.settings>summary::after{content:"▸";margin-left:auto;color:var(--muted)}
-details.settings[open]>summary::after{content:"▾"}
+details.fold>summary,details.settings>summary{display:flex;align-items:baseline;gap:12px;cursor:pointer;list-style:none}
+details.fold>summary::-webkit-details-marker,details.settings>summary::-webkit-details-marker{display:none}
+details.fold>summary h2,details.settings>summary h2{margin:0}
+details.fold>summary::after,details.settings>summary::after{content:"▸";margin-left:auto;color:var(--muted)}
+details.fold[open]>summary::after,details.settings[open]>summary::after{content:"▾"}
 fieldset{border:1px solid var(--line);border-radius:10px;padding:12px 16px 16px;margin:16px 0}
 legend{font-weight:700;padding:0 6px}
 .fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px}
@@ -349,6 +349,7 @@ const swap = async (res) => {
   if (box && keepQ) box.value = keepQ;
   filter();
   fillZone();
+  applyFolds();
   const draft = d.getElementById('draft');
   const settings = d.getElementById('settings');
   const flash = d.querySelector('.flash');
@@ -399,6 +400,18 @@ d.addEventListener('change', (e) => {
 });
 
 d.addEventListener('input', (e) => { if (e.target.id === 'q') filter(); });
+
+// Folded sections stay folded across visits and page updates.
+const applyFolds = () => {
+  d.querySelectorAll('details.fold[id]').forEach((el) => {
+    try { if (localStorage.getItem('fold:' + el.id) === 'closed') el.removeAttribute('open'); } catch (_) {}
+  });
+};
+d.addEventListener('toggle', (ev) => {
+  const el = ev.target;
+  if (!el.matches || !el.matches('details.fold[id]')) return;
+  try { localStorage.setItem('fold:' + el.id, el.open ? 'open' : 'closed'); } catch (_) {}
+}, true);
 
 const openSettings = () => {
   const panel = d.getElementById('settings');
@@ -470,6 +483,7 @@ const fillZone = () => {
 filter();
 start();
 fillZone();
+applyFolds();
 })();"""
 
 LIVE_JS_HASH = "sha256-" + base64.b64encode(hashlib.sha256(LIVE_JS.encode()).digest()).decode()
@@ -1005,9 +1019,15 @@ def _replies_panel(ui: UI) -> str:
             f"<textarea id='learned' class='hidden-copy' readonly aria-hidden='true' "
             f"tabindex='-1'>{e(ui.learned_yaml)}</textarea></details>"
         )
+    return _fold("replies", "Broker replies", f"{head}{body}{share}")
+
+
+def _fold(fid: str, title: str, body: str, note: str = "") -> str:
+    """A card you can fold away; the browser remembers which ones you folded."""
+    extra = f"<span class='muted small'>{note}</span>" if note else ""
     return (
-        "<section class='card' aria-labelledby='replies-h' id='replies'>"
-        f"<h2 id='replies-h'>Broker replies</h2>{head}{body}{share}</section>"
+        f"<details class='card fold' id='{e(fid)}' open><summary><h2 id='{e(fid)}-h'>"
+        f"{e(title)}</h2>{extra}</summary>{body}</details>"
     )
 
 
@@ -1788,10 +1808,11 @@ def dashboard(
                 f"<textarea id='attn-prompt' class='hidden-copy' readonly aria-hidden='true' "
                 f"tabindex='-1'>{e(d.attention_prompt)}</textarea></p></details>"
             )
-        attn = (
-            "<section class='card' aria-labelledby='attn-h'>"
-            f"<h2 id='attn-h'>Needs your attention</h2>{how}{ask}<ul class='attn'>{items}</ul>"
-            "</section>"
+        attn = _fold(
+            "attention",
+            "Needs your attention",
+            f"{how}{ask}<ul class='attn'>{items}</ul>",
+            f"{len(d.attention)} item{'s' if len(d.attention) != 1 else ''}",
         )
 
     trs = "".join(
@@ -1844,10 +1865,7 @@ def dashboard(
         f"<div class='toolbar'>{_filters(d, status_filter, query)}{search}</div>" if d.rows else ""
     )
 
-    chart = (
-        "<section class='card' aria-labelledby='chart-h'>"
-        f"<h2 id='chart-h'>Progress over time</h2>{progress_chart(d.series)}</section>"
-    )
+    chart = _fold("progress", "Progress over time", progress_chart(d.series))
     if act is not None:
         top = (
             act.flash
@@ -1867,10 +1885,11 @@ def dashboard(
     )
     replies = _replies_panel(act) if act is not None else ""
     settings = _settings_panel(act) if act is not None else ""
-    requests = (
-        "<section class='card' aria-labelledby='req-h'><h2 id='req-h'>Requests</h2>"
-        f"{toolbar}{table}{note}"
-        f"{_drafts_line(act) if act is not None else ''}</section>"
+    requests = _fold(
+        "requests",
+        "Requests",
+        f"{toolbar}{table}{note}{_drafts_line(act) if act is not None else ''}",
+        f"{len(d.rows)} brokers",
     )
     refresh = 3 if ui and ui.job.get("state") == "running" else None
     return page(

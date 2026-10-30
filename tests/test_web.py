@@ -604,7 +604,8 @@ def test_attention_explains_what_to_do(ui):
         )
         s.commit()
     _, body = ui.req("GET", "/")
-    attn = body[body.index("id='attn-h'") : body.index("</section>", body.index("id='attn-h'"))]
+    start = body.index("id='attention-h'")
+    attn = body[start : body.index("class='card", start)]  # up to the next card
     assert "via our web form here" in attn  # the sentence that matters
     assert "Open their link" in attn and "forms.evil.example" in attn
     assert "rel='noreferrer noopener'" in attn  # never opened for you, no referrer
@@ -616,7 +617,7 @@ def test_attention_explains_what_to_do(ui):
     r, _ = ui.post("/act/row", {"slug": "evil", "action": "status:closed"})
     assert r.getheader("Location") == "/?m=toggle"
     _, body = ui.req("GET", "/")
-    assert "id='attn-h'" not in body  # closed: no longer nagging
+    assert "id='attention-h'" not in body  # closed: no longer nagging
     assert "Closed</span>" in body
 
 
@@ -1292,7 +1293,7 @@ def test_confirm_for_me_is_offered_for_known_senders_and_works(ui, monkeypatch):
 
         assert list_submissions(s)[0].status == "awaiting_broker_confirmation"
     _, body = ui.req("GET", "/")
-    assert "id='attn-h'" not in body  # it's off the attention list
+    assert "id='attention-h'" not in body  # it's off the attention list
 
 
 def test_an_unknown_sender_is_only_clicked_after_you_teach_it(ui, monkeypatch, tmp_path):

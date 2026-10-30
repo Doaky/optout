@@ -1,3 +1,9 @@
 # What brokers' opt-out processes require, learned from what happened (e.g. a confirm link
 # that had to be clicked). Applied on top of the broker list. See src/optout/brokers/traits.py.
-[]
+- {broker: activimpact, traits: [requires_email_verification]}
+- {broker: connatix-native-exchange, traits: [requires_email_verification]}
+- {broker: disqus, traits: [requires_email_verification]}
+- {broker: dr-decision-resources, traits: [requires_email_verification]}
+- {broker: epsilon-data-management, traits: [requires_email_verification]}
+- {broker: exact-match-marketing, traits: [requires_email_verification]}
+- {broker: fraiser, traits: [requires_email_verification]}
