@@ -595,14 +595,38 @@ def alternate_addresses(text: str, sender: str, contacted: str, *, limit: int = 
 
 _FORMISH = re.compile(r"privacy|request|form|portal|dsar|dsr|rights|onetrust|consent|delete", re.I)
 _ADS = re.compile(r"aboutads|youradchoices|networkadvertising|optout\.aboutads", re.I)
+# Never the link to act on: California's DROP portal (California residents only), social
+# media, images, unsubscribe pages.
+_NOT_FOR_YOU = re.compile(
+    r"privacy\.ca\.gov|drop\.privacy|facebook\.com|twitter\.com|linkedin\.com|glassdoor|"
+    r"instagram\.com|youtube\.com|\.(png|jpe?g|gif|pdf)\b|unsubscribe",
+    re.I,
+)
+_STRONG_FORM = re.compile(
+    r"webform|dsar|dsr|request|/form|forms/|portal|preferences|onetrust|datasubject|bigid|"
+    r"service-now|opt-?out|removal|remove|delete|privacy-choices|data-privacy-form|ccpa|"
+    r"ownyourdata|your-?data|my-?data|privacy-?center",
+    re.I,
+)
+_JUST_READING = re.compile(
+    r"privacy-policy|policy|notice|terms|agent|faq|help-center|/legal/?$", re.I
+)
+
+
+def _link_score(url: str) -> int:
+    return (
+        2 * bool(_STRONG_FORM.search(url))
+        + bool(_FORMISH.search(url))
+        - 4 * bool(_JUST_READING.search(url))
+    )
 
 
 def _best_link(text: str) -> str:
     """The link most likely to be their privacy form: one that looks like a request form or
-    portal, never the industry ad-choices page that many replies also mention."""
+    portal, not their policy or terms page, never the ad-choices page or California's DROP
+    portal that many replies also mention."""
     links = [m.group(0).rstrip(".,;:") for m in _LINK.finditer(text)]
-    links = [u for u in links if not _ADS.search(u)]
-    for u in links:
-        if _FORMISH.search(u):
-            return u
-    return links[0] if links else ""
+    links = [u for u in links if not _ADS.search(u) and not _NOT_FOR_YOU.search(u)]
+    if not links:
+        return ""
+    return max(links, key=lambda u: (_link_score(u), -links.index(u)))

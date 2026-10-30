@@ -1079,11 +1079,12 @@ def test_corrections_are_offered_for_sharing_without_repeating_shared_ones(ui):
     from optout.brokers.contacts import save_local
 
     _sent_request()
-    save_local("evil", "optout@evil.example", "Their reply named it.")
+    # A real-looking address: placeholder domains (.example, .test...) are never offered.
+    save_local("evil", "optout@evil-data.net", "Their reply named it.")
     save_local("6sense-insights", "datasubjectrequests@6sense.com", "same as shipped")
     _, body = ui.req("GET", "/")
     share = body.split("# add to data/contact_overrides.yml")[1].split("</pre>")[0]
-    assert "optout@evil.example" in share
+    assert "optout@evil-data.net" in share
     assert "6sense" not in share  # already in the shared list: not offered again
 
 
@@ -1386,3 +1387,29 @@ def test_expiry_is_read_from_their_wording_and_promises_are_ignored():
     )
     assert round(_expires_in(blis, got, now) or 0) == 13
     assert _expires_in("Thanks for writing to us.", got, now) is None
+
+
+def test_the_link_picked_is_their_form_not_a_policy_terms_or_drop_page():
+    from optout.web.data import _best_link
+
+    assert (
+        _best_link(
+            "Use our portal: https://app.example.com/ownyourdata. Agents: "
+            "https://app.example.com/dsr-agent-api-terms. Policies: https://app.example.com/policies/"
+        )
+        == "https://app.example.com/ownyourdata"
+    )
+    assert (
+        _best_link(
+            "California residents may use DROP at https://consumer.drop.privacy.ca.gov/ or our "
+            "form https://clients.example.com/public/optout/capture"
+        )
+        == "https://clients.example.com/public/optout/capture"
+    )
+    assert (
+        _best_link(
+            "See https://pages.example.io/privacy-policy and submit at https://preferences.example.io"
+        )
+        == "https://preferences.example.io"
+    )
+    assert _best_link("Follow us https://twitter.com/x") == ""
