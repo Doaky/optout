@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, tzinfo
+from datetime import UTC, datetime, timedelta, tzinfo
 from urllib.parse import quote, urlsplit
 
 from sqlmodel import Session, select
@@ -215,6 +215,8 @@ def collect(
                     "No answer within the legal deadline. Send a short follow-up.",
                 )
             )
+        elif (stalled := _stalled_form(session, sub, now)) is not None:
+            dash.attention.append(stalled)
         elif sub.status == "rejected":
             dash.attention.append(
                 _with_reply(
@@ -294,7 +296,6 @@ def progress_series(
     session: Session, subs: list[Submission], now: datetime
 ) -> list[tuple[str, int, int, int]]:
     """Cumulative counts per day from the first request sent until today."""
-    from datetime import timedelta
 
     sent_days = [_aware(s.submitted_at).astimezone(_TZ).date() for s in subs if s.submitted_at]
     if not sent_days:
@@ -329,6 +330,29 @@ def progress_series(
 
 
 _LINK = re.compile(r"https?://[^\s<>\"')\]]+")
+
+
+def _stalled_form(session: Session, sub: Submission, now: datetime) -> Attention | None:
+    """A form was submitted that should be followed by an email, and it never came."""
+    from ..forms import _payload, pending_followup
+
+    if sub.status != "awaiting_broker_confirmation":
+        return None
+    ev = pending_followup(session, sub, now)
+    if ev is None:
+        return None
+    wait = int(_payload(ev).get("wait_hours") or 24)
+    if _aware(now) < _aware(ev.created_at) + timedelta(hours=wait):
+        return None
+    name = next((b.name for b in all_brokers() if b.slug == sub.broker_slug), sub.broker_slug)
+    return Attention(
+        sub.broker_slug,
+        name,
+        "stalled",
+        "Their follow-up email never came",
+        "You submitted their form and they should have emailed you. Check spam, then "
+        "resubmit the form or close this.",
+    )
 
 
 def _with_reply(session: Session, sub: Submission, a: Attention) -> Attention:

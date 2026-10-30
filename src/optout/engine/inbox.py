@@ -573,6 +573,14 @@ def process(
             continue
         session.add(row)
         session.commit()
+        if (
+            sub is not None
+            and how != "only-request"
+            and kind in ("need-info", "deleted", "no-data")
+        ):
+            from ..forms import note_followup
+
+            note_followup(session, sub, mail.from_addr, kind, mail.message_id)
         if auto and sub is not None:
             apply_kind(session, sub, kind, rule)
             report.applied.append((sub.broker_slug, kind))

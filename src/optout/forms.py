@@ -62,6 +62,29 @@ class Step(BaseModel):
         return v
 
 
+class Followup(BaseModel):
+    """The email that follows a form, when a form is followed by one."""
+
+    sender: str = Field(max_length=100)  # "@domain.com": a whole domain, as in confirm_flows
+    phrase: str = Field(min_length=12, max_length=200)  # wording in that email, lower case
+    action: Literal["confirm_link", "reply", "none"] = "confirm_link"
+    link_hosts: list[str] = []  # where the confirm link lives (confirm_link only)
+    wait_hours: int = Field(24, ge=1, le=240)  # how long before we call it missing
+
+    @field_validator("sender")
+    @classmethod
+    def _domain(cls, v: str) -> str:
+        v = v.lower().strip()
+        if not re.fullmatch(r"@[a-z0-9.-]+\.[a-z]{2,}", v):
+            raise ValueError("sender must be a whole domain, like @example.com")
+        return v
+
+    @field_validator("phrase")
+    @classmethod
+    def _lower(cls, v: str) -> str:
+        return re.sub(r"\s+", " ", v).strip().lower()
+
+
 class Recipe(BaseModel):
     broker: str
     url: str  # the form's address, without query string or fragment
@@ -69,6 +92,7 @@ class Recipe(BaseModel):
     success_text: str = Field("", max_length=200)  # what the page says once it worked
     needs_human: list[Literal["captcha", "email_verify", "id_upload", "phone_verify"]] = []
     notes: str = Field("", max_length=300)
+    then: Followup | None = None  # the email to expect after submitting, if there is one
     recorded: str = ""
 
     @field_validator("broker")
@@ -119,6 +143,8 @@ def leaks(recipe: Recipe, config: UserConfig) -> list[str]:
     values |= {x.lower() for x in config.profile.emails.current + config.profile.phones.current}
     found: list[str] = []
     blobs = [recipe.url, recipe.success_text, recipe.notes]
+    if recipe.then:
+        blobs.append(recipe.then.phrase)
     for s in recipe.steps:
         blobs += [s.label, s.text, s.note]
     for blob in blobs:
@@ -189,8 +215,30 @@ def learned_recipes() -> list[dict]:
     return [
         r.model_dump()
         for s, r in sorted(local_recipes().items())
-        if s not in shared or shared[s].steps != r.steps
+        if s not in shared or (shared[s].steps, shared[s].then) != (r.steps, r.then)
     ]
+
+
+def recipe_flows() -> list:
+    """Confirm flows implied by recipes whose form is followed by a confirm-link email, so the
+    follow-up is clicked for you the first time anyone has taught it."""
+    from .engine.confirm import _DEFAULT_ANCHOR, _HOST_OK, Flow
+
+    out = []
+    for r in load_recipes().values():
+        t = r.then
+        hosts = tuple(h.lower() for h in (t.link_hosts if t else []) if _HOST_OK.match(h.lower()))
+        if t and t.action == "confirm_link" and hosts and len(t.phrase) >= 12:
+            out.append(
+                Flow(
+                    t.sender,
+                    t.phrase,
+                    hosts,
+                    re.compile(_DEFAULT_ANCHOR, re.IGNORECASE),
+                    f"From the {r.broker} form recipe.",
+                )
+            )
+    return out
 
 
 # --- the queue ------------------------------------------------------------------------
@@ -221,7 +269,15 @@ def todo(session: Session, config: UserConfig, now: datetime | None = None) -> l
     return out
 
 
-def mark_outcome(session: Session, slug: str, outcome: str, note: str = "") -> str:
+def mark_outcome(
+    session: Session,
+    slug: str,
+    outcome: str,
+    note: str = "",
+    *,
+    expects_email: bool = False,
+    wait_hours: int = 24,
+) -> str:
     """Record how a form went: 'removed' (the page said so) or 'submitted' (waiting on them)."""
     from .actions import record_reply
     from .db import list_submissions, record_event, update_status
@@ -234,7 +290,14 @@ def mark_outcome(session: Session, slug: str, outcome: str, note: str = "") -> s
             raise ValueError(f"No request on record for '{slug}'.")
         sub = max(subs, key=lambda x: x.created_at)
         update_status(session, sub, "awaiting_broker_confirmation")
-        record_event(session, sub, "form_submitted", {"note": note[:200]})
+        record_event(
+            session,
+            sub,
+            "form_submitted",
+            {"note": note[:200], "expects_email": expects_email, "wait_hours": wait_hours},
+        )
+        if expects_email:
+            return "Recorded. Watching for their follow-up email; the deadline restarts now."
         return "Recorded. The deadline restarts now."
     raise ValueError("outcome must be 'removed' or 'submitted'")
 
@@ -294,6 +357,8 @@ When all tasks are done, answer with only a JSON array in one code block, one ob
 {example}
 ```
 outcome is one of removed, submitted, skipped, blocked. Leave recipe out unless the form worked.
+If the page says an email will follow (verify your email, confirm your request, check your
+inbox), add "expects_email": true to that task's object.
 
 TASKS
 {tasks}
@@ -328,8 +393,18 @@ def apply_results(session: Session, config: UserConfig, results: list[dict]) -> 
         note = str(r.get("note", ""))[:200]
         try:
             if outcome in ("removed", "submitted"):
-                mark_outcome(session, slug, outcome, note)
-                msg = outcome
+                known = load_recipes().get(slug)
+                then = known.then if known else None
+                expects = bool(r.get("expects_email")) or then is not None
+                mark_outcome(
+                    session,
+                    slug,
+                    outcome,
+                    note,
+                    expects_email=expects and outcome == "submitted",
+                    wait_hours=then.wait_hours if then else 24,
+                )
+                msg = outcome + (", expecting a follow-up email" if expects else "")
             else:
                 lines.append(f"{slug}: left alone ({outcome}) {note}".strip())
                 continue
@@ -343,3 +418,90 @@ def apply_results(session: Session, config: UserConfig, results: list[dict]) -> 
         except ValueError as exc:
             lines.append(f"{slug}: {exc}")
     return lines
+
+
+# --- following a form through to its email ------------------------------------------------
+
+
+def _payload(ev) -> dict:
+    import json
+
+    try:
+        return json.loads(ev.payload_json or "{}")
+    except ValueError:
+        return {}
+
+
+def pending_followup(session: Session, sub, now: datetime):
+    """The form_submitted event this request is still waiting on an email for, or None."""
+    from .db import list_events
+
+    events = sorted(list_events(session, sub.id), key=lambda e: e.created_at)
+    sent = [
+        e for e in events if e.event_type == "form_submitted" and _payload(e).get("expects_email")
+    ]
+    if not sent:
+        return None
+    last = sent[-1]
+    if any(e.event_type == "form_followup" and e.created_at >= last.created_at for e in events):
+        return None
+    return last
+
+
+def note_followup(session: Session, sub, from_addr: str, kind: str, message_id: str) -> bool:
+    """A reply arrived for this request: if a form is waiting on an email, this is it."""
+    from .db import record_event
+
+    if pending_followup(session, sub, datetime.now(UTC)) is None:
+        return False
+    domain = from_addr.rsplit("@", 1)[-1].lower()
+    record_event(
+        session,
+        sub,
+        "form_followup",
+        {"from_domain": domain, "kind": kind, "message_id": message_id[:120]},
+    )
+    return True
+
+
+def stats(session: Session) -> list[dict]:
+    """Per broker: forms submitted, follow-ups that came, and ones still missing."""
+    from .db import list_events, list_submissions
+
+    now = datetime.now(UTC)
+    out = []
+    for sub in list_submissions(session):
+        events = list_events(session, sub.id)
+        forms_sent = [e for e in events if e.event_type == "form_submitted"]
+        if not forms_sent:
+            continue
+        expected = [e for e in forms_sent if _payload(e).get("expects_email")]
+        came = [e for e in events if e.event_type == "form_followup"]
+        waiting = pending_followup(session, sub, now)
+        out.append(
+            {
+                "broker": sub.broker_slug,
+                "forms": len(forms_sent),
+                "expected_email": len(expected),
+                "followups": len(came),
+                "waiting": waiting is not None,
+            }
+        )
+    return sorted(out, key=lambda r: r["broker"])
+
+
+def attach_followup(
+    slug: str, sender: str, phrase: str, link_host: str, config: UserConfig
+) -> bool:
+    """A confirm email you taught the tool belongs to a form we have a recipe for: remember it
+    there too, so the next person's run expects it and clicks it. False if there's no recipe
+    (or it already has a follow-up)."""
+    recipe = load_recipes().get(slug)
+    if recipe is None or recipe.then is not None:
+        return False
+    try:
+        then = Followup(sender=sender, phrase=phrase, action="confirm_link", link_hosts=[link_host])
+    except ValidationError:
+        return False
+    save_local(recipe.model_copy(update={"then": then}), config)
+    return True

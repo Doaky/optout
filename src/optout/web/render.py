@@ -1388,7 +1388,9 @@ def _attention_item(a: Attention, csrf: str, contributor: bool = False) -> str:
         buttons.append(act("draft:appeal", "Appeal", cls=""))
     elif a.kind == "overdue":
         buttons.append(act("draft:followup", "Follow up", cls=""))
-    if a.kind in ("need-info", "refused", "overdue"):
+    elif a.kind == "stalled":
+        buttons.append(act("form-submitted", "I resubmitted it", cls=""))
+    if a.kind in ("need-info", "refused", "overdue", "stalled"):
         buttons.append(act("status:closed", "Close"))
 
     redirect = ""

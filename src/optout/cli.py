@@ -1347,6 +1347,32 @@ def forms_apply(
             console.print(line)
 
 
+@forms_app.command("stats")
+def forms_stats() -> None:
+    """Which forms were followed by an email, and which are still waiting on one."""
+    from . import forms
+    from .db import get_session, init_db
+
+    init_db()
+    with get_session() as session:
+        rows = forms.stats(session)
+    if not rows:
+        console.print("No forms recorded yet.", style="dim")
+        return
+    table = Table(box=box.SIMPLE)
+    for col in ("Broker", "Forms", "Expected email", "Came", "Waiting"):
+        table.add_column(col)
+    for r in rows:
+        table.add_row(
+            r["broker"],
+            str(r["forms"]),
+            str(r["expected_email"]),
+            str(r["followups"]),
+            "yes" if r["waiting"] else "",
+        )
+    console.print(table)
+
+
 @forms_app.command("show")
 def forms_show(slug: str) -> None:
     """Print the recipe for one broker."""

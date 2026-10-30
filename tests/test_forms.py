@@ -132,3 +132,76 @@ def test_prompt_carries_the_tasks_and_apply_records_outcomes(cfg, tmp_path, monk
         assert lines[0] == "acme: removed, recipe saved" and "left alone" in lines[1]
         assert list_submissions(s, broker_slug="acme")[0].status == "confirmed"
     assert forms.load_recipes()["acme"].url == "https://acme.example/f"
+
+
+def test_followup_is_linked_expected_and_flagged_when_it_never_comes(cfg, tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    from datetime import UTC, datetime, timedelta
+
+    from optout.db import create_submission, get_session, init_db, update_status
+    from optout.web.data import collect
+
+    init_db()
+    with get_session() as s:
+        sub = create_submission(
+            s,
+            broker_slug="acme",
+            method_used="email",
+            legal_basis_cited=[],
+            statutory_response_days=45,
+        )
+        update_status(s, sub, "awaiting_user_input")
+        forms.mark_outcome(s, "acme", "submitted", "ok", expects_email=True, wait_hours=24)
+        now = datetime.now(UTC)
+        assert forms.pending_followup(s, sub, now) is not None
+        assert not [a for a in collect(s, cfg, now).attention if a.kind == "stalled"]  # too soon
+        later = now + timedelta(hours=30)
+        stalled = [a for a in collect(s, cfg, later).attention if a.kind == "stalled"]
+        assert [a.slug for a in stalled] == ["acme"]
+        # the email arrives: it is linked, and nothing is stalled any more
+        assert forms.note_followup(s, sub, "noreply@acme.example", "need-info", "<m1>")
+        assert forms.pending_followup(s, sub, later) is None
+        assert not [a for a in collect(s, cfg, later).attention if a.kind == "stalled"]
+        assert forms.stats(s) == [
+            {"broker": "acme", "forms": 1, "expected_email": 1, "followups": 1, "waiting": False}
+        ]
+
+
+def test_a_recipe_with_a_confirm_link_followup_becomes_a_confirm_flow(cfg):
+    from optout.engine.confirm import flow_for, load_flows
+
+    forms.save_local(
+        _recipe(
+            then={
+                "sender": "@acme.example",
+                "phrase": "Please click the button to verify your request",
+                "action": "confirm_link",
+                "link_hosts": ["acme.example"],
+            }
+        ),
+        cfg,
+    )
+    flow = flow_for(
+        "noreply@acme.example", "Hi! Please click the button to verify your request.", load_flows()
+    )
+    assert flow is not None and flow.link_hosts == ("acme.example",)
+    with pytest.raises(ValidationError):
+        _recipe(then={"sender": "jane@acme.example", "phrase": "twelve chars or more here"})
+
+
+def test_a_taught_confirm_email_is_attached_to_the_recipe(cfg):
+    forms.save_local(_recipe(), cfg)
+    assert forms.attach_followup(
+        "acme",
+        "@acme.example",
+        "please click the button to verify your request",
+        "acme.example",
+        cfg,
+    )
+    assert forms.load_recipes()["acme"].then.link_hosts == ["acme.example"]
+    assert not forms.attach_followup(
+        "acme", "@acme.example", "another long enough phrase", "acme.example", cfg
+    )
+    assert not forms.attach_followup(
+        "nope", "@acme.example", "another long enough phrase", "acme.example", cfg
+    )

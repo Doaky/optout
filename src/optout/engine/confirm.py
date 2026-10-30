@@ -82,7 +82,9 @@ def load_flows() -> list[Flow]:
             flows += _parse(yaml.safe_load(src.read_text()) or [])
         except (OSError, yaml.YAMLError):
             continue
-    return flows
+    from ..forms import recipe_flows
+
+    return flows + recipe_flows()
 
 
 def local_flow_entries() -> list[dict[str, object]]:

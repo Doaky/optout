@@ -543,6 +543,12 @@ def _make_handler(app: App):
                 with get_session() as session:
                     actions.record_reply(session, slug, arg, None)
                 return self._redirect("/?m=reply")
+            if kind == "form-submitted":
+                from ..forms import mark_outcome
+
+                with get_session() as session:
+                    mark_outcome(session, slug, "submitted", "Resubmitted.", expects_email=True)
+                return self._redirect("/?m=toggle")
             if kind == "form-removed":
                 # Their web form said the data was removed: record it as their word.
                 with get_session() as session:
@@ -785,6 +791,9 @@ def _make_handler(app: App):
                             cf.save_local_flow(
                                 sender, phrase, link_host, "Taught from a reply you confirmed."
                             )
+                            from ..forms import attach_followup
+
+                            attach_followup(slug, sender, phrase, link_host, config)
                             flows = cf.load_flows()
                         said: list[str] = []
                         result, _host = cf.confirm_reply(
