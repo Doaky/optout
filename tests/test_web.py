@@ -1334,3 +1334,12 @@ def test_confirm_setting_defaults_to_ask_and_is_saved(ui):
     assert load_config().confirm_links == "auto"
     ui.post("/act/settings", base)  # unticked/absent goes back to asking
     assert load_config().confirm_links == "ask"
+
+
+def test_top_bar_has_a_fetch_emails_button_only_on_the_dashboard():
+    from optout.web.render import page
+
+    on = page("t", "<p>x</p>", nav=False, updated="now", fetch_csrf="tok")
+    assert "action='/act/inbox'" in on and "Fetch emails" in on and "tok" in on
+    assert "Fetch emails" not in page("t", "<p>x</p>", nav=True)
+    assert "Fetch emails" not in page("t", "<p>x</p>", nav=False, updated="now")

@@ -504,7 +504,15 @@ def _toggle_labels(html: str) -> str:
     return _SUMMARY.sub(swap, html)
 
 
-def page(title: str, body: str, *, nav: bool, refresh: int | None = None, updated: str = "") -> str:
+def page(
+    title: str,
+    body: str,
+    *,
+    nav: bool,
+    refresh: int | None = None,
+    updated: str = "",
+    fetch_csrf: str | None = None,
+) -> str:
     # No-script fallback. The target has no #fragment: a refresh to the same URL with a
     # fragment is treated as an in-page jump and never reloads.
     meta = (
@@ -524,6 +532,13 @@ def page(title: str, body: str, *, nav: bool, refresh: int | None = None, update
         if updated
         else ""
     )
+    fetch = (
+        "<form method='post' action='/act/inbox' class='inline'>"
+        f"{_hidden(fetch_csrf)}<button type='submit' class='mini go' title='Read new broker "
+        "replies from Gmail and update the list'>Fetch emails</button></form>"
+        if fetch_csrf and updated and not nav
+        else ""
+    )
     return (
         "<!doctype html><html lang='en'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
@@ -537,7 +552,7 @@ def page(title: str, body: str, *, nav: bool, refresh: int | None = None, update
         "<header class='topbar'><div class='wrap'>"
         f"<a class='brand' href='/' aria-label='optout home'>{_LOGO}<span>optout</span></a>"
         f"<span class='sub'>Data-broker opt-outs</span>{back}{upd}"
-        f"{'' if nav else settings_link}</div></header>"
+        f"{fetch}{'' if nav else settings_link}</div></header>"
         f"<main id='main' class='wrap'>{_toggle_labels(body)}</main>"
         f"<script>{LIVE_JS}</script></body></html>"
     )
@@ -1753,6 +1768,7 @@ def dashboard(
         nav=False,
         refresh=refresh,
         updated=d.generated,
+        fetch_csrf=act.csrf if act is not None and act.inbox_ok else None,
     )
 
 
