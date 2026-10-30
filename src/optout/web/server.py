@@ -757,11 +757,7 @@ def _make_handler(app: App):
                     config = load_config()
                     remember = form.get("remember") == "1"
                     with get_session() as session:
-                        rows = sorted(
-                            (r for r in cf.pending_confirmations(session) if r.broker_slug == slug),
-                            key=lambda r: r.received_at or datetime.min,
-                            reverse=True,
-                        )
+                        rows = cf.confirmable_rows(session, slug)
                         flows = cf.load_flows()
                         # The link is re-derived here from the stored reply; nothing from the
                         # form is ever used as an address.

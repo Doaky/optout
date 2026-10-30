@@ -301,3 +301,12 @@ def test_page_excerpt_shows_what_the_page_said():
     assert page_excerpt(Fetched(200, "Email\n  verified.\n\nThank you")) == "Email verified. Thank you"
     assert page_excerpt(Fetched(200, "x" * 300)).endswith("…")
     assert page_excerpt(Fetched(error="URLError")) == "URLError"
+
+
+def test_same_company_redirects_are_followed():
+    from optout.engine.confirm import redirect_ok
+
+    assert redirect_ok("https://api.exactmatch.io/verify/x", ("links.exactmatch.io",))
+    assert not redirect_ok("https://api.other.io/verify/x", ("links.exactmatch.io",))
+    assert redirect_ok("https://b.example.co.uk/x", ("a.example.co.uk",))
+    assert not redirect_ok("https://evil.co.uk/x", ("a.example.co.uk",))

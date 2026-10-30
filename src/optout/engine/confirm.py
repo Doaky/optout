@@ -18,6 +18,7 @@ import re
 import urllib.error
 import urllib.request
 from collections.abc import Callable
+from datetime import datetime
 from dataclasses import dataclass
 from importlib.resources import files
 from urllib.parse import urlsplit
@@ -162,10 +163,26 @@ def teach_phrase(text: str) -> str:
     return max(found, key=len, default="")
 
 
+_SECOND_LEVEL = {"co", "com", "org", "net", "gov", "ac"}
+
+
+def _site(host: str) -> str:
+    """The registrable domain, roughly: example.com, or example.co.uk."""
+    parts = host.lower().split(".")
+    if len(parts) >= 3 and len(parts[-1]) == 2 and parts[-2] in _SECOND_LEVEL:
+        return ".".join(parts[-3:])
+    return ".".join(parts[-2:])
+
+
 def redirect_ok(url: str, hosts: tuple[str, ...]) -> bool:
     """A redirect target: on the flow's hosts, or anywhere over plain HTTPS when the flow's
     link is an email click-tracker (which always redirects to the real page)."""
     if host_allowed(url, hosts):
+        return True
+    # links.example.com -> api.example.com: the same company's own site is fine.
+    if host_allowed(url, (urlsplit(url).hostname or "",)) and any(
+        _site(urlsplit(url).hostname or "") == _site(h) for h in hosts
+    ):
         return True
     if not any(h == t or h.endswith("." + t) for h in hosts for t in TRACKER_HOSTS):
         return False
@@ -365,6 +382,26 @@ def pending_confirmations(session: Session) -> list[InboxMessage]:
             )
         ).all()
     )
+
+
+def confirmable_rows(session: Session, slug: str) -> list[InboxMessage]:
+    """This broker's replies a person could still act on, newest first: unresolved ones, plus
+    resolved ones while the request is still waiting on you (it was marked done too early)."""
+    sub = max(
+        (x for x in session.exec(select(Submission).where(Submission.broker_slug == slug)).all()),
+        key=lambda x: x.created_at,
+        default=None,
+    )
+    waiting = sub is not None and sub.status == "awaiting_user_input"
+    states = ("applied", "review", "resolved") if waiting else ("applied", "review")
+    rows = session.exec(
+        select(InboxMessage).where(
+            InboxMessage.broker_slug == slug,
+            InboxMessage.kind == "need-info",
+            InboxMessage.state.in_(states),  # type: ignore[attr-defined]
+        )
+    ).all()
+    return sorted(rows, key=lambda r: r.received_at or datetime.min, reverse=True)
 
 
 def auto_confirm(
