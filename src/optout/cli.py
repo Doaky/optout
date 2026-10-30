@@ -21,6 +21,8 @@ console = Console()
 def _main(ctx: typer.Context) -> None:
     """Self-hosted data broker opt-out tool. Run with no command to open the dashboard."""
     if ctx.invoked_subcommand is not None:
+        if ctx.invoked_subcommand == "forms":
+            return  # its output is read by other programs: no banner
         console.print("\n[bold]OptOut[/bold]  [dim]·  self-hosted data-broker opt-out[/dim]\n")
         return
     # Plain `optout`: set up on first run, then open the dashboard.
@@ -1233,6 +1235,115 @@ def replies_share() -> None:
         "src/optout/data/known_replies.yml, or open an issue at "
         "https://github.com/Doaky/optout/issues[/dim]"
     )
+
+
+forms_app = typer.Typer(help="Web forms: a queue to walk through in a browser, and recipes.")
+app.add_typer(forms_app, name="forms")
+
+
+def _forms_config():
+    from .config import load_config
+
+    try:
+        return load_config()
+    except FileNotFoundError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+
+
+@forms_app.command("todo")
+def forms_todo() -> None:
+    """JSON list of requests waiting on a web form (broker, link, what they said)."""
+    import json
+
+    from . import forms
+    from .db import get_session, init_db
+
+    config = _forms_config()
+    init_db()
+    with get_session() as session:
+        print(json.dumps(forms.todo(session, config), indent=2))
+
+
+@forms_app.command("profile")
+def forms_profile() -> None:
+    """JSON of the values a form may ask for, for filling one in yourself or with Claude."""
+    import json
+
+    from . import forms
+
+    print(json.dumps(forms.profile_fields(_forms_config()), indent=2))
+
+
+@forms_app.command("save")
+def forms_save(
+    file: str = typer.Argument("-", help="Recipe as JSON, or - for stdin."),
+) -> None:
+    """Save a recorded recipe (fields and labels only; refused if it holds your details)."""
+    import json
+    import sys
+
+    from pydantic import ValidationError
+
+    from . import forms
+
+    config = _forms_config()
+    raw = sys.stdin.read() if file == "-" else open(file).read()
+    try:
+        recipe = forms.Recipe.model_validate(json.loads(raw))
+        saved = forms.save_local(recipe, config)
+    except (ValueError, ValidationError) as exc:
+        console.print(f"[red]Not saved:[/red] {exc}")
+        raise typer.Exit(code=1)
+    console.print(f"Saved a recipe for [bold]{saved.broker}[/bold] ({len(saved.steps)} steps).")
+
+
+@forms_app.command("show")
+def forms_show(slug: str) -> None:
+    """Print the recipe for one broker."""
+    import yaml
+
+    from . import forms
+
+    recipe = forms.load_recipes().get(slug)
+    if recipe is None:
+        console.print(f"No recipe for '{slug}'.")
+        raise typer.Exit(code=1)
+    print(yaml.safe_dump(recipe.model_dump(), sort_keys=False, allow_unicode=True))
+
+
+@forms_app.command("done")
+def forms_done(
+    slug: str,
+    outcome: str = typer.Argument(..., help="removed (the page said so) or submitted"),
+    note: str = typer.Option("", "--note"),
+) -> None:
+    """Record how a form went, so the request leaves Needs attention."""
+    from . import forms
+    from .db import get_session, init_db
+
+    init_db()
+    try:
+        with get_session() as session:
+            console.print(forms.mark_outcome(session, slug, outcome, note))
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+
+
+@forms_app.command("share")
+def forms_share() -> None:
+    """Print your recipes the shared list doesn't have, ready to contribute."""
+    import yaml
+
+    from . import forms
+
+    entries = forms.learned_recipes()
+    if not entries:
+        console.print("No new recipes to share.")
+        return
+    print(yaml.safe_dump(entries, sort_keys=False, allow_unicode=True))
+    console.print("[dim]Add to src/optout/data/form_recipes.yml, or open an issue.[/dim]")
 
 
 @app.command()

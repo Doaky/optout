@@ -277,7 +277,9 @@ def known_reply(mail: ParsedMail, known: list[KnownReply]) -> KnownReply | None:
     return None
 
 
-_CONDITION = re.compile(r"\b(if|unless|without|once|after|should|in case|in the event|provided that)\b", re.I)
+_CONDITION = re.compile(
+    r"\b(if|unless|without|once|after|should|in case|in the event|provided that)\b", re.I
+)
 _UNTIL = re.compile(r"\b(until|unless)\b", re.I)  # "cannot process it until you send the form"
 _SETTLING = {"denied", "no-data", "deleted"}
 
@@ -290,8 +292,12 @@ def _firm_match(kind: str, rx: re.Pattern[str], blob: str) -> bool:
         return rx.search(blob) is not None
     for m in rx.finditer(blob):
         start = max(blob.rfind(ch, 0, m.start()) for ch in ".!?") + 1
-        end = min((i for i in (blob.find(ch, m.end()) for ch in ".!?") if i >= 0), default=len(blob))
-        if not _CONDITION.search(blob[start : m.start()]) and not _UNTIL.search(blob[m.end() : end]):
+        end = min(
+            (i for i in (blob.find(ch, m.end()) for ch in ".!?") if i >= 0), default=len(blob)
+        )
+        if not _CONDITION.search(blob[start : m.start()]) and not _UNTIL.search(
+            blob[m.end() : end]
+        ):
             return True
     return False
 

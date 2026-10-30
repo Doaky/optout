@@ -286,8 +286,14 @@ def test_auto_close_only_for_groups_you_are_not_in(session):
 def test_teach_phrase_and_tracker_redirects():
     from optout.engine.confirm import redirect_ok, teach_phrase
 
-    text = "Email Verification\n\nYou must click on the following secure link to verify your email address.\n"
-    assert teach_phrase(text) == "you must click on the following secure link to verify your email address."
+    text = (
+        "Email Verification\n\n"
+        "You must click on the following secure link to verify your email address.\n"
+    )
+    assert (
+        teach_phrase(text)
+        == "you must click on the following secure link to verify your email address."
+    )
     assert teach_phrase("Hello there.") == ""
     # A click-tracker may redirect to the real page; an ordinary site may not leave its hosts.
     assert redirect_ok("https://portal.osano.com/x", ("track.pstmrk.it",))
@@ -298,7 +304,9 @@ def test_teach_phrase_and_tracker_redirects():
 def test_page_excerpt_shows_what_the_page_said():
     from optout.engine.confirm import Fetched, page_excerpt
 
-    assert page_excerpt(Fetched(200, "Email\n  verified.\n\nThank you")) == "Email verified. Thank you"
+    assert (
+        page_excerpt(Fetched(200, "Email\n  verified.\n\nThank you")) == "Email verified. Thank you"
+    )
     assert page_excerpt(Fetched(200, "x" * 300)).endswith("…")
     assert page_excerpt(Fetched(error="URLError")) == "URLError"
 

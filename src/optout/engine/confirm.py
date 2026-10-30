@@ -18,8 +18,8 @@ import re
 import urllib.error
 import urllib.request
 from collections.abc import Callable
-from datetime import datetime
 from dataclasses import dataclass
+from datetime import datetime
 from importlib.resources import files
 from urllib.parse import urlsplit
 
@@ -323,7 +323,11 @@ def page_excerpt(f: Fetched, limit: int = 160) -> str:
     if f.error:
         return f.error
     flat = re.sub(r"\s+", " ", f.text).strip()
-    return flat[:limit] + ("…" if len(flat) > limit else "") if flat else f"HTTP {f.status}, empty page"
+    return (
+        flat[:limit] + ("…" if len(flat) > limit else "")
+        if flat
+        else f"HTTP {f.status}, empty page"
+    )
 
 
 def confirm_reply(

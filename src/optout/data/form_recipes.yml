@@ -1,0 +1,3 @@
+# Recorded web-form recipes: field names and visible labels only, never anyone's details.
+# Made by walking a form in a browser, then `optout forms save`. See src/optout/forms.py.
+[]

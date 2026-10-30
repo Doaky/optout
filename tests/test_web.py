@@ -1346,7 +1346,6 @@ def test_top_bar_has_a_fetch_emails_button_only_on_the_dashboard():
 
 
 def test_form_said_removed_marks_the_request_as_their_word(ui):
-    from optout.actions import record_reply
     from optout.db import create_submission, get_session, list_submissions, update_status
 
     with get_session() as session:
