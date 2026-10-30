@@ -81,6 +81,7 @@ class Dashboard:
     attention_prompt: str = ""
     attention_redactions: str = ""
     resend_due_30d: int = 0  # brokers coming round for another email in the next 30 days
+    followups_due: int = 0  # past their deadline, unanswered: a follow-up can go out now
     resend_after_days: int = 180
 
 
@@ -276,6 +277,9 @@ def collect(
                 )
             )
 
+    from ..engine.followups import due as followups_due
+
+    dash.followups_due = len(followups_due(session, {b.slug: b for b in all_brokers()}, now))
     # Steps that lapse soonest first: a confirm link that expires tomorrow beats a refusal.
     dash.attention.sort(key=lambda a: a.expires_in if a.expires_in is not None else 1e9)
     for item in dash.attention:

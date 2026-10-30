@@ -1717,6 +1717,15 @@ def dashboard(
             if with_actions
             else ""
         )
+        if with_actions and d.followups_due:
+            how += (
+                "<form method='post' action='/act/followups' class='inline'>"
+                f"{_hidden(csrf)}<button type='submit' class='go' title='A short, polite "
+                "follow-up to each broker past its 45-day deadline with no answer, in the same "
+                "email thread. Counts toward your daily limit.'>"
+                f"Send all {d.followups_due} follow-up{'s' if d.followups_due != 1 else ''}"
+                "</button></form>"
+            )
         ask = ""
         if with_actions and d.attention_prompt:
             ask = (

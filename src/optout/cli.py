@@ -1632,6 +1632,17 @@ def daily() -> None:
         elif sel.eligible:
             lines.append(f"{len(sel.eligible)} brokers ready. Run: optout campaign --send")
 
+        from .engine import followups
+
+        overdue = followups.due(session, {b.slug: b for b in all_brokers()}, now)
+        if overdue and config.email.allow_unattended:
+            fr = followups.send(session, config, overdue, limit=len(overdue))
+            lines.append(f"Follow-ups sent: {len(fr.sent)}, failed: {len(fr.failed)}")
+            if fr.stopped_reason:
+                lines.append(f"Follow-ups stopped: {fr.stopped_reason}")
+        elif overdue:
+            lines.append(f"{len(overdue)} follow-up(s) due. Run: optout followups --send")
+
     from .engine.inbox import gmail_ready, run_sync
 
     if gmail_ready(config) is None:
@@ -1649,6 +1660,44 @@ def daily() -> None:
     console.print(message)
     if config.notify.webhook_url and lines:
         send_webhook(config.notify.webhook_url, "optout daily", message)
+
+
+@app.command()
+def followups(
+    send: bool = typer.Option(False, "--send", help="Actually send. Default is a preview."),
+) -> None:
+    """Follow up with every broker past its deadline with no answer, in one batch."""
+    from datetime import UTC, datetime
+
+    from .brokers.registry import all_brokers, load_registry
+    from .config import load_config
+    from .db import get_session, init_db
+    from .engine import followups as fu
+
+    try:
+        config = load_config()
+    except FileNotFoundError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+    load_registry()
+    init_db()
+    with get_session() as session:
+        items = fu.due(session, {b.slug: b for b in all_brokers()}, datetime.now(UTC))
+        if not items:
+            console.print("No follow-ups are due: nobody is past their deadline without an answer.")
+            return
+        for sub, broker in items:
+            console.print(f"  {broker.name}  [dim]→ {broker.opt_out_email}[/dim]")
+        if not send:
+            first = fu.build(config, *items[0])
+            console.print(f"\n[bold]{len(items)}[/bold] due. The first one reads:\n")
+            console.print(f"Subject: {first['Subject']}\n\n{first.get_content()}", markup=False)
+            console.print("[dim]Send them with: optout followups --send[/dim]")
+            return
+        report = fu.send(session, config, items, limit=len(items))
+    console.print(f"Sent {len(report.sent)}, failed {len(report.failed)}.")
+    if report.stopped_reason:
+        console.print(f"[yellow]Stopped:[/yellow] {report.stopped_reason}")
 
 
 @app.command("drift-check")

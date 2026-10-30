@@ -147,6 +147,42 @@ class App:
         threading.Thread(target=self._run_resend, args=(slug, address), daemon=True).start()
         return "started"
 
+    def start_followups(self) -> str:
+        with self.job_lock:
+            if self.job.get("state") == "running":
+                return "busy"
+            self.job = {"state": "running", "sent": [], "failed": [], "total": 0}
+        threading.Thread(target=self._run_followups, daemon=True).start()
+        return "started"
+
+    def _run_followups(self) -> None:
+        from ..engine import followups
+
+        job = self.job
+        try:
+            config = load_config()
+            load_registry()
+            with get_session() as session:
+                items = followups.due(
+                    session, {b.slug: b for b in all_brokers()}, datetime.now(UTC)
+                )
+                job["total"] = len(items)
+
+                def progress(slug: str, state: str) -> None:
+                    (job["sent"] if state == "sent" else job["failed"]).append(
+                        slug if state == "sent" else (slug, "see optout status")
+                    )
+
+                report = followups.send(
+                    session, config, items, limit=len(items), on_progress=progress
+                )
+                job["failed"] = report.failed
+                job["stopped"] = report.stopped_reason
+        except Exception as exc:  # never leak a traceback into the page
+            job["stopped"] = f"{type(exc).__name__}"
+        finally:
+            job["state"] = "done"
+
     def _run_resend(self, slug: str, address: str) -> None:
         from ..engine.campaign import resend_to
 
@@ -847,6 +883,8 @@ def _make_handler(app: App):
                 if path == "/act/make-drafts":
                     actions.write_escalation_drafts(load_config(), datetime.now(UTC))
                     return self._redirect("/?m=drafts")
+                if path == "/act/followups":
+                    return self._redirect(f"/?m={app.start_followups()}#send")
                 if path == "/act/campaign":
                     try:
                         config = load_config()
