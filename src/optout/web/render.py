@@ -1637,7 +1637,17 @@ def _covers_tag(row: Row) -> str:
 def _reply_from(row: Row) -> str:
     if not row.reply_from:
         return ""
-    shown = ", ".join(e(a) for a in row.reply_from[:2])
+
+    def one(addr: str) -> str:
+        url = row.reply_links.get(addr)
+        if not url:
+            return e(addr)
+        return (
+            f"<a href='{e(url)}' target='_blank' rel='noreferrer noopener' "
+            f"title='Open their latest email in Gmail'>{e(addr)}</a>"
+        )
+
+    shown = ", ".join(one(a) for a in row.reply_from[:2])
     more = f" +{len(row.reply_from) - 2}" if len(row.reply_from) > 2 else ""
     return f"<div class='muted small' title='Replies came from'>↩ {shown}{more}</div>"
 

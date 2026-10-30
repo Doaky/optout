@@ -39,6 +39,7 @@ class Row:
     heard: bool = False  # the broker has replied in some way (even just an acknowledgement)
     retryable: bool = False  # an email that failed to send (not a bounce): can be resent
     failure: str = ""  # why it failed, for the tooltip
+    reply_links: dict[str, str] = field(default_factory=dict)  # sender -> its latest email in Gmail
     next_send: str = ""  # when this broker gets emailed again (finished email requests only)
 
 
@@ -156,6 +157,7 @@ def collect(
     from ..engine.inbox import senders_by_broker
 
     reply_from = senders_by_broker(session)
+    reply_links = _latest_reply_links(session)
     from ..audiences import load_coverage
 
     coverage = load_coverage()
@@ -208,6 +210,7 @@ def collect(
             heard=sub.id in latest_reply,
             drifted=drift,
             reply_from=reply_from.get(sub.broker_slug, []),
+            reply_links=reply_links.get(sub.broker_slug, {}),
             retryable=(
                 sub.status == "failed" and sub.submitted_at is None and sub.method_used == "email"
             ),
@@ -379,6 +382,41 @@ def _too_much_why(b) -> str:
     return "an ID or a photo of your face"
 
 
+def gmail_url(message_id: str) -> str:
+    """Opens this exact email in Gmail (a search by its Message-ID), or "" without one."""
+    mid = message_id.strip().strip("<>")
+    return "https://mail.google.com/mail/u/0/#search/" + quote(f"rfc822msgid:{mid}") if mid else ""
+
+
+def _latest_reply_links(session: Session) -> dict[str, dict[str, str]]:
+    """For each broker, each address it replied from -> that sender's latest email in Gmail."""
+    from ..db import InboxMessage
+
+    latest: dict[tuple[str, str], tuple[datetime, str]] = {}
+    for slug, addr, mid, when in session.exec(
+        select(
+            InboxMessage.broker_slug,
+            InboxMessage.from_addr,
+            InboxMessage.message_id,
+            InboxMessage.received_at,
+        ).where(
+            InboxMessage.broker_slug != None,  # noqa: E711 (SQL IS NOT NULL)
+            InboxMessage.kind != "bounced",
+            InboxMessage.state != "ignored",
+        )
+    ).all():
+        if not slug or not addr or not mid:
+            continue
+        at = when or datetime.min
+        cur = latest.get((slug, addr))
+        if cur is None or at >= cur[0]:
+            latest[(slug, addr)] = (at, mid)
+    out: dict[str, dict[str, str]] = {}
+    for (slug, addr), (_at, mid) in latest.items():
+        out.setdefault(slug, {})[addr] = gmail_url(mid)
+    return out
+
+
 def _stalled_form(session: Session, sub: Submission, now: datetime) -> Attention | None:
     """A form was submitted that should be followed by an email, and it never came."""
     from ..forms import _payload, pending_followup
@@ -482,9 +520,7 @@ def _with_reply(session: Session, sub: Submission, a: Attention) -> Attention:
             if x is not None
         ]
         a.expires_in = min(lefts) if lefts else None
-    mid = row.message_id.strip().strip("<>")
-    if mid:
-        a.gmail_url = "https://mail.google.com/mail/u/0/#search/" + quote(f"rfc822msgid:{mid}")
+    a.gmail_url = gmail_url(row.message_id)
     a.quote = deciding_sentence(row.text, row.kind or "")
     from ..brokers.registry import get_broker
 

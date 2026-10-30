@@ -1475,3 +1475,32 @@ def test_copy_browser_prompt_puts_it_on_the_clipboard_in_one_click(ui):
     finally:
         browser.close()
         pw.stop()
+
+
+def test_reply_sender_links_to_their_latest_email_in_gmail(ui):
+    from datetime import UTC, datetime, timedelta
+
+    from optout.db import InboxMessage, list_submissions
+
+    _sent_request()
+    with get_session() as s:
+        sub = list_submissions(s)[0]
+        for mid, ago in (("<old@x>", 3), ("<new@x>", 1)):
+            s.add(
+                InboxMessage(
+                    message_id=mid,
+                    submission_id=sub.id,
+                    broker_slug="evil",
+                    from_addr="privacy@evil.example",
+                    subject="Re: request",
+                    kind="auto-reply",
+                    text="Thanks.",
+                    state="applied",
+                    received_at=datetime.now(UTC) - timedelta(days=ago),
+                )
+            )
+        s.commit()
+    _, body = ui.req("GET", "/")
+    row = body[body.index("↩ ") : body.index("</div>", body.index("↩ "))]
+    assert "rfc822msgid%3Anew%40x" in row and ">privacy@evil.example</a>" in row
+    assert "rel='noreferrer noopener'" in row
