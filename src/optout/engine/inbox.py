@@ -732,6 +732,7 @@ def run_sync(config, *, dry_run: bool = False) -> SyncReport:
                 read_smtp_password(smtp),
                 label,
                 reply_label=config.email.reply_label,
+                mark_read=config.email.mark_replies_read,
             ) as gmail:
                 gmail.label_replies(expected, since=since)
                 raws = gmail.fetch_replies(seen, since=since)

@@ -110,6 +110,9 @@ class EmailConfig(BaseModel):
     # catch data they've bought back. Virginia and several other states let a company refuse
     # more than two requests a year as "repetitive", so the default is twice a year.
     resend_after_days: int = 180
+    # Gmail only: mark broker replies as read once they've been labelled and read in. Only
+    # mail the tool has identified as a broker reply is touched.
+    mark_replies_read: bool = False
 
     @model_validator(mode="after")
     def _label_is_plain(self) -> EmailConfig:

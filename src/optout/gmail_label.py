@@ -42,12 +42,14 @@ class GmailLabeler:
         *,
         connect: Callable[[], imaplib.IMAP4] | None = None,
         reply_label: str | None = None,
+        mark_read: bool = False,
     ) -> None:
         for name in (label, reply_label):
             if name is not None and not valid_label(name):
                 raise ValueError("Label may only contain letters, digits, space, _ - /")
         self.label = label
         self.reply_label = reply_label or label
+        self.mark_read = mark_read
         self._username, self._password = username, password
         self._connect = connect or (lambda: imaplib.IMAP4_SSL(IMAP_HOST, 993, timeout=30))
         self._imap: imaplib.IMAP4 | None = None
@@ -90,12 +92,14 @@ class GmailLabeler:
             return []
         return data[0].split()
 
-    def _label(self, uids: Iterable[bytes], name: str | None = None) -> int:
+    def _label(self, uids: Iterable[bytes], name: str | None = None, *, read: bool = False) -> int:
         assert self._imap is not None
         uids = list(uids)
         for i in range(0, len(uids), 200):
             chunk = b",".join(uids[i : i + 200]).decode()
             self._imap.uid("STORE", chunk, "+X-GM-LABELS", f"({_q(name or self.label)})")
+            if read:
+                self._imap.uid("STORE", chunk, "+FLAGS", "(\\Seen)")
         return len(uids)
 
     def label_message_ids(
@@ -197,12 +201,15 @@ class GmailLabeler:
         broker's other mail (newsletters, account notices) is never touched."""
         clean = sorted({a.lower() for a in addresses if _ADDR_RE.match(a.lower())})
         after = f"after:{since:%Y/%m/%d}"
+        read = self.mark_read
         total = self._label(
-            self._search(f'in:inbox -from:me {after} subject:"{SUBJECT}"'), self.reply_label
+            self._search(f'in:inbox -from:me {after} subject:"{SUBJECT}"'),
+            self.reply_label,
+            read=read,
         )
         for i in range(0, len(clean), 20):
             terms = " OR ".join(f"from:{a}" for a in clean[i : i + 20])
             total += self._label(
-                self._search(f"in:inbox -from:me {after} ({terms})"), self.reply_label
+                self._search(f"in:inbox -from:me {after} ({terms})"), self.reply_label, read=read
             )
         return total

@@ -1243,6 +1243,9 @@ def _settings_panel(ui: UI) -> str:
         + "</div><label class='check'><input type='checkbox' name='allow_unattended'"
         f"{' checked' if v['allow_unattended'] == 'on' else ''}> Send each day's batch "
         "automatically at that time (no clicking Send)</label>"
+        "<label class='check'><input type='checkbox' name='mark_replies_read'"
+        f"{' checked' if v.get('mark_replies_read') == 'on' else ''}> Mark broker replies as "
+        "read in Gmail once they're labelled (only mail recognised as a broker reply)</label>"
         + _TZ_LIST
         + f"<p class='muted small'>Sending from <b>{e(v['sender'])}</b> via {e(v['host'])}. "
         "To change the account, run <code>optout init</code>.</p></fieldset>"
@@ -1897,7 +1900,7 @@ def campaign_page(
     flash: str = "",
 ) -> str:
     running = job.get("state") == "running"
-    batch = min(max(0, limit - used), len(eligible), 40)
+    batch = min(max(0, limit - used), len(eligible))
     lines = "".join(f"<li>{e(name)}</li>" for _slug, name in eligible[:25])
     status = (
         _send_panel(UI(csrf=csrf, used=used, limit=limit, job=job))

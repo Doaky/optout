@@ -114,3 +114,20 @@ def test_label_failure_never_fails_the_send(monkeypatch, tmp_path):
     assert em._try_label(C(), cfg.smtp, "<m@id>") == "label-failed: OSError"
     other = SmtpConfig(host="smtp.example.invalid", username="u")
     assert em._try_label(C(), other, "<m@id>") is None  # not Gmail: skipped
+
+
+def test_marks_only_labelled_broker_replies_read_and_only_when_asked():
+    fake = FakeIMAP()
+    with _labeler(fake) as g:
+        g.label_all_sent()
+        g.label_replies(["privacy@33across.com"], since=date(2026, 10, 27))
+    assert not [c for c in fake.calls if c[0] == "STORE" and c[2] == "+FLAGS"]  # off by default
+
+    fake = FakeIMAP()
+    with GmailLabeler("u@gmail.com", "pw", "OPTOUT", connect=lambda: fake, mark_read=True) as g:
+        g.label_all_sent()  # our own sent mail: labelled, never flagged
+        sent_stores = len([c for c in fake.calls if c[0] == "STORE"])
+        g.label_replies(["privacy@33across.com"], since=date(2026, 10, 27))
+    flags = [c for c in fake.calls if c[0] == "STORE" and c[2] == "+FLAGS"]
+    assert flags and all(c[3] == "(\\Seen)" for c in flags)  # add-only: read, nothing removed
+    assert sent_stores == 1  # the sent-mail labelling added no flags

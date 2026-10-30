@@ -404,7 +404,7 @@ def _make_handler(app: App):
                         ui.used = sent_today(session, now, user_tz(config))
                         ui.limit = config.email.daily_limit
                         room = max(0, ui.limit - ui.used)
-                        batch = sel.eligible[: min(room, 40)]
+                        batch = sel.eligible[:room]  # a batch can use the whole day's room
                         ui.previews = [
                             (b.name, b.opt_out_email or "", *_email_for(config, b)) for b in batch
                         ]
@@ -467,7 +467,7 @@ def _make_handler(app: App):
                     )
                     used = sent_today(session, now, user_tz(config))
                 room = max(0, config.email.daily_limit - used)
-                batch = sel.eligible[: max(0, min(want, room, 40))]
+                batch = sel.eligible[: max(0, min(want, room))]
                 items = [(b.name, b.opt_out_email or "", *_email_for(config, b)) for b in batch]
                 sender = config.email.from_address or (
                     config.email.smtp.username if config.email.smtp else "your account"
@@ -853,7 +853,7 @@ def _make_handler(app: App):
                     except FileNotFoundError:
                         return self._redirect("/?m=nocfg#send")
                     count = int(form.get("count", "0"))
-                    if not 1 <= count <= min(40, config.email.daily_limit):
+                    if not 1 <= count <= config.email.daily_limit:
                         raise ValueError("count out of range")
                     return self._redirect(f"/?m={app.start_campaign(count)}#send")
             except ValueError:
@@ -982,6 +982,7 @@ def _settings_values(config) -> dict[str, str]:
         "from_address": em.from_address or "",
         "alias_pattern": em.alias_pattern or "",
         "allow_unattended": "on" if em.allow_unattended else "",
+        "mark_replies_read": "on" if em.mark_replies_read else "",
         "daily_send_time": em.daily_send_time,
         "my_groups": ",".join(config.my_groups) if config.my_groups is not None else "",
         "groups_set": "1" if config.my_groups is not None else "",

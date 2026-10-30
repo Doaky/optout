@@ -104,6 +104,7 @@ def apply_form(cfg: UserConfig, form: dict[str, str]) -> UserConfig:
         alias_pattern=form.get("alias_pattern", "").strip() or None,
         from_address=form.get("from_address", "").strip() or None,
         allow_unattended=form.get("allow_unattended") == "on",
+        mark_replies_read=form.get("mark_replies_read") == "on",
         daily_send_time=form.get("daily_send_time", "").strip() or "10:00",
     )
     data["timezone"] = form.get("timezone", "").strip() or None
