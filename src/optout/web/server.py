@@ -1074,6 +1074,8 @@ def _fill_replies(ui, session, config) -> None:
     }
     ui.contacted = sorted(contacted.items(), key=lambda kv: kv[1].lower())
     items = review_items(session)
+    from .data import gmail_url
+
     ui.replies = [
         (
             str(it.row.id),
@@ -1084,6 +1086,7 @@ def _fill_replies(ui, session, config) -> None:
             it.row.received_at.strftime("%b %d") if it.row.received_at else "",
             it.row.kind or "unknown",
             it.row.text,
+            gmail_url(it.row.message_id),
         )
         for it in items
     ]

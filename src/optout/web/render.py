@@ -228,6 +228,7 @@ button.ibtn:hover{color:var(--text);border-color:var(--accent);background:var(--
 button.ibtn.mini{width:26px;height:26px;border-radius:6px;margin-left:4px;display:inline-flex;
   align-items:center;justify-content:center;vertical-align:middle}
 a.ibtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;
+a.ibtn.mini{width:22px;height:22px;margin-left:6px;vertical-align:middle;border-radius:5px}
   border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--text-2)}
 a.ibtn:hover{border-color:var(--accent);color:var(--text)}
 @media (max-width:700px){.att{flex-direction:column;align-items:flex-start}}
@@ -802,7 +803,7 @@ class UI:
     inbox_status: str = ""  # "Checked 4 min ago" or why replies can't be read
     inbox_ok: bool = False
     # (id, ref, broker name or None, from, subject, date, guess, text)
-    replies: list[tuple[str, str, str | None, str, str, str, str, str]] = field(
+    replies: list[tuple[str, str, str | None, str, str, str, str, str, str]] = field(
         default_factory=list
     )
     contacted: list[tuple[str, str]] = field(default_factory=list)  # (slug, name)
@@ -975,7 +976,7 @@ def _replies_panel(ui: UI) -> str:
             + "</datalist>"
         )
         items = []
-        for rid, ref, name, sender, subject, when, guess, text in ui.replies:
+        for rid, ref, name, sender, subject, when, guess, text, gmail in ui.replies:
             pick = (
                 ""
                 if name
@@ -989,7 +990,15 @@ def _replies_panel(ui: UI) -> str:
                 f"<div class='reply-head'><span class='muted small'>{e(ref)}</span> "
                 f"<b>{e(name or 'Unmatched sender')}</b> {_guess_pill(guess)}"
                 f"<span class='muted small'>{e(when)}</span></div>"
-                f"<div class='small'><span class='muted'>{e(sender)}</span> · {e(subject)}</div>"
+                f"<div class='small'><span class='muted'>{e(sender)}</span> · {e(subject)}"
+                + (
+                    f" <a class='ibtn mini' href='{e(gmail)}' target='_blank' "
+                    "rel='noreferrer noopener' title='Open this email in Gmail' "
+                    f"aria-label='Open this email in Gmail'>{_GMAIL_ICON}</a>"
+                    if gmail
+                    else ""
+                )
+                + "</div>"
                 f"<details class='email'><summary>Show the email</summary><div><pre>{e(text)}"
                 "</pre></div></details>"
                 f"<form method='post' action='/act/review' class='inline rowform auto'>"

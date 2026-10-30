@@ -1504,3 +1504,25 @@ def test_reply_sender_links_to_their_latest_email_in_gmail(ui):
     row = body[body.index("↩ ") : body.index("</div>", body.index("↩ "))]
     assert "rfc822msgid%3Anew%40x" in row and ">privacy@evil.example</a>" in row
     assert "rel='noreferrer noopener'" in row
+
+
+def test_a_reply_to_review_links_to_the_email_in_gmail(ui):
+    from optout.db import InboxMessage
+
+    with get_session() as s:
+        s.add(
+            InboxMessage(
+                message_id="<rev1@mail.example>",
+                from_addr="noreply@someplatform.example",
+                subject="Your request",
+                text="Something odd.",
+                kind="unknown",
+                state="review",
+            )
+        )
+        s.commit()
+    _, body = ui.req("GET", "/")
+    replies = body[body.index("id='replies'") : body.index("id='requests'")]
+    assert "Show the email" in replies
+    assert "rfc822msgid%3Arev1%40mail.example" in replies
+    assert "rel='noreferrer noopener'" in replies
