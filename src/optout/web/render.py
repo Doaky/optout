@@ -124,15 +124,15 @@ tbody tr:last-child td{border-bottom:0}
 tbody tr:hover{background:var(--surface-2)}
 td.name{font-weight:600;white-space:normal;min-width:160px}
 td.num{font-variant-numeric:tabular-nums}
-input,select,button{font:inherit;font-size:14px;border-radius:8px}
+input,select,button{font:inherit;font-size:13.5px;border-radius:6px}
 input,select{padding:7px 10px;border:1px solid var(--line);background:var(--surface);color:var(--text)}
 input:hover,select:hover{border-color:color-mix(in srgb,var(--accent) 50%,var(--line))}
-button{padding:7px 14px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);
-  font-weight:600;cursor:pointer}
+button{padding:5px 12px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);
+  font-weight:500;line-height:1.4;cursor:pointer;transition:background .12s,border-color .12s}
 button:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
 button:active{transform:translateY(1px)}
 button[disabled]{opacity:.7;cursor:progress}
-button.big{padding:10px 18px;font-size:15px}
+button.big{padding:7px 16px;font-size:14px}
 button.secondary{background:var(--surface);color:var(--text);border-color:var(--line)}
 button.secondary:hover{border-color:var(--accent)}
 button.go{background:#15803d;border-color:#15803d;color:#fff}
@@ -217,7 +217,12 @@ th button.sortbtn:focus-visible{outline:2px solid var(--ring);outline-offset:2px
 .att-actions{display:flex;gap:6px;align-items:center;flex:none}
 .att-actions button{padding:6px 14px;font-size:13px}
 form.redirect{margin-top:6px;gap:8px}
-button.mini{padding:4px 10px;font-size:12.5px}
+button.mini{padding:2px 9px;font-size:12.5px}
+/* Quiet row actions: outlined, filled only on hover. */
+button.ghost{background:transparent;color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
+button.ghost:hover{background:color-mix(in srgb,var(--accent) 12%,transparent);border-color:var(--accent);color:var(--accent)}
+.actions{display:inline-flex;align-items:center;gap:10px;white-space:nowrap}
+table.plan td{white-space:normal;vertical-align:middle}table.plan td:last-child{white-space:nowrap;width:1%}
 button.ibtn{padding:0;background:var(--surface);color:var(--text-2);border-color:var(--line)}
 button.ibtn:hover{color:var(--text);border-color:var(--accent);background:var(--surface)}
 button.ibtn.mini{width:26px;height:26px;border-radius:6px;margin-left:4px;display:inline-flex;
@@ -2090,16 +2095,18 @@ def _plan_panel(d: Dashboard, ui: UI) -> str:
             action = (
                 "<form method='post' action='/act/campaign' class='inline'>"
                 f"{_hidden(ui.csrf, count=str(count), tier=t.key)}"
-                f"<button type='submit' class='mini go'>Send {count}</button></form>"
+                f"<button type='submit' class='mini ghost'>Send {count}</button></form>"
                 if count
-                else "<span class='muted small'>Daily limit reached; more tomorrow</span>"
+                else "<span class='muted small' title='Your daily email limit is used up; "
+                "more go out tomorrow'>Today's limit reached</span>"
             )
         elif t.key in _FORM_TIERS and (t.todo or t.needs_you):
             action = (
-                f"<button type='button' class='mini go' data-copy-url='/prompt/{t.key}' "
+                "<span class='actions'>"
+                f"<button type='button' class='mini ghost' data-copy-url='/prompt/{t.key}' "
                 "title='Copies a prompt for your browser agent (Claude in Chrome) with the next "
-                "10 forms in this group'>Copy browser prompt</button> "
-                f"<a class='small' href='/prompt/{t.key}'>view</a>"
+                "10 forms in this group'>Copy browser prompt</button>"
+                f"<a class='small muted' href='/prompt/{t.key}'>view</a></span>"
             )
         elif t.key == "too-much" and d.too_much:
             items = "".join(f"<li>{e(name)}: {e(why)}</li>" for name, why in d.too_much)
@@ -2126,7 +2133,7 @@ def _plan_panel(d: Dashboard, ui: UI) -> str:
         "Your plan",
         "<p class='how'>Work down the list: email groups send from here; form groups give "
         "you a prompt for a browser agent (Claude in Chrome), whose answer you paste back "
-        "below.</p><div class='table-wrap'><table><tbody>"
+        "below.</p><div class='table-wrap'><table class='plan'><tbody>"
         + "".join(rows)
         + f"</tbody></table></div>{paste}",
     )
