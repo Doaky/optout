@@ -328,7 +328,10 @@ def test_a_site_emailed_first_leaves_the_queue_once_its_form_is_filled(people):
 
     with get_session() as s:
         sub = create_submission(
-            s, broker_slug="findme", method_used="email", legal_basis_cited=[],
+            s,
+            broker_slug="findme",
+            method_used="email",
+            legal_basis_cited=[],
             statutory_response_days=45,
         )
         mark_submitted(s, sub, {}, None, 45)

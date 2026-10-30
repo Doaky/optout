@@ -48,9 +48,14 @@ def test_no_ssn_shaped_strings():
     assert not hits, f"SSN-shaped strings in: {hits}"
 
 
-def test_real_config_values_not_in_tracked_files():
+def test_real_config_values_not_in_tracked_files(monkeypatch):
+    import os
+
     from optout.config import config_path, load_config
 
+    # This one checks against YOUR real profile (read only), not the test's temporary one.
+    real = os.environ.get("OPTOUT_REAL_CONFIG_HOME") or os.path.expanduser("~/.config")
+    monkeypatch.setenv("XDG_CONFIG_HOME", real)
     if not config_path().exists():
         pytest.skip("no local config to check against")
     cfg = load_config().profile

@@ -1376,9 +1376,8 @@ def test_expiry_is_read_from_their_wording_and_promises_are_ignored():
     got = now - timedelta(days=1)
     five = "You must confirm your email address within five (5) days. Click Confirm Email."
     assert round(_expires_in(five, got, now) or 0) == 4
-    assert (
-        round((_expires_in("This verification link expires in 24 hours.", got, now) or 9), 1) == 0.0
-    )
+    day = _expires_in("This verification link expires in 24 hours.", got, now)
+    assert day is not None and abs(day) < 0.01  # lapses about now
     assert _expires_in("We will process your request within 45 days.", got, now) is None
     blis = (
         "If we do not receive your MAID within 14 days, we will not be able to process it "
