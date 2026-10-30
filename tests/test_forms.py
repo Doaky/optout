@@ -205,3 +205,15 @@ def test_a_taught_confirm_email_is_attached_to_the_recipe(cfg):
     assert not forms.attach_followup(
         "nope", "@acme.example", "another long enough phrase", "acme.example", cfg
     )
+
+
+def test_agent_wording_for_needs_human_is_normalised_and_implies_a_followup():
+    r = _recipe(needs_human=["hCaptcha", "email verification link", "reCAPTCHA"])
+    assert r.needs_human == ["captcha", "email_verify"]
+    assert "email_verify" in forms._needs({"needs_human": ["email confirmation"]})
+    assert forms._EMAIL_NEXT.search("Page said: Verification Email Sent. Check your email.")
+
+
+def test_overlong_labels_are_clipped_not_rejected():
+    r = _recipe(steps=[{"action": "check", "label": "I certify " * 20}])
+    assert len(r.steps[0].label) == 80

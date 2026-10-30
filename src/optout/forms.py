@@ -54,6 +54,13 @@ class Step(BaseModel):
     text: str = Field("", max_length=160)  # option / button / page text (select, click, wait_text)
     note: str = Field("", max_length=160)
 
+    @field_validator("label", "text", "note", mode="before")
+    @classmethod
+    def _clip(cls, v: object, info) -> object:
+        """A long checkbox label shouldn't throw away a good recipe: keep the start of it."""
+        limit = {"label": 80, "text": 160, "note": 160}[info.field_name]
+        return v[:limit] if isinstance(v, str) else v
+
     @field_validator("field")
     @classmethod
     def _known_field(cls, v: str | None) -> str | None:
@@ -94,6 +101,28 @@ class Recipe(BaseModel):
     notes: str = Field("", max_length=300)
     then: Followup | None = None  # the email to expect after submitting, if there is one
     recorded: str = ""
+
+    @field_validator("needs_human", mode="before")
+    @classmethod
+    def _tidy_needs(cls, v: object) -> list[str]:
+        """Accept an agent's own wording ("hCaptcha", "email verification link")."""
+        out: list[str] = []
+        for item in v if isinstance(v, list) else []:
+            low = str(item).lower()
+            kind = (
+                "captcha"
+                if "captcha" in low or "human" in low
+                else "email_verify"
+                if "email" in low or "verif" in low or "confirm" in low
+                else "id_upload"
+                if "id" in low.split() or "upload" in low
+                else "phone_verify"
+                if "phone" in low or "sms" in low
+                else ""
+            )
+            if kind and kind not in out:
+                out.append(kind)
+        return out
 
     @field_validator("broker")
     @classmethod
@@ -384,6 +413,22 @@ def build_prompt(config: UserConfig, items: list[dict]) -> str:
     )
 
 
+_EMAIL_NEXT = re.compile(
+    r"check your (e-?mail|inbox)|verification e-?mail|confirm(ation)? e-?mail|"
+    r"click (the )?(confirm|verif)",
+    re.I,
+)
+
+
+def _needs(recipe: object) -> list[str]:
+    try:
+        return Recipe.model_validate(
+            {"broker": "x", "url": "https://x.io", "steps": [{"action": "click"}], **(recipe or {})}
+        ).needs_human  # type: ignore[arg-type]
+    except (ValidationError, TypeError):
+        return []
+
+
 def apply_results(session: Session, config: UserConfig, results: list[dict]) -> list[str]:
     """Apply a browser agent's answers: record outcomes, save clean recipes. One line each."""
     lines = []
@@ -395,7 +440,12 @@ def apply_results(session: Session, config: UserConfig, results: list[dict]) -> 
             if outcome in ("removed", "submitted"):
                 known = load_recipes().get(slug)
                 then = known.then if known else None
-                expects = bool(r.get("expects_email")) or then is not None
+                expects = (
+                    bool(r.get("expects_email"))
+                    or then is not None
+                    or "email_verify" in _needs(r.get("recipe"))
+                    or bool(_EMAIL_NEXT.search(note))
+                )
                 mark_outcome(
                     session,
                     slug,
