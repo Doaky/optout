@@ -1232,3 +1232,25 @@ def test_attention_prompt_knows_coverage_and_my_groups(me):
     assert "Groups I belong to: Student." in prompt
     unset, _ = assist.build_attention_prompt([item], me, None)
     assert "haven't said which groups" in unset
+
+
+def test_a_common_first_word_is_not_a_broker_name():
+    from optout.engine.inbox import _name_keys
+
+    assert _name_keys("Complete Mailing Lists LLC") == {"completemailinglists"}
+    assert "eltorocom" in _name_keys("El Toro.com, LLC")
+
+
+def test_name_tie_is_broken_by_the_form_we_are_waiting_on(session, world):
+    from optout.engine.inbox import _match_by_name
+
+    brokers, subs = world
+    idx = build_index(subs.values(), brokers, None)
+    two = [s for s in subs.values()][:2]
+    idx.by_name = {"alphaco": [two[0]], "betaco": [two[1]]}
+    mail = _mail(
+        from_addr="noreply@m.onetrust.com", subject="Your request", text="AlphaCo and BetaCo"
+    )
+    assert _match_by_name(mail, idx) is None  # ambiguous
+    idx.expecting = {two[1].broker_slug}
+    assert _match_by_name(mail, idx) is two[1]

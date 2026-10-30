@@ -1,0 +1,12 @@
+# Other names a broker's privacy emails go out under: a parent company or a brand. Replies
+# from shared platforms (OneTrust, TrustArc...) name these instead of the registered company,
+# so without them the reply can't be matched to its request. Take them from the email itself.
+- broker: disqus
+  names: [Zeta Global]
+  note: Disqus's privacy portal and its OneTrust emails are run by its parent, Zeta Global.
+- broker: el-toro-com
+  names: [El Toro IP Targeting]
+  note: The name on El Toro's OneTrust emails.
+- broker: dr-decision-resources
+  names: [Clarivate Plc]
+  note: Part of Clarivate; its OneTrust emails are signed Clarivate Plc.

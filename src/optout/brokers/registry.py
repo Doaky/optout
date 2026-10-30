@@ -208,6 +208,21 @@ def _apply_people_search(merged: dict[str, BrokerDef]) -> dict[str, BrokerDef]:
     return merged
 
 
+def _apply_aliases(merged: dict[str, BrokerDef]) -> dict[str, BrokerDef]:
+    """Other names a broker's emails go out under (data/broker_aliases.yml), so a reply from a
+    shared platform (OneTrust...) that names the parent or brand still finds the request."""
+    for item in _shared_list("broker_aliases.yml"):
+        if not isinstance(item, dict):
+            continue
+        b = merged.get(str(item.get("broker", "")))
+        names = [str(n) for n in item.get("names") or [] if str(n).strip()]
+        if b is not None and names:
+            merged[b.slug] = b.model_copy(
+                update={"covers": b.covers + [n for n in names if n not in b.covers]}
+            )
+    return merged
+
+
 def load_registry(brokers_dir: Path | None = None) -> None:
     global _registry, _loaded
     load_errors.clear()
@@ -227,6 +242,7 @@ def load_registry(brokers_dir: Path | None = None) -> None:
     merged = _add_extra_brokers(merged)
     merged = _apply_form_links(merged)
     merged = _apply_people_search(merged)
+    merged = _apply_aliases(merged)
 
     from .contacts import apply_contact_overrides
 

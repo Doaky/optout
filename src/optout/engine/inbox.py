@@ -26,7 +26,7 @@ from ..db import InboxMessage, Submission, update_status
 
 MAX_TEXT = 8000
 # Bump when matching or classification changes: saved replies are re-checked once.
-RULES_VERSION = 10
+RULES_VERSION = 11
 PARSER_VERSION = 2  # bump when parsing changes: saved replies are re-read from Gmail once
 
 # --- parsing -----------------------------------------------------------------
@@ -351,6 +351,26 @@ def is_confident(kinds: list[str]) -> bool:
 
 
 _GENERIC = {
+    # ordinary words that start broker names ("Complete Mailing Lists") and turn up in any
+    # privacy email ("complete the submission"): never a name match on their own
+    "complete",
+    "connected",
+    "connection",
+    "accurate",
+    "decision",
+    "decisions",
+    "request",
+    "people",
+    "search",
+    "public",
+    "records",
+    "verified",
+    "contact",
+    "account",
+    "commerce",
+    "command",
+    "confirm",
+    "center",
     "data",
     "marketing",
     "solutions",
@@ -402,6 +422,9 @@ def _match_by_name(mail: ParsedMail, idx: MatchIndex) -> Submission | None:
     broker. Only a name that points at exactly one contacted broker counts."""
     squashed = re.sub(r"[^a-z0-9]+", "", f"{mail.from_name} {mail.subject} {mail.text}".lower())
     hits = {s.broker_slug: s for key, subs in idx.by_name.items() if key in squashed for s in subs}
+    if len(hits) > 1:
+        # Several names appear: the one we just filled in a form for is the likely sender.
+        hits = {k: v for k, v in hits.items() if k in idx.expecting} or hits
     return next(iter(hits.values())) if len(hits) == 1 else None
 
 
@@ -413,6 +436,7 @@ class MatchIndex:
     by_sender: dict[str, Submission] = field(default_factory=dict)  # learned reply addresses
     by_name: dict[str, list[Submission]] = field(default_factory=dict)  # name key -> requests
     latest: dict[str, Submission] = field(default_factory=dict)  # slug -> latest sent request
+    expecting: set[str] = field(default_factory=set)  # slugs waiting on a form's follow-up email
 
 
 def build_index(
@@ -691,6 +715,11 @@ def run_sync(config, *, dry_run: bool = False) -> SyncReport:
         with get_session() as session:
             subs = list(session.exec(select(Submission)))
             idx = build_index(subs, brokers, config.email.alias_pattern, reply_senders(session))
+            from ..forms import pending_followup
+
+            idx.expecting = {
+                sub.broker_slug for sub in subs if pending_followup(session, sub, now) is not None
+            }
             first_sent = first_send_time(subs)
             if first_sent is None:
                 raise ValueError("nothing has been sent yet, so there are no replies to read")

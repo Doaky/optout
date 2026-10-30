@@ -89,3 +89,5 @@
 - {from: '@trustsuperset.com', phrase: we are writing to confirm that your, outcome: deleted}
 - {from: '@disqus-ddef0e2fb08e.intercom-mail.com', phrase: "if you are looking for data access, opt-out/do not sell, or data deletion, you must submit the form below and complete the subsequent email verification", outcome: need-info}
 - {from: '@instantly.ai', phrase: "we are writing to confirm that your personal data has been deleted from the systems that process it, in accordance with applicable data protection law", outcome: deleted}
+- {from: '@m.onetrust.com', phrase: our privacy team left you a comment, outcome: need-info}
+- {from: '@m.onetrust.com', phrase: you must confirm your email address within, outcome: need-info}

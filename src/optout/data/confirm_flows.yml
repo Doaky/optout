@@ -18,3 +18,9 @@
   anchor: confirm
   link_hosts: [onetrust.com]
   note: The button in OneTrust's "One more step is required" email. Used by many brokers.
+- name: OneTrust "Confirm Email" button (El Toro and others)
+  from: '@m.onetrust.com'
+  phrase: button below to confirm your email address
+  anchor: confirm
+  link_hosts: [onetrust.com]
+  note: The other wording OneTrust portals use for the same confirm step.
