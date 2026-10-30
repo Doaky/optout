@@ -135,6 +135,10 @@ button[disabled]{opacity:.7;cursor:progress}
 button.big{padding:10px 18px;font-size:15px}
 button.secondary{background:var(--surface);color:var(--text);border-color:var(--line)}
 button.secondary:hover{border-color:var(--accent)}
+button.go{background:#15803d;border-color:#15803d;color:#fff}
+button.go:hover{background:#166534;border-color:#166534}
+@media (prefers-color-scheme:dark){button.go{background:#16a34a;border-color:#16a34a}
+button.go:hover{background:#22c55e;border-color:#22c55e}}
 form.inline{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
 form.inline.rowform{flex-wrap:nowrap}
 .rowform select{width:150px;padding:5px 8px;font-size:13px}.rowform button{padding:5px 12px;font-size:13px}
@@ -1372,7 +1376,7 @@ def _attention_item(a: Attention, csrf: str, contributor: bool = False) -> str:
             "<form method='post' action='/act/resend-to' class='inline redirect'>"
             f"{_hidden(csrf, slug=a.slug, address=addr)}"
             f"<span class='muted small'>Their reply names <b>{e(addr)}</b>.</span>"
-            "<button type='submit' class='mini'>Send my request there</button></form>"
+            "<button type='submit' class='mini go'>Send my request there</button></form>"
             for addr in a.alt_emails
         )
     quote = _URL_IN_TEXT.sub("", a.quote).replace("  ", " ").strip()
