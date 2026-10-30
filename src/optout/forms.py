@@ -217,8 +217,26 @@ def local_recipes() -> dict[str, Recipe]:
         return {}
 
 
+_cache: dict[str, tuple[object, object]] = {}
+
+
+def _stamp(path) -> object:
+    try:
+        st = path.stat()
+        return (str(path), st.st_mtime_ns, st.st_size)
+    except OSError:
+        return (str(path), None)
+
+
 def load_recipes() -> dict[str, Recipe]:
-    return {**shared_recipes(), **local_recipes()}
+    """Shared recipes with yours on top. Re-read only when your file changes: the dashboard
+    asks once per item in Needs attention."""
+    key = _stamp(_local_path())
+    hit = _cache.get("recipes")
+    if hit is None or hit[0] != key:
+        hit = (key, {**shared_recipes(), **local_recipes()})
+        _cache["recipes"] = hit
+    return dict(hit[1])  # type: ignore[call-overload]
 
 
 def save_local(recipe: Recipe, config: UserConfig) -> Recipe:
@@ -229,6 +247,7 @@ def save_local(recipe: Recipe, config: UserConfig) -> Recipe:
     mine = {**local_recipes(), recipe.broker: recipe}
     path = _local_path()
     path.parent.mkdir(parents=True, exist_ok=True)
+    _cache.pop("recipes", None)
     path.write_text(
         yaml.safe_dump(
             [r.model_dump(exclude_defaults=False) for r in mine.values()],

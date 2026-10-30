@@ -75,7 +75,23 @@ def _local_path():
     return config_dir() / "confirm_flows.yml"
 
 
+_flows_cache: tuple[object, list[Flow]] | None = None
+
+
 def load_flows() -> list[Flow]:
+    """Known flows (shared, yours, and those implied by form recipes). Re-read only when your
+    files change: the dashboard asks once per item in Needs attention."""
+    global _flows_cache
+    from ..forms import _local_path as recipes_path
+    from ..forms import _stamp
+
+    key = (_stamp(_local_path()), _stamp(recipes_path()))
+    if _flows_cache is None or _flows_cache[0] != key:
+        _flows_cache = (key, _load_flows())
+    return list(_flows_cache[1])
+
+
+def _load_flows() -> list[Flow]:
     flows: list[Flow] = []
     for src in (files("optout").joinpath("data/confirm_flows.yml"), _local_path()):
         try:
@@ -133,6 +149,8 @@ def save_local_flow(sender: str, phrase: str, link_host: str, note: str = "") ->
             "note": note[:240],
         }
     )
+    global _flows_cache
+    _flows_cache = None
     path = _local_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(entries, sort_keys=False, allow_unicode=True))
