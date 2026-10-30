@@ -293,7 +293,9 @@ def recipe_flows() -> list:
 # --- the queue ------------------------------------------------------------------------
 
 
-def todo(session: Session, config: UserConfig, now: datetime | None = None) -> list[dict]:
+def todo(
+    session: Session, config: UserConfig, now: datetime | None = None, *, tier: str | None = None
+) -> list[dict]:
     """Requests waiting on a web form, with the broker's own words and the link to open."""
     from .brokers.registry import all_brokers
     from .engine.assist import redact, trim_for_prompt
@@ -332,7 +334,7 @@ def todo(session: Session, config: UserConfig, now: datetime | None = None) -> l
         site = _site_of(b.domain)
         if (
             not b.enabled
-            or b.method not in ("manual", "web_form")
+            or (b.method not in ("manual", "web_form") and not b.form_only)
             or not b.opt_out_url
             or site in seen_sites
             or site in started
@@ -358,6 +360,16 @@ def todo(session: Session, config: UserConfig, now: datetime | None = None) -> l
         i["priority"] = b.priority if b else 3
         i["search_url"] = (b.search_url or "") if b else ""
         i["needs"] = _needs_of(b) if b else []
+    from .plan import tier as tier_of
+
+    if tier:
+        out = [i for i in out if i["broker"] in brokers and tier_of(brokers[i["broker"]]) == tier]
+    # Never hand the agent a broker that asks too much (ID upload, device IDs only).
+    out = [
+        i
+        for i in out
+        if not (i["broker"] in brokers and tier_of(brokers[i["broker"]]) == "too-much")
+    ]
     # Do-first sites, then other people-search sites: they show your address to anyone.
     return sorted(out, key=lambda i: (i["priority"], i["category"] != "people_search"))
 
@@ -608,6 +620,12 @@ def apply_results(session: Session, config: UserConfig, results: list[dict]) -> 
                     wait_hours=then.wait_hours if then else 24,
                 )
                 msg = outcome + (", expecting a follow-up email" if expects else "")
+                from .brokers.traits import note as learn
+
+                learn(slug, "form_only")
+                needs = set(_needs(r.get("recipe")))
+                if "phone_verify" in needs:
+                    learn(slug, "requires_phone_verification")
             else:
                 lines.append(f"{slug}: left alone ({outcome}) {note}".strip())
                 continue

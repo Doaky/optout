@@ -190,7 +190,7 @@ def test_send_is_one_click_but_still_forgery_protected(ui, monkeypatch):
     started = []
     monkeypatch.setattr(
         "optout.web.server.App.start_campaign",
-        lambda self, n, only=None: started.append(n) or "started",
+        lambda self, n, only=None, **kw: started.append(n) or "started",
     )
     # forged: no CSRF / foreign origin -> nothing starts
     assert ui.post("/act/campaign", {"count": "1"}, with_csrf=False)[0].status == 403
@@ -328,7 +328,7 @@ def test_buttons_work_in_a_real_browser(ui, monkeypatch):
     started = []
     monkeypatch.setattr(
         "optout.web.server.App.start_campaign",
-        lambda self, n, only=None: started.append(n) or "started",
+        lambda self, n, only=None, **kw: started.append(n) or "started",
     )
     try:
         pw = sync_api.sync_playwright().start()
@@ -369,7 +369,7 @@ def test_batch_progress_updates_live_without_a_refresh(ui, monkeypatch):
 
     sync_api = pytest.importorskip("playwright.sync_api")
 
-    def fake_start(self, n, only=None):
+    def fake_start(self, n, only=None, **kw):
         self.job = {"state": "running", "sent": [], "failed": [], "total": 2}
 
         def run():
@@ -781,7 +781,7 @@ def test_failed_email_can_be_resent_from_the_table(ui, monkeypatch):
     started: list[tuple[int, str | None]] = []
     monkeypatch.setattr(
         "optout.web.server.App.start_campaign",
-        lambda self, n, only=None: started.append((n, only)) or "started",
+        lambda self, n, only=None, **kw: started.append((n, only)) or "started",
     )
     with get_session() as s:
         sub = create_submission(
@@ -1019,7 +1019,7 @@ def test_hide_label_appears_in_a_real_browser(ui):
     try:
         page = browser.new_page()
         page.goto(f"http://127.0.0.1:{ui.port}/?t={ui.token}")
-        summary = page.locator("details.mini > summary").first
+        summary = page.locator("details.mini > summary", has_text="Show email").first
         assert summary.inner_text().strip() == "Show email"
         summary.click()
         assert summary.inner_text().strip() == "Hide email"

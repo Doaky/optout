@@ -17,7 +17,7 @@ import ipaddress
 import re
 import urllib.error
 import urllib.request
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime
 from importlib.resources import files
@@ -30,6 +30,8 @@ from ..config import config_dir
 from ..db import InboxMessage, Submission, list_events, record_event, update_status
 
 _LABELLED_LINK = re.compile(r"([^()\n]{0,60}?)\((https?://[^\s)]+)\)")
+# A link on its own, not in "label (url)" form: "click the verification link below:\n<url>".
+_BARE_LINK = re.compile(r"(?<![(\w])<?(https?://[^\s<>()\"]+)")
 _HOST_OK = re.compile(r"^[a-z0-9.-]+\.[a-z]{2,}$")
 _DEFAULT_ANCHOR = r"confirm|verify"
 MAX_ATTEMPTS = 2
@@ -219,10 +221,22 @@ def flow_for(from_addr: str, text: str, flows: list[Flow]) -> Flow | None:
     return None
 
 
+def _links(text: str) -> Iterator[tuple[str, str]]:
+    """(label, url) for each link. A bare link's label is the text just before it on its
+    line, or the line above when it stands alone."""
+    for m in _LABELLED_LINK.finditer(text):
+        yield m.group(1), m.group(2).rstrip(".,;")
+    for m in _BARE_LINK.finditer(text):
+        lines = text[: m.start()].split("\n")
+        label = lines[-1].strip()
+        if not label:
+            label = next((ln.strip() for ln in reversed(lines[:-1]) if ln.strip()), "")
+        yield label[-120:], m.group(1).rstrip(".,;")
+
+
 def find_link(text: str, flow: Flow) -> str | None:
     """The link whose label says confirm/verify, if it is on an allowed host."""
-    for m in _LABELLED_LINK.finditer(text):
-        label, url = m.group(1), m.group(2).rstrip(".,;")
+    for label, url in _links(text):
         if flow.anchor.search(label) and host_allowed(url, flow.link_hosts):
             return url
     return None
@@ -231,8 +245,7 @@ def find_link(text: str, flow: Flow) -> str | None:
 def propose_flow(from_addr: str, text: str) -> tuple[str, str, str] | None:
     """For a sender we don't know yet: (sender domain, link host, link) if the email has a
     labelled confirm/verify link on an ordinary HTTPS host. The user decides whether to trust it."""
-    for m in _LABELLED_LINK.finditer(text):
-        label, url = m.group(1), m.group(2).rstrip(".,;")
+    for label, url in _links(text):
         if not re.search(_DEFAULT_ANCHOR, label, re.IGNORECASE):
             continue
         host = (urlsplit(url).hostname or "").lower()

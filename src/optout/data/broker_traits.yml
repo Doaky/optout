@@ -1,9 +1,52 @@
-# What brokers' opt-out processes require, learned from what happened (e.g. a confirm link
-# that had to be clicked). Applied on top of the broker list. See src/optout/brokers/traits.py.
-- {broker: activimpact, traits: [requires_email_verification]}
-- {broker: connatix-native-exchange, traits: [requires_email_verification]}
-- {broker: disqus, traits: [requires_email_verification]}
-- {broker: dr-decision-resources, traits: [requires_email_verification]}
-- {broker: epsilon-data-management, traits: [requires_email_verification]}
-- {broker: exact-match-marketing, traits: [requires_email_verification]}
-- {broker: fraiser, traits: [requires_email_verification]}
+# What brokers' opt-out processes require, learned from what happened (a confirm link that had
+# to be clicked, a form that wanted an SMS code) or from the broker's own reply. Applied on top
+# of the broker list; see src/optout/brokers/traits.py and src/optout/plan.py.
+#
+# requires_id_upload / requires_notarization / requires_device_ids put a broker in "asks too
+# much": off by default and listed in the README.
+
+# Only act on a phone's advertising ID or a browser cookie: they can't find you by name, so an
+# email does nothing. Reset your phone's ad ID and turn on "limit ad tracking" instead.
+- {broker: blis-global, traits: [requires_device_ids]}
+- {broker: matchbook-data, traits: [requires_device_ids]}
+- {broker: madhive, traits: [requires_device_ids]}
+- {broker: kargo-global, traits: [requires_device_ids]}
+
+# Face search: removal means uploading a photo of your face.
+- {broker: clearview-ai, traits: [requires_id_upload]}
+
+# Their own reply: requests by email aren't accepted, use the web form.
+- {broker: adeptid, traits: [form_only]}
+- {broker: asset-international, traits: [form_only]}
+- {broker: austin-consolidated-holdings, traits: [form_only]}
+- {broker: automotive-mastermind, traits: [form_only]}
+- {broker: bdo-gci, traits: [form_only]}
+- {broker: cadent, traits: [form_only]}
+- {broker: choreograph, traits: [form_only]}
+- {broker: circana, traits: [form_only]}
+- {broker: civis-analytics, traits: [form_only]}
+- {broker: claritas, traits: [form_only]}
+- {broker: complete-medical-lists, traits: [form_only]}
+- {broker: converge-marketing, traits: [form_only]}
+- {broker: corelogic, traits: [form_only]}
+- {broker: costar-realty-information, traits: [form_only]}
+- {broker: data-decisions-group, traits: [form_only]}
+- {broker: datasys-group, traits: [form_only]}
+- {broker: disqus, traits: [form_only]}
+- {broker: dr-decision-resources, traits: [form_only]}
+- {broker: eab-global, traits: [form_only]}
+- {broker: el-toro-com, traits: [form_only]}
+- {broker: epsilon-data-management, traits: [form_only]}
+- {broker: exact-match-marketing, traits: [form_only]}
+- {broker: family-tree-now, traits: [form_only]}
+- {broker: forager-ai, traits: [form_only]}
+- {broker: free-data-services, traits: [form_only]}
+- {broker: freshaddress, traits: [form_only]}
+- {broker: inmar-brand-solutions, traits: [form_only]}
+- {broker: institutional-shareholder-services, traits: [form_only]}
+- {broker: jmr-media-consulting, traits: [form_only]}
+- {broker: kargo-global, traits: [form_only]}
+- {broker: komodo-health, traits: [form_only]}
+- {broker: leidos-digital-solutions, traits: [form_only]}
+- {broker: lightcast, traits: [form_only]}
+- {broker: lotame, traits: [form_only]}

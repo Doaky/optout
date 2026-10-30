@@ -125,6 +125,42 @@ address, so spam to `optout-acme@…` tells you exactly who sold your data.
 
 ---
 
+## Where to start: the plan
+
+The dashboard's **Your plan** (or `optout plan`) groups every broker by what it takes, in the
+order worth doing them:
+
+1. **People-search sites**: they show your address to anyone. Their own forms, done with a
+   browser agent (Claude in Chrome): the dashboard gives you the prompt, you paste its answer back.
+2. **Email only**: a plain email is enough. One click sends a batch.
+3. **Email + confirm link**: an email, then they send a link to click (clicked for you when
+   "Confirm links" is set to automatic).
+4. **Web forms**: brokers that only act on their own form. Learned from their replies ("we don't
+   accept email, use our portal"), so brokers move here as they answer.
+5. **Forms + more**: a form plus something only you can do: an SMS or phone code, an account,
+   payment.
+6. **Asks too much**: skipped (see below).
+
+## Brokers that ask too much
+
+These are off by default. You can still turn one on from its page if you decide it's worth it.
+
+| Broker | Site | What it wants |
+|---|---|---|
+| Blis Global | blis.com | only your phone's advertising ID or a browser cookie, not your name |
+| Clearview AI | clearview.ai | a photo of your face |
+| FaceCheck.ID | facecheck.id | an ID or a photo of your face |
+| Kargo Global | kargo.com | only your phone's advertising ID or a browser cookie, not your name |
+| Madhive | madhive.com | only an IP address or a browser cookie, not your name |
+| Matchbook Data | matchbookdata.com | only your phone's advertising ID, not your name |
+| PimEyes | pimeyes.com | an ID image |
+
+For the advertising-ID ones, the better move is on your phone: reset its advertising ID and turn
+on *Limit ad tracking* (iOS: Settings → Privacy → Tracking; Android: Settings → Privacy → Ads).
+The list comes from `src/optout/data/broker_traits.yml` and `people_search.yml`.
+
+---
+
 ## Run it on a schedule with GitHub Actions
 
 `.github/workflows/scheduled.yml` runs `optout daily` once a month (send the next batch,

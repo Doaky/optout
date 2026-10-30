@@ -139,6 +139,10 @@ button.go{background:#15803d;border-color:#15803d;color:#fff}
 button.go:hover{background:#166534;border-color:#166534}
 @media (prefers-color-scheme:dark){button.go{background:#16a34a;border-color:#16a34a}
 button.go:hover{background:#22c55e;border-color:#22c55e}}
+button.removed{background:#7c3aed;border-color:#7c3aed;color:#fff}
+button.removed:hover{background:#6d28d9;border-color:#6d28d9}
+@media (prefers-color-scheme:dark){button.removed{background:#8b5cf6;border-color:#8b5cf6}
+button.removed:hover{background:#a78bfa;border-color:#a78bfa}}
 form.inline{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
 form.inline.rowform{flex-wrap:nowrap}
 .rowform select{width:150px;padding:5px 8px;font-size:13px}.rowform button{padding:5px 12px;font-size:13px}
@@ -1425,10 +1429,7 @@ def _expiry_pill(days: float | None) -> str:
         if days < 1
         else f"{int(days)} day{'s' if int(days) != 1 else ''}"
     )
-    tone = "critical" if days < 2 else "warning"
-    return (
-        f" <span class='pill t-{tone}' title='Their own deadline for this step'>{left} left</span>"
-    )
+    return f" <span class='pill t-critical' title='Their own deadline for this step'>{left} left</span>"
 
 
 def _attention_item(a: Attention, csrf: str, contributor: bool = False) -> str:
@@ -1478,8 +1479,8 @@ def _attention_item(a: Attention, csrf: str, contributor: bool = False) -> str:
         buttons.append(
             "<form method='post' action='/act/row' class='inline'>"
             f"{_hidden(csrf, slug=a.slug, action='form-removed')}"
-            "<button type='submit' class='go' title='You filled in their form and it said your "
-            "data was removed'>Form said removed</button></form>"
+            "<button type='submit' class='removed' title='You filled in their form and it said "
+            "your data was removed'>Form removed</button></form>"
         )
     elif a.kind == "refused":
         buttons.append(act("draft:appeal", "Appeal", cls=""))
@@ -1883,6 +1884,7 @@ def dashboard(
         "Brokers you emailed have no public search, so “Broker says done” is as far as they "
         "can go.</p>"
     )
+    plan = _plan_panel(d, act) if act is not None and d.plan else ""
     replies = _replies_panel(act) if act is not None else ""
     settings = _settings_panel(act) if act is not None else ""
     requests = _fold(
@@ -1894,7 +1896,8 @@ def dashboard(
     refresh = 3 if ui and ui.job.get("state") == "running" else None
     return page(
         "optout · dashboard",
-        f"<h1>Your opt-out requests</h1>{_stats(d, ui)}{top}{attn}{replies}{requests}{settings}",
+        f"<h1>Your opt-out requests</h1>{_stats(d, ui)}{plan}{top}{attn}{replies}"
+        f"{requests}{settings}",
         nav=False,
         refresh=refresh,
         updated=d.generated,
@@ -2037,6 +2040,79 @@ def drafts_page(names: list[str], csrf: str, flash: str = "") -> str:
         f"</button></form><ul>{items}</ul>"
     )
     return page("Drafts", body, nav=True)
+
+
+_FORM_TIERS = ("people-search", "form", "form-plus")
+_EMAIL_TIERS = ("email", "email-confirm")
+
+
+def _plan_panel(d: Dashboard, ui: UI) -> str:
+    """The order to work in: one row per group, with progress and the next step."""
+    room = max(0, ui.limit - ui.used) if ui.limit else 0
+    rows = []
+    for n, t in enumerate(d.plan, 1):
+        progress = (
+            f"<b>{t.done}</b>/{t.total} done"
+            + (f" · {t.under_way} waiting on them" if t.under_way else "")
+            + (f" · <b>{t.needs_you}</b> need you" if t.needs_you else "")
+            + (f" · {len(t.todo)} not started" if t.todo else "")
+        )
+        if t.key in _EMAIL_TIERS and t.todo:
+            count = min(len(t.todo), room)
+            action = (
+                "<form method='post' action='/act/campaign' class='inline'>"
+                f"{_hidden(ui.csrf, count=str(count), tier=t.key)}"
+                f"<button type='submit' class='mini go'>Send {count}</button></form>"
+                if count
+                else "<span class='muted small'>Daily limit reached; more tomorrow</span>"
+            )
+        elif t.key in _FORM_TIERS and (t.todo or t.needs_you):
+            action = f"<a class='fpill' href='/prompt/{t.key}'>Browser prompt for the next 10</a>"
+        elif t.key == "too-much" and d.too_much:
+            items = "".join(f"<li>{e(name)}: {e(why)}</li>" for name, why in d.too_much)
+            action = (
+                f"<details class='mini'><summary>Skipped ({len(d.too_much)})</summary>"
+                f"<ul class='small'>{items}</ul></details>"
+            )
+        else:
+            action = "<span class='muted small'>Nothing to start</span>"
+        rows.append(
+            f"<tr><td class='num'>{n}</td><td><b>{e(t.title)}</b>"
+            f"<div class='muted small'>{e(t.hint)}</div></td><td class='small'>{progress}</td>"
+            f"<td>{action}</td></tr>"
+        )
+    paste = (
+        "<details class='mini'><summary>Paste the browser agent's answer</summary>"
+        "<form method='post' action='/act/forms-apply'>"
+        f"{_hidden(ui.csrf)}<textarea name='answer' rows='6' style='width:100%' "
+        "placeholder='The JSON answer, with or without its ```json fence'></textarea>"
+        "<button type='submit' class='secondary'>Apply</button></form></details>"
+    )
+    return _fold(
+        "plan",
+        "Your plan",
+        "<p class='how'>Work down the list: email groups send from here; form groups give "
+        "you a prompt for a browser agent (Claude in Chrome), whose answer you paste back "
+        "below.</p><div class='table-wrap'><table><tbody>"
+        + "".join(rows)
+        + f"</tbody></table></div>{paste}",
+    )
+
+
+def prompt_page(title: str, text: str, count: int, csrf: str) -> str:
+    if not text:
+        body = f"<h1>{e(title)}</h1><p class='muted'>Nothing waiting in this group.</p>"
+    else:
+        body = (
+            f"<h1>{e(title)}: next {count}</h1>"
+            "<p>Copy this into your browser agent (Claude in Chrome). It contains your name, "
+            "address and date of birth, so paste it only into your own. When it's done, paste "
+            "its JSON answer into <b>Your plan → Paste the browser agent's answer</b>.</p>"
+            "<p><button type='button' data-copy='prompt-text'>Copy prompt</button></p>"
+            f"<textarea id='prompt-text' rows='24' style='width:100%' readonly>{e(text)}"
+            "</textarea>"
+        )
+    return page(title, body, nav=True)
 
 
 def draft_page(name: str, text: str) -> str:

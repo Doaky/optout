@@ -318,3 +318,20 @@ def test_same_company_redirects_are_followed():
     assert not redirect_ok("https://api.other.io/verify/x", ("links.exactmatch.io",))
     assert redirect_ok("https://b.example.co.uk/x", ("a.example.co.uk",))
     assert not redirect_ok("https://evil.co.uk/x", ("a.example.co.uk",))
+
+
+def test_a_bare_link_under_a_confirm_sentence_is_found():
+    text = (
+        "Dear user,\nTo proceed, we require your confirmation. Please confirm your email by "
+        "clicking on the verification link below. Without confirmation from you within 3 days, "
+        "we will treat the request as unverified and invalid.\n"
+        "https://dsr.legal.here.com/dsr_email_verification/3b2dc7a3-1793351093\n\n"
+        "Details of the request\nIf you have questions, see https://www.here.com/privacy\n"
+    )
+    flow = flow_for("noreply.privacy@here.com", text, load_flows())
+    assert flow is not None
+    assert find_link(text, flow) == (
+        "https://dsr.legal.here.com/dsr_email_verification/3b2dc7a3-1793351093"
+    )
+    # an ordinary bare link with no confirm wording before it is still not offered
+    assert propose_flow("a@b.example", "Details:\nhttps://b.example/page\n") is None

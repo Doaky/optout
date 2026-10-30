@@ -78,6 +78,14 @@ def select_brokers(
         if not b.enabled:
             sel.skipped.append((b.slug, "disabled"))
             continue
+        if b.form_only and not (force and only):
+            sel.skipped.append((b.slug, "only acts on their web form"))
+            continue
+        if (b.requires_id_upload or b.requires_notarization or b.requires_device_ids) and not (
+            force and only
+        ):
+            sel.skipped.append((b.slug, "asks too much (ID, notarisation, or device IDs only)"))
+            continue
         if not applies_to(coverage.get(b.slug), my_groups):
             sel.skipped.append((b.slug, f"only covers {coverage[b.slug].label()}"))
             continue

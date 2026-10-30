@@ -19,7 +19,16 @@ from ..config import config_dir
 from .schema import BrokerDef
 
 # Only flags that make a broker's process harder: learning one can't hide a step.
-TRAITS = ("requires_email_verification", "requires_phone_verification", "requires_listing_url")
+TRAITS = (
+    "requires_email_verification",
+    "requires_phone_verification",
+    "requires_listing_url",
+    "requires_account",
+    "requires_id_upload",
+    "requires_notarization",
+    "requires_device_ids",
+    "form_only",
+)
 _SLUG_OK = re.compile(r"^[a-z0-9-]{1,80}$")
 
 
@@ -73,6 +82,22 @@ def note(slug: str, trait: str) -> bool:
     return True
 
 
+def forget(slug: str, trait: str) -> bool:
+    """Drop something learned locally (it turned out to be wrong). True if it was there."""
+    mine = local_traits()
+    if trait not in mine.get(slug, set()):
+        return False
+    mine[slug].discard(trait)
+    path = _local_path()
+    path.write_text(
+        yaml.safe_dump(
+            [{"broker": s, "traits": sorted(t)} for s, t in sorted(mine.items()) if t],
+            sort_keys=False,
+        )
+    )
+    return True
+
+
 def apply_traits(brokers: dict[str, BrokerDef]) -> dict[str, BrokerDef]:
     out = dict(brokers)
     merged = shared_traits()
@@ -92,3 +117,20 @@ def learned_traits() -> list[dict]:
         for s, t in sorted(local_traits().items())
         if t - shared.get(s, set())
     ]
+
+
+# A reply that says "not by email, use our form" (checked only on replies sorted as need-info).
+_FORM_ONLY = re.compile(
+    r"\b(do not|don't|cannot|can't|unable to|will not|won't)\s+(accept|process|honou?r)\b[^.]{0,50}"
+    r"\b(e-?mail|requests? (sent|submitted|received) (via|by|through))|"
+    r"\b(not|no longer) (a |the )?(designated|monitored|supported|intended)\b[^.]{0,60}"
+    r"\b(requests?|privacy|channel|method)|"
+    r"\b(must|need to|required to|please)\s+(be\s+)?(submit(ted)?|use|complete|fill out|visit)\b"
+    r"[^.]{0,60}\b(web ?form|online form|request form|form|portal|privacy center)\b|"
+    r"\brequests? must be submitted through\b",
+    re.I,
+)
+
+
+def says_form_only(text: str) -> bool:
+    return _FORM_ONLY.search(re.sub(r"\s+", " ", text)) is not None

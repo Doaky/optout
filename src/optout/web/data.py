@@ -82,6 +82,8 @@ class Dashboard:
     attention_redactions: str = ""
     resend_due_30d: int = 0  # brokers coming round for another email in the next 30 days
     followups_due: int = 0  # past their deadline, unanswered: a follow-up can go out now
+    plan: list = field(default_factory=list)  # plan.TierSummary per group, in order
+    too_much: list[tuple[str, str]] = field(default_factory=list)  # (name, why) skipped ones
     resend_after_days: int = 180
 
 
@@ -278,6 +280,11 @@ def collect(
             )
 
     from ..engine.followups import due as followups_due
+    from ..plan import asks_too_much, summarise
+
+    every = all_brokers()
+    dash.plan = summarise(session, every)
+    dash.too_much = sorted((b.name, _too_much_why(b)) for b in every if asks_too_much(b))
 
     dash.followups_due = len(followups_due(session, {b.slug: b for b in all_brokers()}, now))
     # Steps that lapse soonest first: a confirm link that expires tomorrow beats a refusal.
@@ -362,6 +369,14 @@ def progress_series(
 
 
 _LINK = re.compile(r"https?://[^\s<>\"')\]]+")
+
+
+def _too_much_why(b) -> str:
+    if b.requires_device_ids:
+        return "only your phone's advertising ID or a browser cookie, not your name"
+    if b.requires_notarization:
+        return "a notarised request"
+    return "an ID or a photo of your face"
 
 
 def _stalled_form(session: Session, sub: Submission, now: datetime) -> Attention | None:

@@ -24,3 +24,9 @@
   anchor: confirm
   link_hosts: [onetrust.com]
   note: The other wording OneTrust portals use for the same confirm step.
+- name: HERE Technologies privacy requests
+  from: '@here.com'
+  phrase: please confirm your email by clicking on the verification link below
+  anchor: confirm|verif
+  link_hosts: [legal.here.com]
+  note: A bare link under "click the verification link below"; lapses after 3 days.

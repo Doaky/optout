@@ -326,6 +326,9 @@ def campaign(
     limit: int = typer.Option(25, "--limit", "-n", help="Max emails this run."),
     only: list[str] = typer.Option(None, "--only", help="Restrict to these broker slugs."),
     send: bool = typer.Option(False, "--send", help="Actually send. Default is preview only."),
+    tier: str = typer.Option(
+        None, "--tier", help="Only one group from `optout plan`: email or email-confirm."
+    ),
 ) -> None:
     """Email deletion requests to every eligible broker, within daily limits."""
     from datetime import UTC, datetime
@@ -355,6 +358,10 @@ def campaign(
             my_groups=config.my_groups,
             resend_after_days=config.email.resend_after_days,
         )
+        if tier:
+            from .plan import tier as tier_of
+
+            sel.eligible = [b for b in sel.eligible if tier_of(b) == tier]
         used = sent_today(session, now, user_tz(config))
         quota = max(0, config.email.daily_limit - used)
         batch = sel.eligible[: min(limit, quota)]
@@ -1310,6 +1317,9 @@ def forms_prompt(
     recheck: bool = typer.Option(
         False, "--recheck", help="Instead: check whether listings are gone (or came back)."
     ),
+    tier: str = typer.Option(
+        None, "--tier", help="Only one group from `optout plan`: people-search, form, form-plus."
+    ),
 ) -> None:
     """Print one prompt to give a browser agent (Claude in Chrome, etc.) for the next forms."""
     from . import forms
@@ -1326,7 +1336,8 @@ def forms_prompt(
         print(forms.build_recheck_prompt(config, due[:limit]))
         return
     with get_session() as session:
-        items = [i for i in forms.todo(session, config) if not slugs or i["broker"] in slugs]
+        items = forms.todo(session, config, tier=tier)
+        items = [i for i in items if not slugs or i["broker"] in slugs]
     if not items:
         console.print("Nothing is waiting on a form.", style="dim")
         raise typer.Exit(code=0)
@@ -1660,6 +1671,40 @@ def daily() -> None:
     console.print(message)
     if config.notify.webhook_url and lines:
         send_webhook(config.notify.webhook_url, "optout daily", message)
+
+
+@app.command()
+def plan() -> None:
+    """The order to work through brokers in, by what each one takes, with progress."""
+    from .brokers.registry import all_brokers, load_registry
+    from .db import get_session, init_db
+    from .plan import summarise
+
+    load_registry()
+    init_db()
+    with get_session() as session:
+        tiers = summarise(session, all_brokers())
+    table = Table(box=box.SIMPLE)
+    for col in ("", "Group", "Done", "Waiting on them", "Needs you", "Not started", "How"):
+        table.add_column(col)
+    how = {
+        "people-search": "optout forms prompt --tier people-search",
+        "email": "optout campaign --tier email --send",
+        "email-confirm": "optout campaign --tier email-confirm --send",
+        "form": "optout forms prompt --tier form",
+        "form-plus": "optout forms prompt --tier form-plus",
+        "too-much": "skipped (see README)",
+    }
+    for n, t in enumerate(tiers, 1):
+        table.add_row(
+            str(n),
+            f"{t.title}\n[dim]{t.hint}[/dim]",
+            f"{t.done}/{t.total}",
+            str(t.under_way),
+            str(len(t.todo)),
+            how[t.key],
+        )
+    console.print(table)
 
 
 @app.command()

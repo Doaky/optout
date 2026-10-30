@@ -126,6 +126,27 @@
 - {from: '@zetaglobal.com', phrase: "you will need to complete the email verification to validate that it is you—this is a security measure to prevent unauthorized access to data about you", outcome: need-info, broker: liveintent}
 
 - {from: '@quorum.us', phrase: it is time for me to move on, outcome: need-info, broker: knowwho}
+- {from: '@api.gsdsi.com', phrase: the matching records have been deleted from our consumer database, outcome: deleted, broker: global-source-data-solutions}
+- {from: '@censia.com', phrase: we'd love to hear what you think of our customer service, outcome: auto-reply, broker: censia}
+- {from: '@corelogic.com', phrase: "you may submit your privacy request through our self-serve online privacy portal, as we do not accept privacy requests received via email", outcome: need-info, broker: corelogic}
+- {from: '@creditinfosystems.com', phrase: we are exempt from the state law(s) you mention, outcome: denied, broker: credit-bureau-of-council-bluffs}
+- {from: '@dynata.com', phrase: there is no account or personal information associated with the email address you provided, outcome: no-data, broker: dynata}
+- {from: '@dynata.com', phrase: "hi, thank you for contacting us. your ticket", outcome: auto-reply, broker: dynata}
+- {from: '@email.beenverified.com', phrase: (opt-out request) action required to process your opt-out request, outcome: need-info, broker: beenverified-llc-and-its-subsidiaries-and-affiliat}
+- {from: '@fmadata.freshdesk.com', phrase: your provided information has been removed from our data collection, outcome: deleted}
+- {from: '@fullcontact.com', phrase: "we are happy to help you with your request, but first, we need you to verify your identity", outcome: need-info, broker: j2-martech}
+- {from: '@heartbeat.ai', phrase: your request to opt out of the sale or sharing of your personal information has been received and successfully processed, outcome: deleted, broker: heartbeat-ai}
+- {from: '@hellofyllo.com', phrase: fyllo does not maintain independent control over consumer personal data, outcome: denied, broker: fyllo}
+- {from: '@here.com', phrase: please confirm your email by clicking on the verification link below, outcome: need-info, broker: here-north-america}
+- {from: '@inmar.com', phrase: follow the submission instructions in our website privacy notice, outcome: need-info, broker: inmar-brand-solutions}
+- {from: '@leidos.com', phrase: "in order for us to evaluate your request, more information is required", outcome: need-info, broker: leidos-digital-solutions}
+- {from: '@lightcast.io', phrase: i can now confirm you have been deleted from our database, outcome: deleted, broker: lightcast}
+- {from: '@matchbookdata.com', phrase: "if you would like us to fulfill your opt-out request, you will need to submit such identifiers to us", outcome: need-info, broker: matchbook-data}
+- {from: '@maxmind.com', phrase: email is not one of our designated methods for submitting this type of request, outcome: need-info, broker: maxmind}
+- {from: '@media.net', phrase: "hello, thank you for contacting media.net", outcome: auto-reply, broker: media-net-advertising-fz}
+- {from: '@mogean.com', phrase: "we hold no personal information about the named individual, so there is nothing for us to delete", outcome: no-data, broker: mogean}
+- {from: '@mrginc.com', phrase: "we don't have any information on file but we have still placed you on our general opt out suppression file", outcome: no-data, broker: media-resource-group}
+- {from: '@usmarketinggrp.com', phrase: your information has been set to opt-out status and added to our opt-out records, outcome: deleted, broker: bh-marketing-group}
 # --- shared platforms (never pin a broker) ---
 - {from: '@clearview-ai.zendesk.com', phrase: submit a request to exercise your consumer rights, outcome: need-info}
 - {from: '@discotechnology.zendesk.com', phrase: thank you for reaching out to disco with your request, outcome: auto-reply}

@@ -621,6 +621,31 @@ def process(
     return report
 
 
+def learn_from_replies(session: Session) -> int:
+    """Remember what replies taught us about each broker's process: "we don't take email,
+    use our form" makes it form-only (it leaves the email queue and joins the form queue)."""
+    from ..brokers.contacts import load_contacts
+    from ..brokers.traits import forget, note, says_form_only
+
+    # A reply that named another address to email ("not this mailbox, write to X") isn't
+    # form-only: the corrected address is used instead.
+    redirected = set(load_contacts())
+    for slug in redirected:
+        forget(slug, "form_only")
+    learned = 0
+    rows = session.exec(
+        select(InboxMessage).where(
+            InboxMessage.kind == "need-info",
+            InboxMessage.broker_slug != None,  # noqa: E711 (SQL IS NOT NULL)
+            InboxMessage.state != "ignored",
+        )
+    ).all()
+    for r in rows:
+        if r.broker_slug and r.broker_slug not in redirected and says_form_only(r.text):
+            learned += note(r.broker_slug, "form_only")
+    return learned
+
+
 def apply_kind(session: Session, sub: Submission, kind: str, note: str) -> None:
     if kind == "bounced":
         if sub.status not in ("confirmed", "removed"):
@@ -787,6 +812,7 @@ def run_sync(config, *, dry_run: bool = False) -> SyncReport:
                 from ..forms import link_followups
 
                 link_followups(session)
+                learn_from_replies(session)
                 if config.confirm_links == "auto":
                     from .confirm import auto_confirm, load_flows
 

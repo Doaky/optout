@@ -165,7 +165,9 @@ class App:
             time.sleep(every)
 
     # -- campaign job ----------------------------------------------------
-    def start_campaign(self, count: int, only: str | None = None, force: bool = False) -> str:
+    def start_campaign(
+        self, count: int, only: str | None = None, force: bool = False, tier: str | None = None
+    ) -> str:
         """Send up to *count* emails in the background; *only* limits it to one broker
         (used to resend a failed one). *force* sends to that broker even if it refused, was
         closed, or was emailed recently: only ever from an explicit "Send again"."""
@@ -173,7 +175,9 @@ class App:
             if self.job.get("state") == "running":
                 return "busy"
             self.job = {"state": "running", "sent": [], "failed": [], "total": count}
-        threading.Thread(target=self._run_campaign, args=(count, only, force), daemon=True).start()
+        threading.Thread(
+            target=self._run_campaign, args=(count, only, force, tier), daemon=True
+        ).start()
         return "started"
 
     def start_resend(self, slug: str, address: str) -> str:
@@ -245,7 +249,9 @@ class App:
         finally:
             job["state"] = "done"
 
-    def _run_campaign(self, count: int, only: str | None = None, force: bool = False) -> None:
+    def _run_campaign(
+        self, count: int, only: str | None = None, force: bool = False, tier: str | None = None
+    ) -> None:
         job = self.job
         try:
             config = load_config()
@@ -261,6 +267,10 @@ class App:
                     resend_after_days=config.email.resend_after_days,
                     force=force and only is not None,
                 )
+                if tier:
+                    from ..plan import tier as tier_of
+
+                    sel.eligible = [b for b in sel.eligible if tier_of(b) == tier]
                 batch = sel.eligible[:count]
                 job["total"] = len(batch)
 
@@ -397,6 +407,12 @@ def _make_handler(app: App):
                     f"Applied {nums['a']} of Claude's answers"
                     + (f", skipped {nums['s']}." if nums["s"] else "."),
                     ok=nums["a"] > 0,
+                )
+            elif code in ("forms_ok", "forms_bad"):
+                flash = render.message_box(
+                    ("Applied: " if code == "forms_ok" else "Couldn't apply: ")
+                    + (app.last_error or "nothing to apply"),
+                    ok=code == "forms_ok",
                 )
             elif code in ("settings_err", "pw_bad", "backup_bad"):
                 what = app.last_error or "something didn't validate"
@@ -563,6 +579,20 @@ def _make_handler(app: App):
             if path == "/drafts":
                 names = [p.name for p in actions.list_drafts()]
                 return self._send(200, render.drafts_page(names, app.csrf, flash))
+
+            if path.startswith("/prompt/"):
+                from .. import forms
+                from ..plan import TIERS
+
+                tier = unquote(path[len("/prompt/") :])
+                titles = {k: t for k, t, _ in TIERS}
+                if tier not in ("people-search", "form", "form-plus"):
+                    return self._fail(404, "No such group.")
+                config = load_config()
+                with get_session() as session:
+                    queue = forms.todo(session, config, tier=tier)[:10]
+                text = forms.build_prompt(config, queue) if queue else ""
+                return self._send(200, render.prompt_page(titles[tier], text, len(queue), app.csrf))
 
             if path.startswith("/draft/"):
                 name = unquote(path[len("/draft/") :])
@@ -965,7 +995,31 @@ def _make_handler(app: App):
                     count = int(form.get("count", "0"))
                     if not 1 <= count <= config.email.daily_limit:
                         raise ValueError("count out of range")
-                    return self._redirect(f"/?m={app.start_campaign(count)}#send")
+                    tier = form.get("tier") or None
+                    if tier not in (None, "email", "email-confirm"):
+                        raise ValueError("not an email group")
+                    return self._redirect(f"/?m={app.start_campaign(count, tier=tier)}#send")
+                if path == "/act/forms-apply":
+                    import json as _json
+                    import re as _re
+
+                    from .. import forms
+
+                    raw = form.get("answer", "")
+                    fenced = _re.search(r"```(?:json)?\s*(.*?)```", raw, _re.S)
+                    try:
+                        results = _json.loads(fenced.group(1) if fenced else raw)
+                        if not isinstance(results, list):
+                            raise ValueError("expected a list")
+                    except ValueError:
+                        app.last_error = "that isn't the JSON answer the prompt asks for"
+                        return self._redirect("/?m=forms_bad#plan")
+                    with get_session() as session:
+                        lines = forms.apply_results(
+                            session, load_config(), [r for r in results if isinstance(r, dict)]
+                        )
+                    app.last_error = "; ".join(lines)[:400]
+                    return self._redirect("/?m=forms_ok#plan")
             except ValueError:
                 return self._redirect("/?m=err")
             self._fail(404, "Not found.")
