@@ -443,11 +443,12 @@ def _specific_enough(phrase: str) -> bool:
 
 
 def _already_known(entry: dict[str, str], known: list) -> bool:
-    """True when the shared list already has this: same sender (or its domain), same
-    outcome, and a phrase that says the same thing (one contains the other)."""
+    """True when the shared list already has this: same sender (or its domain) and a phrase
+    that says the same thing (one contains the other). A different outcome doesn't make it
+    new: someone already decided what this wording means."""
     sender, phrase = entry["from"].lower(), entry["phrase"].lower()
     for kr in known:
-        if kr.sender != sender or kr.outcome != entry["outcome"]:
+        if kr.sender != sender:
             continue
         if kr.phrase in phrase or phrase in kr.phrase:
             return True
