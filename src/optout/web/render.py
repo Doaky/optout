@@ -2153,6 +2153,15 @@ def _plan_panel(d: Dashboard, ui: UI) -> str:
             f"<div class='muted small'>{e(t.hint)}</div></td><td class='small'>{progress}</td>"
             f"<td>{action}</td></tr>"
         )
+    drop = (
+        "<p class='how'><b>California resident?</b> California's DROP portal sends one deletion "
+        "request to <i>every</i> registered data broker at once, and brokers must act on it "
+        "every 45 days. Do that first: <a href='https://consumer.drop.privacy.ca.gov/' "
+        "target='_blank' rel='noreferrer noopener'>consumer.drop.privacy.ca.gov</a>. This list "
+        "then covers brokers the registry doesn't, and anything that needs a follow-up.</p>"
+        if d.state == "CA"
+        else ""
+    )
     paste = (
         "<details class='mini'><summary>Paste the browser agent's answer</summary>"
         "<form method='post' action='/act/forms-apply'>"
@@ -2163,7 +2172,7 @@ def _plan_panel(d: Dashboard, ui: UI) -> str:
     return _fold(
         "plan",
         "Your plan",
-        "<p class='how'>Work down the list: email groups send from here; form groups give "
+        drop + "<p class='how'>Work down the list: email groups send from here; form groups give "
         "you a prompt for a browser agent (Claude in Chrome), whose answer you paste back "
         "below.</p><div class='table-wrap'><table class='plan'><tbody>"
         + "".join(rows)

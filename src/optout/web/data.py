@@ -82,6 +82,7 @@ class Dashboard:
     attention_prompt: str = ""
     attention_redactions: str = ""
     resend_due_30d: int = 0  # brokers coming round for another email in the next 30 days
+    state: str = ""  # the user's state (two letters), for state-specific help
     followups_due: int = 0  # past their deadline, unanswered: a follow-up can go out now
     plan: list = field(default_factory=list)  # plan.TierSummary per group, in order
     too_much: list[tuple[str, str]] = field(default_factory=list)  # (name, why) skipped ones
@@ -145,6 +146,11 @@ def collect(
     _TZ = user_tz(config)
     _NOW = now
     names = {b.slug: b.name for b in all_brokers()}
+    from ..plan import asks_too_much
+
+    # They act only on a phone's ad ID, a face photo or a notarised form: listed under "asks
+    # too much" instead, so their "send us your device ID" isn't a to-do.
+    too_much = {b.slug for b in all_brokers() if asks_too_much(b)}
     dash = Dashboard(
         generated=friendly_time(now, _TZ),
         drafts=drafts,
@@ -180,6 +186,7 @@ def collect(
         by_broker.setdefault(sub.broker_slug, []).append(sub)
     resend_days = config.email.resend_after_days if config is not None else 180
     dash.resend_after_days = resend_days
+    dash.state = config.profile.current_address.state.strip().upper() if config else ""
     seen: set[str] = set()
     for sub in subs:  # newest first: keep one row per broker, the latest attempt
         if sub.broker_slug in seen:
@@ -257,7 +264,7 @@ def collect(
                     ),
                 )
             )
-        elif sub.status == "awaiting_user_input":
+        elif sub.status == "awaiting_user_input" and sub.broker_slug not in too_much:
             dash.attention.append(
                 _with_reply(
                     session,
@@ -453,8 +460,8 @@ _WORDS = {
     "thirty": 30,
 }
 _EXPIRY = re.compile(
-    r"\b(?:within|in|after|expires? in|expire within)\s+(?:(\w+)\s+\()?(\d+|[a-z]+)\)?\s*"
-    r"(business\s+)?(hours?|days?)\b",
+    r"\b(?:within|in|after|expires? in|expire within|expires?)\s+(?:(\w+)\s+\()?(\d+|[a-z]+)\)?"
+    r"\s*(business\s+)?(minutes?|hours?|days?)\b",
     re.I,
 )
 _EXPIRY_CUE = re.compile(r"expire|confirm|verif|click|closed|resubmit|re-initiate", re.I)
@@ -481,7 +488,14 @@ def _expires_in(text: str, received: datetime, now: datetime) -> float | None:
         n = int(raw) if raw.isdigit() else _WORDS.get(raw)
         if not n or n > 60:
             continue
-        days = n / 24 if m.group(4).lower().startswith("hour") else float(n)
+        unit = m.group(4).lower()
+        days = (
+            n / 1440
+            if unit.startswith("minute")
+            else n / 24
+            if unit.startswith("hour")
+            else float(n)
+        )
         if m.group(3):
             days *= 7 / 5
         left = days - (_aware(now) - _aware(received)).total_seconds() / 86400

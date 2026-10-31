@@ -1529,3 +1529,25 @@ def test_a_reply_to_review_links_to_the_email_in_gmail(ui):
     assert "Show the email" in replies
     assert "rfc822msgid%3Arev1%40mail.example" in replies
     assert "rel='noreferrer noopener'" in replies
+
+
+def test_california_residents_are_pointed_to_drop_first(ui):
+    from optout.config import load_config, save_config
+
+    _, body = ui.req("GET", "/")
+    assert "consumer.drop.privacy.ca.gov" not in body  # Virginia: not relevant
+    cfg = load_config()
+    cfg = cfg.model_copy(
+        update={
+            "profile": cfg.profile.model_copy(
+                update={
+                    "current_address": cfg.profile.current_address.model_copy(
+                        update={"state": "CA"}
+                    )
+                }
+            )
+        }
+    )
+    save_config(cfg)
+    _, body = ui.req("GET", "/")
+    assert "California resident?" in body and "https://consumer.drop.privacy.ca.gov/" in body
