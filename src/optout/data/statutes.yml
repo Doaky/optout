@@ -25,7 +25,6 @@
   extension_days: 45
   appeal_quote: "Within 60 days of receipt of an appeal, a controller shall inform the consumer in writing"
   appeal_days: 60
-  effective: 2023-01-01
   verified: 2026-10-30
 
 - key: TDPSA
@@ -39,7 +38,6 @@
   deadline_quote: "which may not be later than the 45th day after the date of receipt of the request"
   response_days: 45
   extension_days: 45
-  effective: 2024-07-01
   verified: 2026-10-30
 
 - key: OCPA
@@ -52,7 +50,6 @@
   deadline_quote: "Respond to a request from a consumer without undue delay and not later than 45 days after receiving the request"
   response_days: 45
   extension_days: 45
-  effective: 2024-07-01
   verified: 2026-10-30
 
 - key: MCDPA-MT
@@ -67,7 +64,6 @@
   extension_days: 45
   appeal_quote: "Not later than 60 days after receipt of an appeal, a controller shall inform the consumer in writing"
   appeal_days: 60
-  effective: 2024-10-01
   verified: 2026-10-30
 
 - key: DPDPA
@@ -82,7 +78,6 @@
   extension_days: 45
   appeal_quote: "Not later than 60 days after receipt of an appeal, a controller shall inform the consumer in writing"
   appeal_days: 60
-  effective: 2025-01-01
   verified: 2026-10-30
 
 - key: NHPA
@@ -97,7 +92,6 @@
   extension_days: 45
   appeal_quote: "Not later than 60 days after receipt of an appeal, a controller shall inform the consumer in writing"
   appeal_days: 60
-  effective: 2025-01-01
   verified: 2026-10-30
 
 - key: MNCDPA
@@ -110,7 +104,6 @@
   deadline_quote: "A controller must inform a consumer of any action taken on a request under subdivision 1 without undue delay and in any event within 45 days of receipt of the request"
   response_days: 45
   extension_days: 45
-  effective: 2025-07-31
   verified: 2026-10-30
 
 - key: NDPA
@@ -124,7 +117,6 @@
   deadline_quote: "A controller shall respond to the consumer request without undue delay within forty-five days after the date of receipt of the request"
   response_days: 45
   extension_days: 45
-  effective: 2025-01-01
   verified: 2026-10-30
 
 - key: RIDTPPA
@@ -134,5 +126,16 @@
   source: https://webserver.rilegislature.gov/Statutes/TITLE6/6-48.1/6-48.1-5.htm
   quote: "Correct inaccuracies in the customer's personal data and delete personal data provided by, or obtained about, the customer"
   # Its response deadline is in another section, not checked yet: no number is claimed.
-  effective: 2026-01-01
+  verified: 2026-10-30
+
+- key: NJDPA
+  state: NJ
+  name: New Jersey Data Privacy Act
+  citation: N.J.S.A. 56:8-166.10(a)(3)
+  source: https://pub.njleg.state.nj.us/Bills/2022/PL23/266_.HTM
+  quote: "delete personal data concerning the consumer"
+  deadline_citation: N.J.S.A. 56:8-166.7(a)
+  deadline_quote: "A controller that receives a verified request from a consumer shall provide a response to the consumer within 45 days of the controller's receipt of the request"
+  response_days: 45
+  extension_days: 45
   verified: 2026-10-30
