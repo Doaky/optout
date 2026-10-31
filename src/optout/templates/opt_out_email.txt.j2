@@ -33,7 +33,9 @@ LEGAL BASIS FOR THIS REQUEST
 {% for s in statutes %}
 {{ s.citation }} — {{ s.name }}
   "{{ s.right_text }}"
+{% if s.response_days %}
   Statutory response deadline: {{ s.response_days }} days. {{ s.response_note }}
+{% endif %}
 {% endfor %}
 
 ------------------------------------------------------------

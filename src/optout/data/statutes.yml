@@ -1,0 +1,138 @@
+# State deletion rights we cite, each checked word for word against the state's official text.
+#
+#   quote           exact words from `source` (whitespace and curly quotes normalised)
+#   deadline_quote  the response deadline, from `deadline_source` (default: `source`)
+#   appeal_quote    the time a controller has to answer an appeal, if the law sets one
+#   verified        when `optout statutes verify` last found every quote at its source
+#
+# A state not listed here gets general wording ("privacy laws that cover deletion requests"),
+# never a citation we haven't checked. Citations name the subsection only where the
+# statute's own text confirms it; deadlines cite the section.
+#
+# To add or re-check a state: put the official legislature URL in `source`, copy the words
+# exactly, run `optout statutes verify`, and set `verified` to today. These are checked
+# against official text, not reviewed by a lawyer.
+
+- key: VCDPA
+  state: VA
+  name: Virginia Consumer Data Protection Act
+  citation: Va. Code § 59.1-577(A)(3)
+  source: https://law.lis.virginia.gov/vacode/title59.1/chapter53/section59.1-577/
+  quote: "To delete personal data provided by or obtained about the consumer"
+  deadline_citation: Va. Code § 59.1-577(B)(1)
+  deadline_quote: "A controller shall respond to the consumer without undue delay, but in all cases within 45 days of receipt of the request"
+  response_days: 45
+  extension_days: 45
+  appeal_quote: "Within 60 days of receipt of an appeal, a controller shall inform the consumer in writing"
+  appeal_days: 60
+  effective: 2023-01-01
+  verified: 2026-10-30
+
+- key: TDPSA
+  state: TX
+  name: Texas Data Privacy and Security Act
+  citation: Tex. Bus. & Com. Code § 541.051(b)(3)
+  # The statutes site renders by script; this is the enrolled bill (H.B. 4, 88th Legislature).
+  source: https://capitol.texas.gov/tlodocs/88R/billtext/html/HB00004F.htm
+  quote: "delete personal data provided by or obtained about the consumer"
+  deadline_citation: Tex. Bus. & Com. Code § 541.052
+  deadline_quote: "which may not be later than the 45th day after the date of receipt of the request"
+  response_days: 45
+  extension_days: 45
+  effective: 2024-07-01
+  verified: 2026-10-30
+
+- key: OCPA
+  state: OR
+  name: Oregon Consumer Privacy Act
+  citation: ORS 646A.574(1)(c)
+  source: https://www.oregonlegislature.gov/bills_laws/ors/ors646A.html
+  quote: "Require a controller to delete personal data about the consumer, including personal data the consumer provided to the controller, personal data the controller obtained from another source and derived data"
+  deadline_citation: ORS 646A.574
+  deadline_quote: "Respond to a request from a consumer without undue delay and not later than 45 days after receiving the request"
+  response_days: 45
+  extension_days: 45
+  effective: 2024-07-01
+  verified: 2026-10-30
+
+- key: MCDPA-MT
+  state: MT
+  name: Montana Consumer Data Privacy Act
+  citation: Mont. Code Ann. § 30-14-2808(1)(c)
+  source: https://archive.legmt.gov/bills/mca/title_0300/chapter_0140/part_0280/section_0080/0300-0140-0280-0080.html
+  quote: "delete personal data about the consumer"
+  deadline_citation: Mont. Code Ann. § 30-14-2808
+  deadline_quote: "A controller shall respond to the consumer without undue delay, but not later than 45 days after receipt of the request"
+  response_days: 45
+  extension_days: 45
+  appeal_quote: "Not later than 60 days after receipt of an appeal, a controller shall inform the consumer in writing"
+  appeal_days: 60
+  effective: 2024-10-01
+  verified: 2026-10-30
+
+- key: DPDPA
+  state: DE
+  name: Delaware Personal Data Privacy Act
+  citation: 6 Del. C. § 12D-104(a)(3)
+  source: https://delcode.delaware.gov/title6/c012d/index.html
+  quote: "Delete personal data provided by, or obtained about, the consumer"
+  deadline_citation: 6 Del. C. § 12D-104
+  deadline_quote: "A controller shall respond to the consumer without undue delay, but not later than 45 days after receipt of the request"
+  response_days: 45
+  extension_days: 45
+  appeal_quote: "Not later than 60 days after receipt of an appeal, a controller shall inform the consumer in writing"
+  appeal_days: 60
+  effective: 2025-01-01
+  verified: 2026-10-30
+
+- key: NHPA
+  state: NH
+  name: New Hampshire Privacy Act
+  citation: RSA 507-H:4, I(c)
+  source: https://www.gencourt.state.nh.us/rsa/html/LII/507-H/507-H-4.htm
+  quote: "Delete personal data provided by, or obtained about, the consumer"
+  deadline_citation: RSA 507-H:4
+  deadline_quote: "A controller shall respond to the consumer without undue delay, but not later than 45 days after receipt of the request"
+  response_days: 45
+  extension_days: 45
+  appeal_quote: "Not later than 60 days after receipt of an appeal, a controller shall inform the consumer in writing"
+  appeal_days: 60
+  effective: 2025-01-01
+  verified: 2026-10-30
+
+- key: MNCDPA
+  state: MN
+  name: Minnesota Consumer Data Privacy Act
+  citation: Minn. Stat. § 325M.14, subd. 1(d)
+  source: https://www.revisor.mn.gov/statutes/cite/325M.14
+  quote: "A consumer has the right to delete personal data concerning the consumer"
+  deadline_citation: Minn. Stat. § 325M.14
+  deadline_quote: "A controller must inform a consumer of any action taken on a request under subdivision 1 without undue delay and in any event within 45 days of receipt of the request"
+  response_days: 45
+  extension_days: 45
+  effective: 2025-07-31
+  verified: 2026-10-30
+
+- key: NDPA
+  state: NE
+  name: Nebraska Data Privacy Act
+  citation: Neb. Rev. Stat. § 87-1107(2)(c)
+  source: https://nebraskalegislature.gov/laws/statutes.php?statute=87-1107
+  quote: "Delete personal data provided by or obtained about the consumer"
+  deadline_citation: Neb. Rev. Stat. § 87-1108(2)
+  deadline_source: https://nebraskalegislature.gov/laws/statutes.php?statute=87-1108
+  deadline_quote: "A controller shall respond to the consumer request without undue delay within forty-five days after the date of receipt of the request"
+  response_days: 45
+  extension_days: 45
+  effective: 2025-01-01
+  verified: 2026-10-30
+
+- key: RIDTPPA
+  state: RI
+  name: Rhode Island Data Transparency and Privacy Protection Act
+  citation: R.I. Gen. Laws § 6-48.1-5(e)(2)
+  source: https://webserver.rilegislature.gov/Statutes/TITLE6/6-48.1/6-48.1-5.htm
+  quote: "Correct inaccuracies in the customer's personal data and delete personal data provided by, or obtained about, the customer"
+  # Its response deadline is in another section, not checked yet: no number is claimed.
+  effective: 2026-01-01
+  verified: 2026-10-30

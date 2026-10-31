@@ -136,4 +136,11 @@ def test_bulk_email_cites_the_users_state_law(texan, profile):
     va = _render_body(bulk, profile, contact_email="a@x.invalid", minimal=True)
     tx = _render_body(bulk, texan, contact_email="a@x.invalid", minimal=True)
     assert "Va. Code § 59.1-577(A)(3)" in va
-    assert "59.1-577" not in tx and "privacy laws that apply to you" in tx
+    # Texas has a law checked against its official text: cited, and never Virginia's.
+    assert "59.1-577" not in tx and "Tex. Bus. & Com. Code § 541.051(b)(3)" in tx
+    # A state with no verified law yet gets general wording, not a guessed citation.
+    ohio = texan.model_copy(
+        update={"current_address": texan.current_address.model_copy(update={"state": "OH"})}
+    )
+    general = _render_body(bulk, ohio, contact_email="a@x.invalid", minimal=True)
+    assert "§" not in general and "privacy laws that apply to you" in general

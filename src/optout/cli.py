@@ -1673,6 +1673,51 @@ def daily() -> None:
         send_webhook(config.notify.webhook_url, "optout daily", message)
 
 
+statutes_app = typer.Typer(help="The state laws requests cite, checked against official text.")
+app.add_typer(statutes_app, name="statutes")
+
+
+@statutes_app.command("list")
+def statutes_list() -> None:
+    """Which states' laws are cited, and when each was last checked."""
+    from .utils.statute_check import entries
+
+    table = Table(box=box.SIMPLE)
+    for col in ("State", "Law", "Citation", "Deadline", "Checked"):
+        table.add_column(col)
+    for e in entries():
+        table.add_row(
+            e["state"],
+            e["name"],
+            e["citation"],
+            f"{e['response_days']} days" if e.get("response_days") else "not claimed",
+            str(e.get("verified", "no")),
+        )
+    console.print(table)
+    console.print("[dim]Other states get general wording, never an unchecked citation.[/dim]")
+
+
+@statutes_app.command("verify")
+def statutes_verify() -> None:
+    """Fetch each state's official text and confirm every quote is there word for word."""
+    from .utils.statute_check import verify
+
+    bad = 0
+    for r in verify():
+        if r.problems:
+            bad += 1
+            console.print(f"[red]✗ {r.state} {r.key}[/red]")
+            for p in r.problems:
+                console.print(f"    {p}")
+        else:
+            console.print(f"[green]✓[/green] {r.state} {r.key}")
+    if bad:
+        console.print(
+            f"[red]{bad} law(s) didn't match their official text. Fix data/statutes.yml.[/red]"
+        )
+        raise typer.Exit(code=1)
+
+
 @app.command()
 def plan() -> None:
     """The order to work through brokers in, by what each one takes, with progress."""

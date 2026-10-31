@@ -1,9 +1,9 @@
 """
 Statutory right-to-delete citations used in opt-out emails and letters.
 
-Each entry is reviewed and dated. Before relying on these in production,
-verify the citation against the current enrolled text of the statute —
-legislatures amend these sections periodically.
+The state laws a request cites by the user's state come from data/statutes.yml, where each
+quote is checked word for word against the state's official text (`optout statutes verify`).
+The entries below are older, unverified defaults kept for broker definitions that name them.
 
 Last reviewed: 2026-04-01
 """
@@ -22,6 +22,12 @@ class Statute:
     response_days: int  # default statutory response deadline
     response_note: str  # any extension or tolling rules
     reviewed_at: str  # ISO date of last review
+    state: str = ""  # the state whose residents it covers (verified state laws only)
+    source: str = ""  # official text it was checked against
+    deadline_citation: str = ""
+    extension_days: int = 0
+    appeal_days: int | None = None
+    verified: bool = False  # every quote found word for word at the official source
 
 
 STATUTES: dict[str, Statute] = {
@@ -124,9 +130,51 @@ def get_statutes(keys: list[str]) -> list[Statute]:
     return [STATUTES[k] for k in keys if k in STATUTES]
 
 
-# Which statute a bulk request cites, by the user's state. Only VCDPA has been checked
-# against current statute text in this project; the others come from upstream.
-STATE_LAW: dict[str, str] = {"VA": "VCDPA", "CA": "CCPA", "CO": "CPA", "CT": "CTDPA", "UT": "UCPA"}
+def _load_verified() -> dict[str, Statute]:
+    """State laws from data/statutes.yml: each quote checked against the official text."""
+    from importlib.resources import files
+
+    import yaml
+
+    out: dict[str, Statute] = {}
+    for e in yaml.safe_load(files("optout").joinpath("data/statutes.yml").read_text()) or []:
+        if not e.get("verified"):
+            continue
+        days, ext = e.get("response_days"), e.get("extension_days")
+        note = (
+            f"{e['deadline_citation']}: may be extended once by {ext} additional days when "
+            "reasonably necessary, with notice within the first period."
+            if days and ext
+            else ""
+        )
+        out[e["key"]] = Statute(
+            key=e["key"],
+            name=e["name"],
+            citation=e["citation"],
+            right_text=e["quote"].rstrip(";.") + ".",
+            response_days=int(days or 0),
+            response_note=note,
+            reviewed_at=str(e["verified"]),
+            state=e["state"],
+            source=e["source"],
+            deadline_citation=e.get("deadline_citation", "") if days else "",
+            extension_days=int(ext or 0) if days else 0,
+            appeal_days=e.get("appeal_days"),
+            verified=True,
+        )
+    return out
+
+
+VERIFIED = _load_verified()
+STATUTES.update(VERIFIED)
+# Which law a bulk request cites, by the user's state: only laws checked against the
+# official text (data/statutes.yml). Anywhere else, requests use general wording.
+STATE_LAW: dict[str, str] = {s.state: s.key for s in VERIFIED.values()}
+
+
+def for_state(state: str) -> Statute | None:
+    key = STATE_LAW.get(state.strip().upper())
+    return STATUTES[key] if key else None
 
 
 def statutes_for_state(state: str) -> list[Statute]:
