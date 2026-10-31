@@ -113,6 +113,9 @@ class EmailConfig(BaseModel):
     # Gmail only: mark broker replies as read once they've been labelled and read in. Only
     # mail the tool has identified as a broker reply is touched.
     mark_replies_read: bool = False
+    # Read broker replies in shortly after a batch finishes sending (auto-replies and
+    # "use our form" answers arrive within minutes), so they're sorted without a click.
+    fetch_after_batch: bool = True
 
     @model_validator(mode="after")
     def _label_is_plain(self) -> EmailConfig:

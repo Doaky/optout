@@ -85,6 +85,7 @@ class App:
         self.job: dict = {"state": "idle"}
         self.job_lock = threading.Lock()
         self.inbox_lock = threading.Lock()
+        self._fetch_pending = False  # a reply check is already queued after a batch
         self.last_error = ""  # shown once after a failed settings save (never from the URL)
         try:  # a send cut off by closing the app last time must not block that broker
             from ..db import get_session as _gs
@@ -123,6 +124,42 @@ class App:
                 _log_error("scheduled work")
             time.sleep(every)
 
+    def fetch_after_batch(self, delay: float = 30) -> None:
+        """Read replies in shortly after a batch: auto-replies arrive within seconds to
+        minutes, so they're sorted without a click. Runs in the background after the job is
+        marked done, never overlaps another reply check, and is skipped if Gmail isn't set
+        up or you've turned it off."""
+        from ..engine.inbox import gmail_ready
+
+        try:
+            config = load_config()
+            if not config.email.fetch_after_batch or gmail_ready(config) is not None:
+                return
+        except Exception:
+            return
+        with self.job_lock:
+            if self._fetch_pending:
+                return
+            self._fetch_pending = True
+        threading.Thread(target=self._fetch_later, args=(delay,), daemon=True).start()
+
+    def _fetch_later(self, delay: float) -> None:
+        import time
+
+        from ..engine.inbox import run_sync
+
+        try:
+            time.sleep(delay)
+            if self.inbox_lock.acquire(blocking=False):
+                try:
+                    run_sync(load_config())
+                finally:
+                    self.inbox_lock.release()
+        except Exception:
+            _log_error("reading replies after a batch")
+        finally:
+            self._fetch_pending = False
+
     def start_daily(self, count: int) -> str:
         """The day's batch, then any follow-ups that are due, as one background job."""
         with self.job_lock:
@@ -132,15 +169,15 @@ class App:
 
         def both() -> None:
             job = self.job
-            self._run_campaign(count)
-            if job.get("cancel"):
-                return
-            # Same job, so the progress bar covers both; follow-ups add to the counts.
-            total, failed = job.get("total", 0), list(job.get("failed", []))
-            job["state"] = "running"
-            self._run_followups()
-            job["total"] = total + job.get("total", 0)
-            job["failed"] = failed + list(job.get("failed", []))
+            self._run_campaign(count, fetch=False)
+            if not job.get("cancel"):
+                # Same job, so the progress bar covers both; follow-ups add to the counts.
+                total, failed = job.get("total", 0), list(job.get("failed", []))
+                job["state"] = "running"
+                self._run_followups(fetch=False)
+                job["total"] = total + job.get("total", 0)
+                job["failed"] = failed + list(job.get("failed", []))
+            self.fetch_after_batch()  # once, after both
 
         threading.Thread(target=both, daemon=True).start()
         return "started"
@@ -196,7 +233,7 @@ class App:
         threading.Thread(target=self._run_followups, daemon=True).start()
         return "started"
 
-    def _run_followups(self) -> None:
+    def _run_followups(self, fetch: bool = True) -> None:
         from ..engine import followups
 
         job = self.job
@@ -228,6 +265,8 @@ class App:
             job["stopped"] = f"{type(exc).__name__}"
         finally:
             job["state"] = "done"
+            if fetch:
+                self.fetch_after_batch()
 
     def _run_resend(self, slug: str, address: str) -> None:
         from ..engine.campaign import resend_to
@@ -248,9 +287,15 @@ class App:
             job["stopped"] = f"{type(exc).__name__}"
         finally:
             job["state"] = "done"
+            self.fetch_after_batch()
 
     def _run_campaign(
-        self, count: int, only: str | None = None, force: bool = False, tier: str | None = None
+        self,
+        count: int,
+        only: str | None = None,
+        force: bool = False,
+        tier: str | None = None,
+        fetch: bool = True,
     ) -> None:
         job = self.job
         try:
@@ -293,6 +338,8 @@ class App:
             job["stopped"] = f"{type(exc).__name__}"
         finally:
             job["state"] = "done"
+            if fetch:
+                self.fetch_after_batch()
 
 
 # A browser that closes the connection early (navigating away, a cancelled fetch) is
@@ -1178,6 +1225,7 @@ def _settings_values(config) -> dict[str, str]:
         "alias_pattern": em.alias_pattern or "",
         "allow_unattended": "on" if em.allow_unattended else "",
         "mark_replies_read": "on" if em.mark_replies_read else "",
+        "fetch_after_batch": "on" if em.fetch_after_batch else "",
         "daily_send_time": em.daily_send_time,
         "my_groups": ",".join(config.my_groups) if config.my_groups is not None else "",
         "groups_set": "1" if config.my_groups is not None else "",

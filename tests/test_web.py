@@ -74,6 +74,7 @@ def ui(tmp_path, monkeypatch):
 
     class Ctx:
         port = app.port
+        app_ = app
         token = app.token
         csrf = app.csrf
         host = f"127.0.0.1:{app.port}"
@@ -1551,3 +1552,38 @@ def test_california_residents_are_pointed_to_drop_first(ui):
     save_config(cfg)
     _, body = ui.req("GET", "/")
     assert "California resident?" in body and "https://consumer.drop.privacy.ca.gov/" in body
+
+
+def test_a_finished_batch_reads_replies_in_shortly_after_once(ui, monkeypatch):
+    import time as _time
+
+    from optout.web import server
+
+    ran = []
+    monkeypatch.setattr("optout.engine.inbox.gmail_ready", lambda c: None)  # Gmail is set up
+    monkeypatch.setattr("optout.engine.inbox.run_sync", lambda c, **k: ran.append(1))
+    app = ui.app_
+    app.fetch_after_batch(delay=0)
+    app.fetch_after_batch(delay=0)  # a second one while the first is queued: coalesced
+    _time.sleep(0.5)
+    assert ran == [1]
+    assert app._fetch_pending is False
+    assert server.App  # imported: the setting below is what turns it off
+
+    from optout.config import load_config, save_config
+
+    cfg = load_config()
+    save_config(
+        cfg.model_copy(update={"email": cfg.email.model_copy(update={"fetch_after_batch": False})})
+    )
+    app.fetch_after_batch(delay=0)
+    _time.sleep(0.3)
+    assert ran == [1]  # turned off in Settings: no second check
+
+
+def test_settings_toggles_for_reading_replies_in_and_marking_them_read(ui):
+    from optout.config import load_config
+
+    _, body = ui.req("GET", "/")
+    assert "name='fetch_after_batch'" in body and "name='mark_replies_read'" in body
+    assert load_config().email.fetch_after_batch is True  # on by default

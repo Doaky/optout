@@ -409,7 +409,25 @@ def campaign(
     console.print(f"\n[bold]{len(report.sent)} sent, {len(report.failed)} failed.[/bold]")
     if report.stopped_reason:
         console.print(f"[yellow]Stopped early: {report.stopped_reason}[/yellow]")
+    _read_replies_after_batch(config, len(report.sent))
     console.print("Track them with [cyan]optout status[/cyan]. Sent does not mean removed.")
+
+
+def _read_replies_after_batch(config, sent: int) -> None:
+    """After a batch from the command line: wait a moment for auto-replies, then read them in."""
+    import time
+
+    from .engine.inbox import gmail_ready, run_sync
+
+    if not sent or not config.email.fetch_after_batch or gmail_ready(config) is not None:
+        return
+    console.print("[dim]Waiting 30 seconds for auto-replies, then reading replies in…[/dim]")
+    time.sleep(30)
+    try:
+        rep = run_sync(config)
+        console.print(f"Replies: {len(rep.applied)} applied, {rep.review} to review.")
+    except ValueError as exc:
+        console.print(f"[yellow]{exc}[/yellow]")
 
 
 @brokers_app.command("info")
@@ -1788,6 +1806,7 @@ def followups(
     console.print(f"Sent {len(report.sent)}, failed {len(report.failed)}.")
     if report.stopped_reason:
         console.print(f"[yellow]Stopped:[/yellow] {report.stopped_reason}")
+    _read_replies_after_batch(config, len(report.sent))
 
 
 @app.command("drift-check")

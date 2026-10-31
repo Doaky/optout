@@ -131,3 +131,13 @@ def test_marks_only_labelled_broker_replies_read_and_only_when_asked():
     flags = [c for c in fake.calls if c[0] == "STORE" and c[2] == "+FLAGS"]
     assert flags and all(c[3] == "(\\Seen)" for c in flags)  # add-only: read, nothing removed
     assert sent_stores == 1  # the sent-mail labelling added no flags
+
+
+def test_mark_read_by_message_id_only_adds_the_read_flag():
+    fake = FakeIMAP()
+    with _labeler(fake) as g:
+        assert g.mark_read_message_ids(["<abc.123@mail.gmail.com>", '<a" OR in:anywhere@x.y>']) == 2
+    stores = [c for c in fake.calls if c[0] == "STORE"]
+    assert stores == [("STORE", "5,6", "+FLAGS", "(\\Seen)")]  # one message, flag added only
+    searches = [c[2] for c in fake.calls if c[0] == "SEARCH"]
+    assert searches == ['"rfc822msgid:abc.123@mail.gmail.com"']  # the odd id never searched

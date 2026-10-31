@@ -120,6 +120,21 @@ class GmailLabeler:
                     time.sleep(wait)
         return done
 
+    def mark_read_message_ids(self, message_ids: list[str]) -> int:
+        """Mark these messages (by Message-ID) as read. Adds the read flag only: nothing is
+        moved, labelled or deleted, and ids with odd characters are ignored."""
+        assert self._imap is not None
+        done = 0
+        for mid in message_ids:
+            token = mid.strip().strip("<>")
+            if not re.fullmatch(r"[A-Za-z0-9._%+@=-]+", token):
+                continue
+            uids = self._search(f"rfc822msgid:{token}")
+            if uids:
+                self._imap.uid("STORE", b",".join(uids).decode(), "+FLAGS", "(\\Seen)")
+                done += len(uids)
+        return done
+
     def label_all_sent(self) -> int:
         """Catch up: every message you sent with the opt-out subject."""
         return self._label(self._search(f'from:me subject:"{SUBJECT}"'))

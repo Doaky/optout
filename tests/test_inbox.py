@@ -1254,3 +1254,38 @@ def test_name_tie_is_broken_by_the_form_we_are_waiting_on(session, world):
     assert _match_by_name(mail, idx) is None  # ambiguous
     idx.expecting = {two[1].broker_slug}
     assert _match_by_name(mail, idx) is two[1]
+def test_only_replies_matched_to_a_request_are_marked_read(session, world, monkeypatch):
+    """Recognised mail is marked read in Gmail (when asked); what we can't place stays unread."""
+    from optout.engine import inbox as ib
+
+    brokers, subs = world
+    idx = build_index(subs.values(), brokers, None)
+    matched = parse_message(
+        raw("Re: Data Deletion Request", "Thanks, received.", sender="privacy@acme.example")
+    )
+    stranger = parse_message(raw("Hello", "Unrelated.", sender="who@nowhere.example"))
+    # Give each a distinct Message-ID the way real mail has.
+    matched.message_id, stranger.message_id = "<m1@x>", "<s1@x>"
+    process(session, [matched, stranger], idx, known=[])
+
+    marked: list[str] = []
+
+    class FakeGmail:
+        def __init__(self, *a, **k): ...
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *e): ...
+        def mark_read_message_ids(self, ids):
+            marked.extend(ids)
+            return len(ids)
+
+    class Cfg:
+        class email:
+            smtp = type("S", (), {"username": "u@gmail.com"})()
+            gmail_label = "OPTOUT"
+
+    monkeypatch.setattr("optout.gmail_label.GmailLabeler", FakeGmail)
+    monkeypatch.setattr("optout.engine.methods.email.read_smtp_password", lambda s: "pw")
+    n = ib._mark_recognised_read(session, Cfg, [matched, stranger])
+    assert marked == ["<m1@x>"] and n == 1

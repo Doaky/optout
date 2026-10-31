@@ -558,6 +558,7 @@ class SyncReport:
     skipped: int = 0
     confirmed: int = 0  # confirm links opened for you (when set to automatic)
     closed: int = 0  # requests closed because the broker doesn't cover you
+    marked_read: int = 0  # recognised broker replies marked read in Gmail (when turned on)
 
 
 def process(
@@ -725,6 +726,37 @@ def gmail_ready(config) -> str | None:
 
 def run_sync(config, *, dry_run: bool = False) -> SyncReport:
     """Label new broker replies, read them, and apply what's clear. Raises ValueError."""
+def _mark_recognised_read(session: Session, config, mails: list[ParsedMail]) -> int:
+    """Mark the replies just read in that were matched to one of our requests as read in
+    Gmail. Mail we couldn't place (left for you to review) stays unread. Best effort: a
+    Gmail hiccup never fails the sync."""
+    from ..gmail_label import GmailLabeler
+    from .methods.email import read_smtp_password
+
+    ids = [m.message_id for m in mails if m.message_id]
+    if not ids or config.email.smtp is None:
+        return 0
+    matched = set(
+        session.exec(
+            select(InboxMessage.message_id).where(
+                InboxMessage.message_id.in_(ids),  # type: ignore[attr-defined]
+                InboxMessage.submission_id != None,  # noqa: E711 (SQL IS NOT NULL)
+                InboxMessage.state != "ignored",
+            )
+        ).all()
+    )
+    if not matched:
+        return 0
+    smtp = config.email.smtp
+    try:
+        with GmailLabeler(
+            smtp.username, read_smtp_password(smtp), config.email.gmail_label or "OPTOUT"
+        ) as gmail:
+            return gmail.mark_read_message_ids(sorted(matched))
+    except Exception:
+        return 0
+
+
     from ..brokers.registry import all_brokers, load_registry
     from ..db import get_session
     from ..gmail_label import GmailLabeler
@@ -808,6 +840,8 @@ def run_sync(config, *, dry_run: bool = False) -> SyncReport:
             report = process(session, mails, idx, dry_run=dry_run)
             if not dry_run:
                 report.closed = auto_close_out_of_scope(session, config)
+            if not dry_run and config.email.mark_replies_read:
+                report.marked_read = _mark_recognised_read(session, config, mails)
                 disable_bounced(session)
                 from ..forms import link_followups
 
