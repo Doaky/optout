@@ -664,7 +664,7 @@ _ADS = re.compile(r"aboutads|youradchoices|networkadvertising|optout\.aboutads",
 # media, images, unsubscribe pages.
 _NOT_FOR_YOU = re.compile(
     r"privacy\.ca\.gov|drop\.privacy|facebook\.com|twitter\.com|linkedin\.com|glassdoor|"
-    r"instagram\.com|youtube\.com|\.(png|jpe?g|gif|pdf)\b|unsubscribe",
+    r"instagram\.com|youtube\.com|aka\.ms|\.(png|jpe?g|gif|pdf)\b|unsubscribe",
     re.I,
 )
 _STRONG_FORM = re.compile(
@@ -678,11 +678,17 @@ _JUST_READING = re.compile(
 )
 
 
+_ACCOUNT_PAGE = re.compile(r"/account|dashboard|log-?in|sign-?in|/my-?account", re.I)
+_DELETION_INTENT = re.compile(r"opt-?out|delete|remov|erase|do-?not-?sell", re.I)
+
+
 def _link_score(url: str) -> int:
     return (
         2 * bool(_STRONG_FORM.search(url))
         + bool(_FORMISH.search(url))
+        + bool(_DELETION_INTENT.search(url))
         - 4 * bool(_JUST_READING.search(url))
+        - 3 * bool(_ACCOUNT_PAGE.search(url))  # an account's own page, not the request form
     )
 
 
@@ -690,6 +696,7 @@ def _best_link(text: str) -> str:
     """The link most likely to be their privacy form: one that looks like a request form or
     portal, not their policy or terms page, never the ad-choices page or California's DROP
     portal that many replies also mention."""
+    text = re.sub(r"(https?:)/(?!/)", r"\1//", text)  # mail clients mangle "https://" to "https:/"
     links = [m.group(0).rstrip(".,;:") for m in _LINK.finditer(text)]
     links = [u for u in links if not _ADS.search(u) and not _NOT_FOR_YOU.search(u)]
     if not links:

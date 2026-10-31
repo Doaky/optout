@@ -48,6 +48,9 @@ class Flow:
     anchor: re.Pattern[str]  # the link's label, e.g. "Confirm email"
     note: str = ""
 
+    # Some portals open a page with a "Verify Email" button instead of confirming on arrival.
+    # This names the button to press there (only ever on the flow's own hosts).
+    press: re.Pattern[str] | None = None
 
 # --- the mapping --------------------------------------------------------------
 
@@ -69,7 +72,13 @@ def _parse(data: object) -> list[Flow]:
         except re.error:
             continue
         if sender and len(phrase) >= 12 and hosts:
-            out.append(Flow(sender, phrase, hosts, anchor, str(item.get("note", ""))[:240]))
+        press = None
+        if item.get("press"):
+            try:
+                press = re.compile(str(item["press"]), re.IGNORECASE)
+            except re.error:
+                continue
+            out.append(Flow(sender, phrase, hosts, anchor, str(item.get("note", ""))[:240], press))
     return out
 
 
@@ -288,8 +297,14 @@ def fetch_plain(url: str, hosts: tuple[str, ...], timeout: float = 20) -> Fetche
         return Fetched(error=type(exc).__name__)
 
 
-def fetch_browser(url: str, hosts: tuple[str, ...], timeout: float = 30) -> Fetched:
-    """Many confirm pages only work with JavaScript, so load it in a headless browser."""
+def fetch_browser(
+    url: str,
+    hosts: tuple[str, ...],
+    timeout: float = 30,
+    press: re.Pattern[str] | None = None,
+) -> Fetched:
+    """Many confirm pages only work with JavaScript, so load it in a headless browser. With
+    *press*, a button on the page whose label matches it is pressed once (same site only)."""
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as pw:
@@ -304,12 +319,23 @@ def fetch_browser(url: str, hosts: tuple[str, ...], timeout: float = 30) -> Fetc
                 return Fetched(error="left the allowed site", final_host=host)
             return Fetched(resp.status if resp else 0, page.inner_text("body"), host)
         finally:
+            if press is not None:
+                button = page.get_by_role("button", name=press).first
+                if button.count():
+                    button.click()
+                    page.wait_for_load_state("networkidle", timeout=timeout * 1000)
+                    page.wait_for_timeout(2500)
+                    host = urlsplit(page.url).hostname or ""
+                    if not redirect_ok(page.url, hosts):
+                        return Fetched(error="left the allowed site", final_host=host)
             browser.close()
 
 
-def default_fetch(url: str, hosts: tuple[str, ...]) -> Fetched:
+def default_fetch(
+    url: str, hosts: tuple[str, ...], press: re.Pattern[str] | None = None
+) -> Fetched:
     try:
-        return fetch_browser(url, hosts)
+        return fetch_browser(url, hosts, press=press)
     except Exception:  # no browser installed, or it couldn't start
         return fetch_plain(url, hosts)
 
@@ -372,6 +398,7 @@ def confirm_reply(
     said: list[str] | None = None,
 ) -> tuple[str, str]:
     """Click the confirm link in one stored reply, if a known flow allows it.
+    retry: bool = False,
     Returns (result, host): confirmed | unclear | failed | already | no-flow | no-link."""
     sub = session.get(Submission, row.submission_id) if row.submission_id else None
     if sub is None:
@@ -384,9 +411,13 @@ def confirm_reply(
         return "no-link", ""
     host = urlsplit(url).hostname or ""
     tried = _attempts(session, sub, row.message_id)
-    if any(a.get("result") == "confirmed" for a in tried) or len(tried) >= MAX_ATTEMPTS:
+    if any(a.get("result") == "confirmed" for a in tried) or (
+        len(tried) >= MAX_ATTEMPTS and not retry
+    ):
         return "already", host
-    page = fetch(url, flow.link_hosts)
+    page = (
+        fetch(url, flow.link_hosts, press=flow.press) if flow.press else fetch(url, flow.link_hosts)
+    )
     result = judge(page)
     if said is not None:
         said.append(page_excerpt(page))

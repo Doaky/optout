@@ -30,3 +30,29 @@
   anchor: confirm|verif
   link_hosts: [legal.here.com]
   note: A bare link under "click the verification link below"; lapses after 3 days.
+- name: Grin privacy requests (SayMine)
+  from: '@grin.co'
+  phrase: by clicking on the link below you confirm the verification of your identity
+  anchor: confirm
+  link_hosts: [privacy.saymine.io]
+  note: Grin's "Please verify your identity" email; the link lapses after 7 days. Also sent for Source Path Digital.
+- name: BigID privacy portals (Crexi and others)
+  from: '@bigid.cloud'
+  phrase: please confirm this request was sent by you
+  anchor: confirm
+  link_hosts: [bigidprivacy.cloud]
+  note: BigID's "Verify your email for a new privacy request" email.
+- name: Hightouch privacy requests (DataGrail)
+  from: '@hightouch.io'
+  phrase: please verify your email address by following this link
+  anchor: verify
+  press: verify email
+  link_hosts: [datagrail.io]
+  note: A bare link under "verify your email address by following this link"; the page then has a Verify Email button.
+- name: Minerva privacy requests (DataGrail)
+  from: '@minerva.io'
+  phrase: please verify your email address by following this link
+  anchor: verify|confirm
+  press: verify email
+  link_hosts: [sendgrid.net, datagrail.io]
+  note: The same DataGrail email as Hightouch's, with a SendGrid tracking link that redirects to the request center.

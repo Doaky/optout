@@ -10,6 +10,9 @@
 - {broker: blis-global, traits: [requires_device_ids]}
 - {broker: matchbook-data, traits: [requires_device_ids]}
 - {broker: madhive, traits: [requires_device_ids]}
+- {broker: ogury, traits: [requires_device_ids]}
+- {broker: openx-technologies, traits: [requires_device_ids]}
+- {broker: outlogic, traits: [requires_device_ids]}
 - {broker: kargo-global, traits: [requires_device_ids]}
 
 # Face search: removal means uploading a photo of your face.

@@ -1587,3 +1587,25 @@ def test_settings_toggles_for_reading_replies_in_and_marking_them_read(ui):
     _, body = ui.req("GET", "/")
     assert "name='fetch_after_batch'" in body and "name='mark_replies_read'" in body
     assert load_config().email.fetch_after_batch is True  # on by default
+
+
+def test_link_picking_handles_mangled_links_and_prefers_opt_out_over_account_pages():
+    from optout.web.data import _best_link
+
+    # a mail client turned "https://" into "https:/", and a banner link came first
+    assert (
+        _best_link(
+            "Notice https://aka.ms/LearnAboutSenderIdentification. Use our form "
+            "https:/privacyportal.example.com/webform/abc123"
+        )
+        == "https://privacyportal.example.com/webform/abc123"
+    )
+    # an account-deletion page is not the opt-out form
+    assert (
+        _best_link(
+            "Opt out: https://www.example.com/opt-out . Delete your account: "
+            "https://www.example.com/dashboard/account/delete . Right to know: "
+            "https://www.example.com/request-my-info"
+        )
+        == "https://www.example.com/opt-out"
+    )
