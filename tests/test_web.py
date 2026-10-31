@@ -1563,9 +1563,12 @@ def test_a_finished_batch_reads_replies_in_shortly_after_once(ui, monkeypatch):
     monkeypatch.setattr("optout.engine.inbox.gmail_ready", lambda c: None)  # Gmail is set up
     monkeypatch.setattr("optout.engine.inbox.run_sync", lambda c, **k: ran.append(1))
     app = ui.app_
-    app.fetch_after_batch(delay=0)
-    app.fetch_after_batch(delay=0)  # a second one while the first is queued: coalesced
-    _time.sleep(0.5)
+    app.fetch_after_batch(delay=0.3)
+    app.fetch_after_batch(delay=0.3)  # a second one while the first is still queued: coalesced
+    for _ in range(100):  # wait for the background thread, not a fixed time
+        if ran and app._fetch_pending is False:
+            break
+        _time.sleep(0.05)
     assert ran == [1]
     assert app._fetch_pending is False
     assert server.App  # imported: the setting below is what turns it off
@@ -1577,7 +1580,7 @@ def test_a_finished_batch_reads_replies_in_shortly_after_once(ui, monkeypatch):
         cfg.model_copy(update={"email": cfg.email.model_copy(update={"fetch_after_batch": False})})
     )
     app.fetch_after_batch(delay=0)
-    _time.sleep(0.3)
+    _time.sleep(0.5)  # nothing should start, so there's nothing to wait for: give it time to
     assert ran == [1]  # turned off in Settings: no second check
 
 
