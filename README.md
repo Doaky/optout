@@ -403,7 +403,8 @@ you've taught the tool, to contribute). See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License and credits
 
-AGPL-3.0. Derived from [Blake104/OptOut](https://github.com/Blake104/OptOut); ideas from
+AGPL-3.0. optout started from [Blake104/OptOut](https://github.com/Blake104/OptOut) and
+has since been largely rewritten; thanks to its authors for the starting point. Ideas from
 [auto-identity-remove](https://github.com/stephenlthorn/auto-identity-remove) and
 [Privotron](https://github.com/kevinl95/Privotron) (both MIT). Extra brokers and form
 links from [Eraser](https://github.com/digisamroc/eraser) (MIT); people-search priorities

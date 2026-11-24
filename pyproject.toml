@@ -9,7 +9,7 @@ description = "Self-hosted tool that emails data brokers to delete your personal
 readme = "README.md"
 license = "AGPL-3.0-only"
 requires-python = ">=3.12,<3.14"
-authors = [{ name = "gr8p3" }]
+authors = [{ name = "Doaky" }, { name = "gr8p3" }]  # gr8p3: author of the upstream project (see NOTICE)
 keywords = [
     "privacy",
     "data-broker",
