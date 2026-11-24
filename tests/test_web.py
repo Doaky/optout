@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import http.client
+import re
 import threading
 from datetime import UTC, date, datetime
 from urllib.parse import urlencode
@@ -343,7 +344,7 @@ def test_buttons_work_in_a_real_browser(ui, monkeypatch):
 
         page.evaluate("window.__noReload = 1")
         page.get_by_role("button", name="Write drafts for overdue requests").click()
-        page.get_by_text("New drafts are listed").wait_for()
+        page.get_by_text(re.compile(r"Wrote \d+ drafts?|No drafts needed")).wait_for()
         assert "Forbidden" not in page.content()
 
         page.get_by_role("button", name="Send emails").click()
@@ -558,6 +559,13 @@ def test_settings_edit_and_validate(ui):
     _, body = ui.req("GET", "/")
     assert "<select name='state'" in body and "<option value='VA' selected>Virginia" in body
 
+    # A failed save keeps what was typed, so one mistake doesn't undo other edits.
+    ui.post("/act/settings", {**form, "city": "Norfolk", "zip": "ABC"})
+    _, body = ui.req("GET", "/?m=settings_err")
+    assert "value='Norfolk'" in body and "value='ABC'" in body
+    _, body = ui.req("GET", "/")
+    assert "value='Richmond'" in body  # the next plain view shows what's really saved
+
 
 def test_password_is_tested_before_saving(ui, monkeypatch):
     from optout.config import load_config
@@ -635,13 +643,13 @@ def test_attention_explains_what_to_do(ui):
     assert "via our web form here" in attn  # the sentence that matters
     assert "Open their link" in attn and "forms.evil.example" in attn
     assert "rel='noreferrer noopener'" in attn  # never opened for you, no referrer
-    assert ">I did what they asked<" in attn and ">Doesn't apply to me<" in attn
+    assert ">I did what they asked<" in attn and ">Close: doesn&#x27;t apply to me<" in attn
     assert "mail.google.com/mail/u/0/#search/rfc822msgid%3Aw1" in attn  # the exact email
     assert "then click <b>I did what they asked</b>" in attn  # the section says how it works
     assert "https://forms.evil.example" not in attn.split("class='quote'")[1].split("</p>")[0]
 
     r, _ = ui.post("/act/row", {"slug": "evil", "action": "status:closed"})
-    assert r.getheader("Location") == "/?m=toggle"
+    assert r.getheader("Location") == "/?m=set_closed"
     _, body = ui.req("GET", "/")
     assert "id='attention-h'" not in body  # closed: no longer nagging
     assert "Closed</span>" in body
@@ -685,6 +693,26 @@ def test_time_zone_and_send_time_settings(ui):
     for bad in ({"timezone": "Mars/Olympus"}, {"daily_send_time": "25:00"}):
         r, _ = ui.post("/act/settings", {**base, "daily_send_time": "09:30", **bad})
         assert r.getheader("Location") == "/?m=settings_err#settings", bad
+
+
+def test_saying_you_are_in_no_groups_turns_skipping_on(ui):
+    from optout.config import load_config
+
+    form = {
+        "legal_name": "Jane Q Public",
+        "dob": "1990-05-14",
+        "street": "1 Main St",
+        "city": "Richmond",
+        "state": "VA",
+        "zip": "23219",
+        "daily_limit": "40",
+        "send_delay_seconds": "3",
+        "groups_present": "1",
+    }
+    _, body = ui.req("GET", "/")
+    assert "I&#x27;m not in any of these groups" in body or "I'm not in any of these groups" in body
+    ui.post("/act/settings", {**form, "groups_none": "on"})
+    assert load_config().my_groups == []
 
 
 def test_groups_and_contributor_tools_in_settings(ui):
@@ -944,40 +972,40 @@ def test_resend_to_button_and_route_are_guarded(ui, monkeypatch):
             "confirm your email by clicking on the button below.",
             True,
             False,
-            "Needs you: Confirm your email",
+            "Asked for: Confirm your email",
         ),
         (
             "You can submit a privacy request via our interactive web form here.",
             True,
             False,
-            "Needs you: Form submission",
+            "Asked for: Form submission",
         ),
         (
             "Please email optout@x.example. To exercise all other privacy rights, visit our "
             "Privacy Rights Portal.",
             False,
             True,
-            "Needs you: Form submission or new email",
+            "Asked for: Form submission or new email",
         ),
         (
             "Please write to privacy@x.example with your full details.",
             False,
             True,
-            "Needs you: New email",
+            "Asked for: New email",
         ),
         (
             "The information provided is insufficient to verify a matching record.",
             False,
             False,
-            "Needs you: More information",
+            "Asked for: More information",
         ),
         (
             "Call us toll-free at 800-555-0100 or write to our P.O. Box.",
             False,
             False,
-            "Needs you: Phone or mail",
+            "Asked for: Phone or mail",
         ),
-        ("Thanks. We need something from you.", False, False, "Needs you"),
+        ("Thanks. We need something from you.", False, False, "Asked for something"),
     ],
 )
 def test_action_label_says_what_to_do(text, link, other_email, expected):
@@ -1011,7 +1039,7 @@ def test_show_email_toggles_to_hide_email(ui):
     assert (
         "<span class='on-closed'>Show email</span><span class='on-open'>Hide email</span>" in body
     )
-    assert "Needs you: Confirm your email" in body
+    assert "Asked for: Confirm your email" in body
     for label in ("Show as table",):
         assert f"<span class='on-closed'>{label}</span>" in body or label not in body
 
@@ -1645,10 +1673,10 @@ def test_pasting_claudes_answer_shows_what_happened_for_each_item(ui):
     r, _ = ui.post("/act/claude-apply", {"answer": "this is not json"})
     assert r.status == 303 and r.getheader("Location") == "/?m=report"  # top of page, no anchor
     _, body = ui.req("GET", "/?m=report")
-    assert "Applied 0 of Claude" in body and "class='flash bad report'" in body
+    assert "Couldn&#x27;t read Claude" in body and "class='flash bad report'" in body
     assert "✗" in body  # says why, instead of a bare count
     _, again = ui.req("GET", "/?m=report")
-    assert "Applied 0 of Claude" not in again  # shown once
+    assert "read Claude" not in again  # shown once
 
 
 def test_pasting_a_browser_agents_answer_lists_each_broker(ui):

@@ -51,6 +51,19 @@ MAX_BODY = 65_536
 FLASH = {
     "reply": "Reply recorded.",
     "toggle": "Saved.",
+    "set_awaiting_broker_confirmation": "Moved to Awaiting reply: a new wait for their answer "
+    "starts now.",
+    "set_confirmed": "Marked as Broker says done.",
+    "set_awaiting_user_input": "Marked as Waiting on you. It's listed under Needs you.",
+    "set_rejected": "Marked as Broker said no. You can write an appeal from Needs you.",
+    "set_failed": "Marked as Failed to send.",
+    "set_closed": "Closed. It counts as done and leaves Needs you.",
+    "form_resubmitted": "Recorded: you resubmitted their form. Now waiting for their "
+    "confirmation email.",
+    "form_removed": "Recorded: their form said your data was removed (Broker says done).",
+    "stopped": "Stopped: this broker won't be emailed again (no resends or follow-ups). Its row "
+    "shows Stopped; the same menu can undo it.",
+    "started_again": "This broker can be emailed again.",
     "sent": "Marked as sent. It leaves Needs you while you wait for their answer.",
     "drafts": "Checked. New drafts are listed under “Saved drafts”.",
     "started": "Sending started. This page updates as each email goes out.",
@@ -59,7 +72,7 @@ FLASH = {
     "finished": "Batch finished.",
     "imported": "Broker list loaded.",
     "inboxerr": "Couldn't read your replies. Check your app password and internet connection.",
-    "reviewed": "Saved.",
+    "reviewed": "Saved. That reply left the list and its request was updated.",
     "conf_ok": "Confirmed. They'll carry on with your request; it's back to awaiting a reply.",
     "conf_unclear": "I opened the link, but the page didn't clearly say it worked. Check your "
     "inbox, or open the link yourself.",
@@ -88,6 +101,7 @@ class App:
         self._fetch_pending = False  # a reply check is already queued after a batch
         self.report: tuple[str, bool, list[str]] | None = None  # (title, ok, lines), shown once
         self.last_error = ""  # shown once after a failed settings save (never from the URL)
+        self.settings_draft: dict[str, str] | None = None  # the form as typed, after an error
         try:  # a send cut off by closing the app last time must not block that broker
             from ..db import get_session as _gs
             from ..engine.campaign import recover_interrupted
@@ -496,6 +510,14 @@ def _make_handler(app: App):
                 if code.startswith("conf_") and (said := query.get("n", [""])[0][:200]):
                     text += f" The page said: “{said}”"
                 bad = code in ("err", "busy", "nocfg", "inboxerr", "conf_unclear", "conf_failed")
+                if code == "drafts":
+                    a = nums["a"]
+                    text = (
+                        f"Wrote {a} draft{'s' if a != 1 else ''}. They're listed under "
+                        "Saved drafts; nothing has been sent."
+                        if a
+                        else "No drafts needed: nothing is overdue or refused right now."
+                    )
                 if code == "finished":
                     sent, failed = len(app.job.get("sent", [])), len(app.job.get("failed", []))
                     text = f"Batch finished: {sent} sent" + (
@@ -557,19 +579,27 @@ def _make_handler(app: App):
                 if (want := query.get("draft", [""])[0]) and (
                     match := next((p for p in draft_files if p.name == want), None)
                 ):
-                    kind = query.get("dk", [""])[0]
+                    file_slug, file_kind = actions.draft_info(match.name)
+                    kind = query.get("dk", [""])[0] or file_kind
                     ui.open_draft = (
                         match.name,
                         match.read_text(),
-                        query.get("ds", [""])[0][:_BROKER_MAX],
+                        query.get("ds", [""])[0][:_BROKER_MAX] or file_slug,
                         kind if kind in actions.ESCALATION_KINDS else "",
                     )
+                ui.draft_titles = {
+                    p.name: actions.draft_title(p.name, {b.slug: b.name for b in all_brokers()})
+                    for p in draft_files
+                }
                 with get_session() as session:
                     d = collect(session, config, now, drafts=len(draft_files))
                     if config is not None:
                         _fill_replies(ui, session, config)
                 if config is not None:
                     ui.settings = _settings_values(config)
+                    if query.get("m", [""])[0] == "settings_err" and app.settings_draft:
+                        ui.settings.update(app.settings_draft)  # what you typed, to fix
+                    app.settings_draft = None
                     ui.settings_open = bool(query.get("settings")) or code_opens_settings(query)
                     if config is not None:
                         sel = select_brokers(
@@ -583,6 +613,7 @@ def _make_handler(app: App):
                         ui.limit = config.email.daily_limit
                         room = max(0, ui.limit - ui.used)
                         batch = sel.eligible[:room]  # a batch can use the whole day's room
+                        ui.waiting = len(sel.eligible)
                         ui.previews = [
                             (b.name, b.opt_out_email or "", *_email_for(config, b)) for b in batch
                         ]
@@ -707,7 +738,8 @@ def _make_handler(app: App):
                 match = next((p for p in actions.list_drafts() if p.name == name), None)
                 if match is None:
                     return self._fail(404, "No such draft.")
-                return self._send(200, render.draft_page(match.name, match.read_text()))
+                title = actions.draft_title(match.name, {b.slug: b.name for b in all_brokers()})
+                return self._send(200, render.draft_page(title, match.read_text()))
 
             if path.startswith("/broker/"):
                 slug = unquote(path[len("/broker/") :])
@@ -793,12 +825,12 @@ def _make_handler(app: App):
 
                 with get_session() as session:
                     mark_outcome(session, slug, "submitted", "Resubmitted.", expects_email=True)
-                return self._redirect("/?m=toggle")
+                return self._redirect("/?m=form_resubmitted")
             if kind == "form-removed":
                 # Their web form said the data was removed: record it as their word.
                 with get_session() as session:
                     actions.record_reply(session, slug, "deleted", "Their web form said removed.")
-                return self._redirect("/?m=toggle")
+                return self._redirect("/?m=form_removed")
             if kind == "draft":
                 arg = actions.auto_draft_kind(slug) if arg == "auto" else arg
                 out = actions.write_draft_now(load_config(), slug, arg, datetime.now(UTC))
@@ -809,6 +841,7 @@ def _make_handler(app: App):
             if kind == "sent":
                 with get_session() as session:
                     actions.record_escalation_sent(session, slug, arg)
+                actions.file_sent_drafts(slug, arg)
                 return self._redirect("/?m=sent")
             if kind == "status":
                 # A person correcting a status. Never "removed": that needs a re-search.
@@ -838,12 +871,14 @@ def _make_handler(app: App):
                     else:
                         update_status(session, sub, arg)
                     record_event(session, sub, "status_set", {"from": before, "to": arg})
-                return self._redirect("/?m=toggle")
-            if action == "toggle:off":
+                return self._redirect(f"/?m=set_{arg}")
+            if action in ("toggle:off", "toggle:on"):
                 if slug not in {b.slug for b in all_brokers()}:
                     raise ValueError("unknown broker")
-                set_enabled(slug, False)
-                return self._redirect("/?m=toggle")
+                set_enabled(slug, action == "toggle:on")
+                return self._redirect(
+                    "/?m=" + ("started_again" if action == "toggle:on" else "stopped")
+                )
             raise ValueError("unknown action")
 
         def _route_post(self, path: str, form: dict[str, str]) -> None:
@@ -926,22 +961,27 @@ def _make_handler(app: App):
                             row = refs[v.ref].row
                             who = names.get(v.broker or row.broker_slug or "", v.ref)
                             try:
-                                msg = resolve(
-                                    session, row, v.outcome, v.note, "claude", broker=v.broker
-                                )
+                                resolve(session, row, v.outcome, v.note, "claude", broker=v.broker)
                                 applied += 1
-                                lines.append(f"✓ {who}: {msg}")
+                                said = _OUTCOME_WORDS.get(v.outcome, v.outcome)
+                                lines.append(f"✓ {who}: {said}")
                             except ValueError as exc:
                                 skipped += 1
                                 lines.append(f"✗ {who}: {exc}")
                     lines += [f"✗ {p}" for p in problems]
                     if not verdicts and not problems:
                         lines.append("✗ Nothing in the pasted text looked like an answer.")
-                    title = (
-                        f"Applied {applied} of Claude's answers"
-                        + (f"; {skipped} couldn't be applied" if skipped else "")
-                        + ". Applied ones left the review list."
-                    )
+                    if not verdicts:
+                        title = (
+                            "Couldn't read Claude's answer. Paste the whole JSON reply it gave, "
+                            "including the [ ] brackets."
+                        )
+                    else:
+                        title = (
+                            f"Applied {applied} of Claude's answers"
+                            + (f"; {skipped} couldn't be applied" if skipped else "")
+                            + ". Applied ones left the review list."
+                        )
                     app.report = (title, applied > 0, lines)
                     return self._redirect("/?m=report")
                 if path == "/act/settings":
@@ -955,7 +995,9 @@ def _make_handler(app: App):
                             raise ValueError("name (this tool is only for your own name)")
                     except ValueError as exc:
                         app.last_error = str(exc)[:120]
+                        app.settings_draft = _unsaved(form)  # shown again, not thrown away
                         return self._redirect("/?m=settings_err#settings")
+                    app.settings_draft = None
                     if form.get("backup_key", "").strip():
                         from ..backup import save_key
 
@@ -1067,9 +1109,9 @@ def _make_handler(app: App):
 
                             attach_followup(slug, sender, phrase, link_host, config)
                             flows = cf.load_flows()
-                        said: list[str] = []
+                        page_said: list[str] = []
                         result, _host = cf.confirm_reply(
-                            session, row, flows=flows, fetch=cf.default_fetch, said=said
+                            session, row, flows=flows, fetch=cf.default_fetch, said=page_said
                         )
                     code = {
                         "confirmed": "conf_ok",
@@ -1079,7 +1121,7 @@ def _make_handler(app: App):
                     }.get(result)
                     if code is None:
                         raise ValueError(result)
-                    seen = f"&n={quote(said[0][:160], safe='')}" if said else ""
+                    seen = f"&n={quote(page_said[0][:160], safe='')}" if page_said else ""
                     return self._redirect(f"/?m={code}{seen}")
                 if path == "/act/retry":
                     broker = next((b for b in all_brokers() if b.slug == slug), None)
@@ -1096,8 +1138,8 @@ def _make_handler(app: App):
                     import_ca_registry()
                     return self._redirect("/?m=imported")
                 if path == "/act/make-drafts":
-                    actions.write_escalation_drafts(load_config(), datetime.now(UTC))
-                    return self._redirect("/?m=drafts")
+                    n = len(actions.write_escalation_drafts(load_config(), datetime.now(UTC)))
+                    return self._redirect(f"/?m=drafts&a={n}")
                 if path == "/act/cancel":
                     # Stops after the email in progress; everything sent so far is recorded.
                     if app.job.get("state") == "running":
@@ -1181,11 +1223,15 @@ def _fill_replies(ui, session, config) -> None:
         ui.inbox_status = f"Not reading replies: {problem}."
     else:
         err = inbox.last_error()
+        when = inbox.last_checked()
+        if err:
+            first = f"The last check for replies failed ({_ago(when)})."
+        elif when is None:
+            first = "Haven't checked for replies yet."
+        else:
+            first = f"Last checked for replies {_ago(when)}."
         ui.inbox_status = (
-            f"Replies checked {_ago(inbox.last_checked())}"
-            + (" (last attempt failed)" if err else "")
-            + ". Checks by itself every 15 minutes while the terminal running `optout ui` "
-            "stays open."
+            first + " Checks again by itself every 15 minutes while optout is running."
         )
     names = {b.slug: b.name for b in all_brokers()}
     contacted = {
@@ -1313,6 +1359,35 @@ def _settings_values(config) -> dict[str, str]:
         "sender": em.smtp.username if em.smtp else "",
         "host": em.smtp.host if em.smtp else "",
     }
+
+
+_OUTCOME_WORDS = {
+    "deleted": "they deleted it or have no data",
+    "no-data": "they have no data on you",
+    "denied": "they said no",
+    "need-info": "they want you to do something",
+    "auto-reply": "only an automated reply",
+    "close": "closed: doesn't apply to you",
+    "ignore": "not about your request",
+}
+
+_CHECKBOXES = ("allow_unattended", "mark_replies_read", "fetch_after_batch", "contributor_tools")
+_SECRET_FIELDS = {"csrf", "backup_key", "password"}
+
+
+def _unsaved(form: dict[str, str]) -> dict[str, str]:
+    """The settings form as typed, to refill the page after a failed save (never secrets)."""
+    out = {k: v for k, v in form.items() if k not in _SECRET_FIELDS and not k.startswith("group_")}
+    for box in _CHECKBOXES:
+        out[box] = "on" if form.get(box) == "on" else ""
+    if form.get("groups_present") == "1":
+        out["my_groups"] = ",".join(
+            k.removeprefix("group_")
+            for k, v in form.items()
+            if k.startswith("group_") and v == "on"
+        )
+        out["groups_set"] = "1"
+    return out
 
 
 def _int(text: str) -> int:

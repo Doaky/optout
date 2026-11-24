@@ -3,7 +3,9 @@
 </p>
 <h1 align="center">optout</h1>
 <p align="center">
-  <b>Get your personal data deleted from data brokers, from your own computer.</b>
+  <b>Get your personal data deleted from data brokers, from your own computer.</b><br>
+  A free, open-source, self-hosted alternative to paid data-removal services like DeleteMe,
+  Incogni and Optery.
 </p>
 <p align="center">
   <a href="https://github.com/Doaky/optout/actions/workflows/ci.yml"><img src="https://github.com/Doaky/optout/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -12,7 +14,8 @@
   <img src="https://img.shields.io/badge/runs-locally-2a78d6" alt="Runs locally">
 </p>
 
-optout emails deletion requests to the ~600 data brokers registered with the State of
+optout removes your personal information from data brokers and people-search sites. It
+emails deletion requests to the ~600 data brokers registered with the State of
 California (plus a few hundred more from public lists), reads their replies, keeps track of
 each legal deadline, and helps you follow up with the ones that ignore you. It runs entirely
 on your machine: your details never go to any server except the brokers you choose to email.
@@ -21,7 +24,7 @@ It's for one person: you. Each friend who wants to use it runs their own copy.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/dashboard-dark.png">
-  <img src="docs/dashboard.png" alt="The optout dashboard: progress bar, totals for requests sent, broker says done, need you and sent today, then the Needs you list with one row per broker and buttons to act on it">
+  <img src="docs/dashboard.png" alt="The optout dashboard: a headline saying how many brokers need you, a bar showing how many brokers are done, totals for requests sent and broker says done, then the Needs you list split into Time-sensitive and Everything else, each broker with the reply quote and buttons to act on it">
 </picture>
 
 <sub>Sample data shown.</sub>
@@ -164,15 +167,16 @@ dashboard is open, and whenever you click **Check for replies** at the top. Clea
 it isn't sure about wait under **Broker replies**: open the email, pick *What did they say?*,
 or use *Ask Claude to sort these* to copy a prompt for Claude and paste its answer back.
 
-<img src="docs/screenshots/replies.png" width="760" alt="Broker replies: four replies the tool wasn't sure about, each with the sender, subject, a Show the email toggle and a What did they say? menu">
+<img src="docs/screenshots/replies.png" width="760" alt="Broker replies: three replies the tool wasn't sure about, each with the sender, subject, a Show the email toggle, a Which broker? box, a What did they say? menu and a Save button">
 
 ### 4. Clear "Needs you"
 
 **Needs you** at the top of the dashboard is your to-do list: brokers that asked for
 something (usually their own form; the link is there), said no, or missed their legal
 deadline. Each row has the buttons for what to do next: *I did what they asked*,
-*Appeal*, *Follow up*, or *Doesn't apply to me*. **Send all follow-ups** emails every
-overdue broker a short reminder in one go. Appeals and Attorney General complaints are
+*Write appeal draft*, *Write follow-up draft*, or *Close: doesn't apply to me*.
+**Send N follow-up emails** asks first, then emails every overdue broker a short reminder
+in one go. Appeals and Attorney General complaints are
 written as drafts for you to copy; they're never sent for you.
 
 ### 5. Keep an eye on the rest
@@ -181,12 +185,12 @@ written as drafts for you to copy; they're never sent for you.
 its deadline. Filter by status, search, or use a row's **⋯** menu to write a reminder, send
 again, set the status by hand, or stop contacting that broker.
 
-<img src="docs/screenshots/requests.png" width="760" alt="Requests table: broker, status (awaiting reply, broker says done, removed (verified), failed to send), date sent, time left until the deadline, latest reply, and a menu per row">
+<img src="docs/screenshots/requests.png" width="760" alt="Requests table: filter pills by status, a search box, then each broker with its status (awaiting reply, broker says done, broker said no, waiting on you), date sent, deadline, latest reply, and a menu per row">
 
 Click a broker's name for its own page: record a reply you got some other way, write a
 follow-up, appeal or complaint draft, and see its full history.
 
-<img src="docs/screenshots/broker-page.png" width="760" alt="A broker's page: record their reply, write a follow-up, include or skip this broker, mark a follow-up as sent, and a history of created, submitted and rejection received">
+<img src="docs/screenshots/broker-page.png" width="760" alt="A broker's page: record their reply, write a follow-up, include or skip this broker, mark a follow-up as sent, and the request's history">
 
 ### Web forms and people-search sites
 
@@ -211,7 +215,7 @@ a per-broker reply address, automatic confirm links, time zone, sending each day
 automatically, groups you belong to (to skip brokers that only cover, say, doctors or
 real estate agents), encrypted backups, and your app password.
 
-<img src="docs/screenshots/settings.png" width="760" alt="Settings: About you (name, date of birth, address, phone, previous addresses), Sending (emails per 24 hours, re-send after days, pause between emails, per-broker reply address, confirm links, time zone, send automatically at), Groups, Backups, and App password">
+<img src="docs/screenshots/settings.png" width="760" alt="Settings: About you (name, date of birth, address, state, phone, previous addresses), Sending (emails per 24 hours, re-send after days, pause between emails, send-as address, per-broker reply address, confirm links, time zone, send automatically at), folded Groups, Backups and Help improve sections, Save settings, and the app password">
 
 They're saved to `~/.config/optout/config.yml`. Every setting is described in
 [`examples/config.example.yml`](examples/config.example.yml). Two worth knowing:
@@ -352,6 +356,33 @@ and the branch keeps only the latest copy. Change the `cron:` line for weekly ru
   request" links from known broker senders, and only when you allow it.
 - A request is only marked removed after a later re-search shows the listing gone.
 - It never asks for an SSN, ID, or payment details.
+
+## FAQ
+
+**How do I remove my personal information from data brokers?**
+Each broker has to be asked separately, and most take weeks to answer. optout does the
+asking for you: it emails each one a deletion request under your state's privacy law,
+reads the replies, and tells you which ones still need something from you. See
+[Setup](#setup-about-5-minutes) and [Your first week](#your-first-week).
+
+**Is this a free alternative to DeleteMe, Incogni or Optery?**
+Yes, with one difference: you run it yourself. The requests come from your own email
+address and your details stay on your computer, but there's no team doing the
+web-form-only brokers for you. optout prepares those, and an AI browser helper can fill
+them in.
+
+**Which laws does it cite?**
+Your state's consumer privacy law, quoted word for word from the official text, for
+the states listed in [COMPLIANCE.md](COMPLIANCE.md). Everywhere else, the emails use
+general wording. California residents should also use the state's free DROP portal.
+
+**Does it send my data anywhere?**
+Only to the brokers you choose to email, from your own account. See
+[Privacy and safety](#privacy-and-safety).
+
+**Do I need Gmail?**
+No. Any provider with SMTP and IMAP works; Gmail adds labels and one-click links. See
+[Which email providers work](#which-email-providers-work).
 
 ## For developers
 

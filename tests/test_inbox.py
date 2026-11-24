@@ -1333,3 +1333,9 @@ def test_only_replies_matched_to_a_request_are_marked_read(session, world, monke
     monkeypatch.setattr("optout.engine.methods.email.read_smtp_password", lambda s: "pw")
     n = ib._mark_recognised_read(session, Cfg, [matched, stranger])
     assert marked == ["<m1@x>"] and n == 1
+
+    # During a check, the connection that's already open is used: no second login.
+    monkeypatch.setattr("optout.gmail_label.GmailLabeler", None)  # opening one would fail
+    marked.clear()
+    assert ib._mark_recognised_read(session, Cfg, [matched, stranger], FakeGmail()) == 1
+    assert marked == ["<m1@x>"]

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 STATUS_LABEL: dict[str, str] = {
     "queued": "Queued",
-    "awaiting_user_input": "⚡ Needs you",
+    "awaiting_user_input": "⚡ Waiting on you",
     "submitted": "Submitted",
     "awaiting_broker_confirmation": "Awaiting reply",
     "confirmed": "Broker says done",

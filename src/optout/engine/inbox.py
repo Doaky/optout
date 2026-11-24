@@ -12,6 +12,7 @@ import html
 import json
 import re
 from collections.abc import Iterable
+from contextlib import ExitStack
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from email import message_from_bytes, policy
@@ -764,7 +765,7 @@ def open_mailbox(config, *, label: str | None = None, mark_read: bool = False):
     )
 
 
-def _mark_recognised_read(session: Session, config, mails: list[ParsedMail]) -> int:
+def _mark_recognised_read(session: Session, config, mails: list[ParsedMail], mailbox=None) -> int:
     """Mark the replies just read in that were matched to one of our requests as read in
     Gmail. Mail we couldn't place (left for you to review) stays unread. Best effort: a
     Gmail hiccup never fails the sync."""
@@ -785,6 +786,11 @@ def _mark_recognised_read(session: Session, config, mails: list[ParsedMail]) -> 
     )
     if not matched:
         return 0
+    if mailbox is not None:  # the connection the check already has open
+        try:
+            return mailbox.mark_read_message_ids(sorted(matched))
+        except Exception:
+            return 0
     smtp = config.email.smtp
     try:
         with GmailLabeler(
@@ -806,7 +812,7 @@ def run_sync(config, *, dry_run: bool = False) -> SyncReport:
     load_registry()
     brokers = {b.slug: b for b in all_brokers()}
     try:
-        with get_session() as session:
+        with get_session() as session, ExitStack() as mailboxes:
             subs = list(session.exec(select(Submission)))
             idx = build_index(subs, brokers, config.email.alias_pattern, reply_senders(session))
             from ..forms import pending_followup
@@ -821,34 +827,36 @@ def run_sync(config, *, dry_run: bool = False) -> SyncReport:
             expected = expected_addresses(session, brokers, subs)
             seen = set(session.exec(select(InboxMessage.message_id)).all())
             label = config.email.gmail_label or "OPTOUT"
-            with open_mailbox(
-                config, label=label, mark_read=config.email.mark_replies_read
-            ) as gmail:
-                gmail.label_replies(expected, since=since)
-                raws = gmail.fetch_replies(seen, since=since)
-                # Replies saved before display names were recorded: fetch just the header.
-                nameless = session.exec(
+            # Kept open for the whole check: marking replies read later reuses it (no second
+            # login, and the messages it already found need no search).
+            gmail = mailboxes.enter_context(
+                open_mailbox(config, label=label, mark_read=config.email.mark_replies_read)
+            )
+            gmail.label_replies(expected, since=since)
+            raws = gmail.fetch_replies(seen, since=since)
+            # Replies saved before display names were recorded: fetch just the header.
+            nameless = session.exec(
+                select(InboxMessage).where(
+                    InboxMessage.from_name == "",
+                    InboxMessage.state.in_(("applied", "review")),  # type: ignore[attr-defined]
+                )
+            ).all()
+            found = gmail.display_names([r.message_id for r in nameless]) if nameless else {}
+            reparsed = 0
+            if not dry_run and parser_version_seen() < PARSER_VERSION:
+                saved = session.exec(
                     select(InboxMessage).where(
-                        InboxMessage.from_name == "",
-                        InboxMessage.state.in_(("applied", "review")),  # type: ignore[attr-defined]
+                        InboxMessage.state.in_(("applied", "review", "resolved"))  # type: ignore[attr-defined]
                     )
                 ).all()
-                found = gmail.display_names([r.message_id for r in nameless]) if nameless else {}
-                reparsed = 0
-                if not dry_run and parser_version_seen() < PARSER_VERSION:
-                    saved = session.exec(
-                        select(InboxMessage).where(
-                            InboxMessage.state.in_(("applied", "review", "resolved"))  # type: ignore[attr-defined]
-                        )
-                    ).all()
-                    for r in saved:
-                        raw = gmail.fetch_message(r.message_id)
-                        if raw:
-                            fresh = parse_message(raw)
-                            r.text, r.from_name = fresh.text, fresh.from_name or r.from_name
-                            session.add(r)
-                            reparsed += 1
-                    mark_parser_version()
+                for r in saved:
+                    raw = gmail.fetch_message(r.message_id)
+                    if raw:
+                        fresh = parse_message(raw)
+                        r.text, r.from_name = fresh.text, fresh.from_name or r.from_name
+                        session.add(r)
+                        reparsed += 1
+                mark_parser_version()
             for r in nameless:
                 if found.get(r.message_id):
                     r.from_name = found[r.message_id]
@@ -872,7 +880,7 @@ def run_sync(config, *, dry_run: bool = False) -> SyncReport:
                 mark_rules_version()
             report = process(session, mails, idx, dry_run=dry_run)
             if not dry_run and config.email.mark_replies_read and uses_gmail(config):
-                report.marked_read = _mark_recognised_read(session, config, mails)
+                report.marked_read = _mark_recognised_read(session, config, mails, gmail)
             if not dry_run:
                 report.closed = auto_close_out_of_scope(session, config)
                 disable_bounced(session)

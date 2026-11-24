@@ -376,7 +376,7 @@ class TestSubmitCommand:
             result = runner.invoke(app, ["submit"])
 
         assert result.exit_code == 0
-        assert "Needs you" in result.output
+        assert "Waiting on you" in result.output
 
     def test_submit_broker_flag_filters(self, _cli_env, engine) -> None:
         runner.invoke(app, ["queue"])  # queue all

@@ -129,6 +129,43 @@ def list_drafts() -> list[Path]:
     return sorted(d.glob("*.txt")) if d.exists() else []
 
 
+DRAFT_KIND_TITLES = {
+    "followup": "Follow-up",
+    "appeal": "Appeal",
+    "complaint": "Complaint",
+    "clarify": "Clarification",
+}
+
+
+def draft_info(name: str) -> tuple[str, str]:
+    """(broker slug, kind) from a draft's file name, e.g. acme-data-followup-20261124.txt."""
+    import re
+
+    m = re.fullmatch(r"(.+)-(followup|appeal|complaint|clarify)-\d{8}\.txt", name)
+    return (m.group(1), m.group(2)) if m else ("", "")
+
+
+def draft_title(name: str, broker_names: dict[str, str]) -> str:
+    """A readable title for a draft: "Follow-up to ACE Agents Inc."."""
+    slug, kind = draft_info(name)
+    if not kind:
+        return name
+    return f"{DRAFT_KIND_TITLES[kind]} to {broker_names.get(slug, slug)}"
+
+
+def file_sent_drafts(slug: str, kind: str) -> int:
+    """Move a broker's drafts of this kind into drafts/sent once you've sent one, so the
+    list shows only what's still to send. Returns how many were moved."""
+    moved = 0
+    done = drafts_dir() / "sent"
+    for p in list_drafts():
+        if draft_info(p.name) == (slug, kind):
+            done.mkdir(parents=True, exist_ok=True)
+            p.replace(done / p.name)
+            moved += 1
+    return moved
+
+
 def _safe_name(text: str) -> str:
     import re
 

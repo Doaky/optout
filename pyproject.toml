@@ -10,7 +10,21 @@ readme = "README.md"
 license = "AGPL-3.0-only"
 requires-python = ">=3.12,<3.14"
 authors = [{ name = "gr8p3" }]
-keywords = ["privacy", "ccpa", "cpra", "data-broker", "opt-out", "playwright", "automation"]
+keywords = [
+    "privacy",
+    "data-broker",
+    "data-removal",
+    "data-broker-removal",
+    "opt-out",
+    "people-search",
+    "personal-information",
+    "deletion-request",
+    "ccpa",
+    "vcdpa",
+    "state-privacy-law",
+    "deleteme-alternative",
+    "self-hosted",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
@@ -19,7 +33,9 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "Topic :: Internet :: WWW/HTTP :: Browsers",
+    "Environment :: Web Environment",
+    "Topic :: Communications :: Email",
+    "Topic :: Security",
     "Topic :: Utilities",
 ]
 dependencies = [
@@ -36,9 +52,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Blake104/OptOut"
-Repository = "https://github.com/Blake104/OptOut"
-"Bug Tracker" = "https://github.com/Blake104/OptOut/issues"
+Homepage = "https://github.com/Doaky/optout"
+Repository = "https://github.com/Doaky/optout"
+Documentation = "https://github.com/Doaky/optout#readme"
+"Bug Tracker" = "https://github.com/Doaky/optout/issues"
 
 [project.scripts]
 optout = "optout.cli:app"

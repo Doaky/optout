@@ -197,7 +197,9 @@ def apply_form(cfg: UserConfig, form: dict[str, str]) -> UserConfig:
     data["timezone"] = form.get("timezone", "").strip() or None
     # Groups: only once the user has seen the section (the form says so), otherwise a save
     # from an old page must not wipe the setting.
-    if form.get("groups_present") == "1":
+    if form.get("groups_none") == "on" and not any(form.get(f"group_{g}") == "on" for g in GROUPS):
+        data["my_groups"] = []  # said so outright: skip brokers that only cover groups
+    elif form.get("groups_present") == "1":
         picked = [g for g in GROUPS if form.get(f"group_{g}") == "on"]
         data["my_groups"] = expand_groups(picked)
     if "backup_dir" in form:

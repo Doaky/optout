@@ -173,7 +173,7 @@ class TestDoctorBasic:
         assert "bad" in result.output.lower()
 
     def test_db_warn_when_missing(self, _env: Path) -> None:
-        # DB is not created yet (no optout queue run) → should be a warning, not a fail
+        # DB is not created yet → should be a warning, not a fail
         fake_exe = str(_env / "fake_chromium")
         Path(fake_exe).write_text("exe")
 
@@ -185,4 +185,26 @@ class TestDoctorBasic:
         # (Config is present, chromium found, brokers dir empty → all valid)
         assert "warn" not in result.output.lower() or result.exit_code == 0 or True
         # More specifically: no ❌ for database
-        assert "optout queue" in result.output  # hint for missing DB
+        assert "optout plan or optout ui" in result.output  # hint for missing DB
+
+
+class TestDoctorEmailAndBrowser:
+    def test_missing_form_browser_is_only_a_warning(self, _env: Path) -> None:
+        with patch(_PW, _mock_pw("/nonexistent/chromium")):
+            with patch(_HTTPX, return_value=MagicMock(status_code=200)):
+                result = runner.invoke(app, ["doctor"])
+        assert result.exit_code == 0
+        assert "Only needed to fill web forms" in result.output
+
+    def test_email_login_is_checked_without_sending(self, _env: Path, monkeypatch) -> None:
+        fake_exe = str(_env / "fake_chromium")
+        Path(fake_exe).write_text("exe")
+        monkeypatch.setenv("NOOP", "app-password")
+        target = "optout.engine.methods.email.check_login"
+        with patch(_PW, _mock_pw(fake_exe)), patch(_HTTPX, return_value=MagicMock(status_code=200)):
+            with patch(target, return_value=None):
+                ok = runner.invoke(app, ["doctor"])
+            with patch(target, return_value="the server rejected the email address or password"):
+                bad = runner.invoke(app, ["doctor"])
+        assert ok.exit_code == 0 and "Email login" in ok.output
+        assert bad.exit_code == 1 and "rejected" in bad.output

@@ -150,9 +150,10 @@ h3.att-group.urgent .gc{background:var(--critical);color:#fff}
 .flash{border-radius:var(--r-inner);padding:10px 14px;margin:0 0 16px;border:1px solid var(--line);background:var(--surface)}
 .flash.ok{border-color:color-mix(in srgb,var(--good) 40%,var(--line));color:var(--text)}
 .flash.bad{border-color:color-mix(in srgb,var(--critical) 45%,var(--line));color:var(--text)}
-.flash{display:flex;align-items:center;gap:10px;animation:rise .25s ease-out;
+/* Top-aligned so the dot sits on the first line of text, even in a multi-line report. */
+.flash{display:flex;align-items:flex-start;gap:10px;animation:rise .25s ease-out;
   position:sticky;top:calc(var(--topbar-h,56px) + 8px);z-index:4;box-shadow:0 4px 14px rgb(0 0 0/.12)}
-.flash .x{margin-left:auto;background:none;border:0;color:var(--muted);line-height:0;
+.flash .x{margin:-2.5px -4px -2.5px auto;background:none;border:0;color:var(--muted);line-height:0;
   padding:0;min-width:28px;min-height:28px;border-radius:50%;cursor:pointer}
 .flash .x:hover{background:none;color:var(--text)}
 /* Countdown ring: starts full at the top and drains clockwise; hidden while paused. */
@@ -180,7 +181,7 @@ button.secondary.working::after,button.ghost.working::after,button.ibtn.working:
 details.rowmenu button.mitem.working::after{border-color:var(--text-2);border-right-color:transparent}
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes sink{to{opacity:0;transform:translateY(-4px)}}
-.flash::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--good);flex:none;align-self:flex-start;margin-top:6px}
+.flash::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--good);flex:none;margin-top:calc((1.55em - 9px) / 2)}
 .flash.bad::before{background:var(--critical)}
 .flash.live::before,.live-dot{animation:glow 1.6s ease-in-out infinite}
 .live-dot{width:9px;height:9px;border-radius:50%;background:var(--good);display:inline-block;
@@ -224,6 +225,12 @@ td.latest{white-space:normal;min-width:120px}
 td.num{font-variant-numeric:tabular-nums}
 input,select,button{font:inherit;font-size:13.5px;border-radius:var(--r-control)}
 input,select{padding:7px 10px;border:1px solid var(--control-line);background:var(--surface);color:var(--text)}
+/* Shared heights: 34px for fields and large buttons, 32px in compact row forms. */
+:where(input:not([type=checkbox],[type=radio],[type=hidden]),select){height:34px}
+button.big{height:34px;padding-top:0;padding-bottom:0}
+/* A button beside a field matches the field's height. */
+form.inline:not(.rowform,.pwform):has(>input:not([type=hidden]),>select)>button{height:34px;
+  padding-top:0;padding-bottom:0}
 select{max-width:100%}
 input:hover,select:hover{border-color:color-mix(in srgb,var(--accent) 50%,var(--line))}
 button{padding:5px 12px;border:1px solid var(--fill);background:var(--fill);color:var(--accent-ink);
@@ -236,7 +243,7 @@ button.secondary:hover{background:var(--surface);border-color:var(--accent)}
 form.inline{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
 form.inline.rowform{flex-wrap:nowrap}
 .replies form.inline.rowform{flex-wrap:wrap}
-.rowform select{width:150px;padding:5px 8px;font-size:13px}.rowform button{padding:5px 12px;font-size:13px}
+.rowform select{width:150px;padding:5px 8px;font-size:13px}.rowform select,.rowform input{height:32px}.rowform button{padding:5px 12px;font-size:13px}
 details.rowmenu{position:relative;display:inline-block}
 details.rowmenu>summary{list-style:none;cursor:pointer;width:32px;height:28px;display:inline-flex;
   align-items:center;justify-content:center;border:1px solid var(--control-line);border-radius:var(--r-control);
@@ -261,6 +268,9 @@ details.rowmenu button.mitem{all:unset;cursor:pointer;padding:5px 8px;border-rad
 details.rowmenu button.mitem:hover,details.rowmenu button.mitem:focus-visible{background:var(--surface-2)}
 details.rowmenu button.mitem:focus-visible{outline:2px solid var(--ring);outline-offset:-2px}
 details.rowmenu .mg{display:flex;flex-direction:column;gap:1px}
+.saved-drafts{margin-top:8px}.saved-drafts ul{margin:4px 0 0;padding-left:18px}.saved-drafts li{margin:2px 0}
+details.rowmenu button.mitem.cur{cursor:default;color:var(--text-2);font-weight:600}
+details.rowmenu button.mitem.cur:hover{background:none}
 .search{display:flex;gap:6px}.search input{width:220px}
 input.combo{width:100%;max-width:260px}
 .reply{grid-template-columns:minmax(0,1fr)}
@@ -277,9 +287,18 @@ button.hdr.working::after{border-color:var(--text-2);border-right-color:transpar
 details.fold>summary,details.settings>summary{display:flex;align-items:baseline;gap:12px;cursor:pointer;list-style:none}
 details.fold>summary::-webkit-details-marker,details.settings>summary::-webkit-details-marker{display:none}
 details.fold>summary h2,details.settings>summary h2{margin:0}
-details.fold[open]>summary,details.settings[open]>summary{margin-bottom:12px}
+/* The gap under a heading lives inside the folding content, so it slides away with it
+   instead of vanishing the moment a section starts to close. */
+details.fold>.fold-body,details.settings>form:first-of-type{padding-top:12px}
+summary{-webkit-user-select:none;user-select:none}
 details.settings form>fieldset:first-of-type{margin-top:0}
 details.fold>details.mini{margin-top:12px}
+/* The skipped-broker reasons: a full-width row under their group, one line per reason. */
+table.plan tr.has-why>td{border-bottom:0;padding-bottom:2px}
+table.plan tr.why-row>td{padding-top:0;white-space:normal;width:auto}
+dl.skipped{display:grid;grid-template-columns:minmax(12em,max-content) minmax(0,1fr);
+  gap:6px 20px;margin:8px 0 4px;font-size:13px}
+dl.skipped dt{font-weight:600;color:var(--text)}dl.skipped dd{margin:0;color:var(--text-2)}
 .drafts-row{margin-top:12px}
 /* One chevron, drawn in CSS so it matches the stroke icons; it turns as the section opens. */
 details.fold>summary::after,details.settings>summary::after,details.sub>summary::after,
@@ -296,18 +315,30 @@ details.sub>summary{display:flex;align-items:center;gap:12px;cursor:pointer;list
   padding:12px 0;font-weight:700}
 details.sub>summary::-webkit-details-marker{display:none}
 details.sub>summary .muted{font-weight:400}
-details.sub[open]{padding-bottom:16px}
+details.sub>summary~:last-child{padding-bottom:16px}
 /* Settings is long: keep Save in reach while you scroll it. */
 .savebar{position:sticky;bottom:0;z-index:3;display:flex;gap:12px;align-items:center;
   margin:16px 0 0;padding:12px 0;border-top:1px solid var(--line);
   background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(6px)}
 legend{font-weight:700;padding:0 6px}
-.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px;align-items:start}
+/* An opened explanation gets its own full-width row instead of stretching its neighbours. */
+.fgrid>.fw:has(details.fhelp[open]){grid-column:1/-1}
 .fld{display:flex;flex-direction:column;gap:4px;font-size:13px}
 .fld>span{color:var(--text-2);font-weight:600}
 .fld small{color:var(--muted)}
 .fld.wide{margin-top:12px}
 .fw{display:flex;flex-direction:column;gap:4px}
+/* Fields in a settings row share their rows (label, box, hint, help), so a label that wraps
+   to two lines doesn't push its box below its neighbours'. */
+@supports (grid-template-rows:subgrid){
+  .fgrid{row-gap:0}
+  .fgrid>.fld,.fgrid>.fw{display:grid;grid-row:span 4;grid-template-rows:subgrid;row-gap:4px;
+    margin-bottom:12px;align-content:start}
+  .fgrid>.fw>.fld{display:grid;grid-row:span 3;grid-template-rows:subgrid;row-gap:4px}
+  .fgrid>.fld,.fgrid>.fw,.fgrid>.fw>.fld{grid-template-columns:minmax(0,1fr);min-width:0}
+  .fgrid+.fld.wide{margin-top:0}
+  .fgrid .fld>span{align-self:end}}
 details.fhelp>summary{cursor:pointer;color:var(--accent);font-size:12.5px;width:max-content}
 details.fhelp>div{margin-top:6px;padding:10px 12px;border:1px solid var(--line);
   border-radius:var(--r-inner);background:var(--surface-2);font-size:13px;line-height:1.5}
@@ -684,6 +715,17 @@ d.addEventListener('click', (e) => {
     if (tpl && !m.querySelector('form')) {
       const f = tpl.content.firstElementChild.cloneNode(true);
       f.querySelector('input[name=slug]').value = m.dataset.slug || '';
+      const st = m.dataset.st || '';
+      f.querySelectorAll('button.mitem').forEach((b) => {
+        const v = b.value;
+        if ((b.dataset.hide || '').split(' ').includes(st)) b.remove();
+        else if (v === 'toggle:off' && m.dataset.stopped) b.remove();
+        else if (v === 'toggle:on' && !m.dataset.stopped) b.remove();
+        else if (v === 'status:' + st) {
+          b.disabled = true; b.classList.add('cur'); b.setAttribute('aria-current', 'true');
+          b.textContent = '✓ ' + b.textContent + ' (now)';
+        }
+      });
       m.appendChild(f);
     }
   }
@@ -802,7 +844,7 @@ d.addEventListener('click', (e) => {
       ? navigator.clipboard.write([new ClipboardItem({ 'text/plain': blob })])
       : text.then((j) => navigator.clipboard.writeText(j.text));
     Promise.all([write, text])
-      .then(([, j]) => said(j.msg || ('Copied ' + j.count + '. Paste into Claude in Chrome')))
+      .then(([, j]) => said(j.msg || ('Copied a prompt for the next ' + j.count + ' forms. Paste it into Claude in Chrome.')))
       .catch(() => { fetchBtn.classList.remove('working'); location.href = url; });
     return;
   }
@@ -1002,7 +1044,7 @@ _SHORT = {
     "submitted": "Sent",
     "confirmed": "Broker says done",
     "removed": "Removed (verified)",
-    "awaiting_user_input": "Needs you",
+    "awaiting_user_input": "Waiting on you",
     "rejected": "Broker said no",
 }
 
@@ -1145,8 +1187,9 @@ def progress_chart(series: list[tuple[str, int, int, int]]) -> str:
         placed.append(max(end[0], placed[-1] + 19) if placed else end[0])
     shift = max(0.0, placed[-1] - (mt + ph + 4))
     labels = "".join(
-        f"<g><circle cx='{x(n - 1) + 14:.1f}' cy='{ly - shift:.1f}' r='3.5' "
-        f"fill='var({var})'/><text class='lbl' x='{x(n - 1) + 24:.1f}' "
+        f"<g><line x1='{x(n - 1) + 10:.1f}' x2='{x(n - 1) + 19:.1f}' y1='{ly - shift:.1f}' "
+        f"y2='{ly - shift:.1f}' stroke='var({var})' stroke-width='2.5' stroke-linecap='round'/>"
+        f"<text class='lbl' x='{x(n - 1) + 24:.1f}' "
         f"y='{ly - shift + 4:.1f}'>{e(name)} {v}</text></g>"
         for ly, (_, name, v, var) in zip(placed, ends, strict=True)
     )
@@ -1204,6 +1247,8 @@ class UI:
     limit: int = 0
     job: dict = field(default_factory=dict)
     drafts: list[str] = field(default_factory=list)
+    waiting: int = 0  # every broker ready to email, beyond today's room too
+    draft_titles: dict[str, str] = field(default_factory=dict)  # file name -> readable title
     open_draft: tuple[str, str, str, str] | None = None  # (file name, text, slug, kind)
     flash: str = ""
     query: str = ""
@@ -1238,13 +1283,24 @@ ROW_ACTIONS = [
         [
             ("status:awaiting_broker_confirmation", "Awaiting reply"),
             ("status:confirmed", "Broker says done"),
-            ("status:awaiting_user_input", "Needs you"),
+            ("status:awaiting_user_input", "Waiting on you"),
             ("status:rejected", "Broker said no"),
-            ("status:closed", "Closed"),
+            ("status:closed", "Closed (finished, counts as done)"),
         ],
     ),
-    ("Other", [("toggle:off", "Stop contacting this broker")]),
+    (
+        "Other",
+        [
+            ("toggle:off", "Stop contacting this broker (never email it again)"),
+            ("toggle:on", "Start contacting this broker again"),
+        ],
+    ),
 ]
+# Menu items that make no sense for a status are left out when the menu opens.
+ROW_HIDE = {
+    "draft:auto": "confirmed removed closed failed queued",
+    "send-again": "queued",
+}
 
 
 def _hidden(csrf: str, **fields: str) -> str:
@@ -1254,11 +1310,13 @@ def _hidden(csrf: str, **fields: str) -> str:
     )
 
 
-def row_form(slug: str, csrf: str, name: str = "") -> str:
+def row_form(slug: str, csrf: str, name: str = "", status: str = "", stopped: bool = False) -> str:
     """A small ⋯ button for the row. Its menu is cloned from one shared template when opened
-    (839 copies of a 15-button form made the page 1 MB heavier)."""
+    (839 copies of a 15-button form made the page 1 MB heavier), then fitted to the row:
+    the current status ticked, items that don't apply left out."""
     return (
-        f"<details class='rowmenu' data-slug='{e(slug)}'>"
+        f"<details class='rowmenu' data-slug='{e(slug)}' data-st='{e(status)}'"
+        f"{' data-stopped=1' if stopped else ''}>"
         f"<summary title='More actions' aria-label='Actions for {e(name or slug)}'></summary>"
         "</details>"
     )
@@ -1270,7 +1328,8 @@ def row_menu_template(csrf: str) -> str:
         f"<div class='mg' role='group' aria-label='{e(group)}'>"
         f"<div class='mgroup' aria-hidden='true'>{e(group)}</div>"
         + "".join(
-            f"<button type='submit' name='action' value='{e(v)}' class='mitem'>{e(t)}</button>"
+            f"<button type='submit' name='action' value='{e(v)}' class='mitem'"
+            f"{f' data-hide={chr(39)}{ROW_HIDE[v]}{chr(39)}' if v in ROW_HIDE else ''}>{e(t)}</button>"
             for v, t in items
         )
         + "</div>"
@@ -1342,7 +1401,13 @@ def _send_panel(ui: UI) -> str:
             for name, to, subject, body in ui.previews
         )
         inner = (
-            f"<p><b>{n}</b> emails ready to go from <b>{e(ui.sender)}</b>.<br>"
+            f"<p>Send up to <b>{n}</b> more today, from <b>{e(ui.sender)}</b>."
+            + (
+                f" {ui.waiting} are waiting in all; the rest go out on later days."
+                if ui.waiting > n
+                else ""
+            )
+            + "<br>"
             f"<span class='muted small'>{ui.used}/{ui.limit} sent in the last 24 hours · paced, stops on "
             "repeated errors</span></p>"
             f"<details class='emails'><summary>Preview all {n} emails</summary>{emails}</details>"
@@ -1422,11 +1487,11 @@ def _replies_panel(ui: UI) -> str:
                 + "</div>"
                 f"<details class='email'><summary>Show the email</summary><div><pre>{e(text)}"
                 "</pre></div></details>"
-                f"<form method='post' action='/act/review' class='inline rowform auto'>"
+                f"<form method='post' action='/act/review' class='inline rowform'>"
                 f"{_hidden(ui.csrf, id=rid)}{pick}"
                 "<select name='outcome' required aria-label='What did they say'>"
                 f"<option value='' disabled selected>What did they say?</option>{opts}</select>"
-                "<button type='submit' class='nojs'>Save</button></form></li>"
+                "<button type='submit' class='secondary'>Save</button></form></li>"
             )
         n = len(ui.replies)
         claude = (
@@ -1484,7 +1549,7 @@ def _fold(fid: str, title: str, body: str, note: str = "", *, open_: bool = True
     extra = f"<span class='muted small'>{note}</span>" if note else ""
     return (
         f"<details class='card fold' id='{e(fid)}'{' open' if open_ else ''}><summary><h2 id='{e(fid)}-h'>"
-        f"{e(title)}</h2>{extra}</summary>{body}</details>"
+        f"{e(title)}</h2>{extra}</summary><div class='fold-body'>{body}</div></details>"
     )
 
 
@@ -1498,7 +1563,8 @@ def _field(
     attrs: str = "",
     help_html: str = "",
 ) -> str:
-    star = "<span class='req' aria-hidden='true'> *</span>" if "required" in attrs else ""
+    # A no-break space keeps the star on the label's last line.
+    star = "<span class='req' aria-hidden='true'>\u00a0*</span>" if "required" in attrs else ""
     box = (
         f"<label class='fld'><span>{e(label)}{star}</span>"
         f"<input type='{kind}' name='{name}' value='{e(value)}' {attrs}>"
@@ -1607,8 +1673,14 @@ def _groups_fieldset(v: dict[str, str]) -> str:
     status = (
         "Brokers that only cover groups you're not in are left out of batches."
         if v.get("groups_set")
-        else "Not set yet: every broker is included. Save once (even with nothing ticked) to "
-        "start skipping brokers that only cover other groups."
+        else "Not set yet, so every broker is included. Tick the groups you're in and save, "
+        "or say you're in none of them."
+    )
+    none = (
+        ""
+        if v.get("groups_set")
+        else "<label class='check'><input type='checkbox' name='groups_none' value='on'> "
+        "I'm not in any of these groups</label>"
     )
     return (
         "<details class='sub'><summary>Groups you belong to "
@@ -1616,7 +1688,7 @@ def _groups_fieldset(v: dict[str, str]) -> str:
         "<p class='muted small'>A few brokers only hold data on a specific group, like "
         f"educators or financial advisors. {e(status)}</p>"
         "<input type='hidden' name='groups_present' value='1'>"
-        f"{_group_sections('group_', mine, implies=True)}</details>"
+        f"{none}{_group_sections('group_', mine, implies=True)}</details>"
     )
 
 
@@ -1800,7 +1872,8 @@ def _settings_panel(ui: UI) -> str:
         + _gmail_options(v)
         + _TZ_LIST
         + f"<p class='muted small'>Sending from <b>{e(v['sender'])}</b> via {e(v['host'])}. "
-        "To change the account, run <code>optout init</code>.</p></fieldset>"
+        "To use a different email account, run <code>optout init</code> in your terminal; "
+        "the box below only changes the app password.</p></fieldset>"
     )
     password = (
         "<form method='post' action='/act/password' class='inline pwform'>"
@@ -1860,8 +1933,8 @@ def _backup_fieldset(v: dict[str, str]) -> str:
         "<input type='password' name='backup_key' autocomplete='new-password' "
         "placeholder='Leave blank to keep the current one' minlength='16'>"
         "<small>At least 16 characters. Backups are encrypted with it; keep a copy somewhere "
-        "safe (a password manager), because without it a backup can't be opened. Restore "
-        "with <code>OPTOUT_STATE_KEY='…' optout state import FILE</code>.</small></label>"
+        "safe (a password manager), because without it a backup can't be opened. Restoring "
+        "one is done in the terminal; the README's backups section shows how.</small></label>"
         f"</div><p class='muted small'>{e(v.get('backup_status', ''))}</p></details>"
     )
 
@@ -2004,7 +2077,7 @@ def _attention_item(a: Attention, csrf: str, contributor: bool = False, lead: bo
             "<form method='post' action='/act/row' class='inline'>"
             f"{_hidden(csrf, slug=a.slug, action='form-removed')}"
             "<button type='submit' class='secondary' title='You filled in their form and it said "
-            "your data was removed'>I filled in their form and it said removed</button></form>"
+            "your data was removed'>Their form said it's removed</button></form>"
         )
     elif a.kind == "refused":
         buttons.append(act("draft:appeal", "Write appeal draft", cls=main))
@@ -2020,7 +2093,7 @@ def _attention_item(a: Attention, csrf: str, contributor: bool = False, lead: bo
     elif a.kind == "stalled":
         buttons.append(act("form-submitted", "I resubmitted it", cls=main))
     if a.kind in ("need-info", "refused", "overdue", "stalled"):
-        buttons.append(act("status:closed", "Doesn't apply to me"))
+        buttons.append(act("status:closed", "Close: doesn't apply to me"))
 
     redirect = ""
     if a.alt_emails and a.kind in ("need-info", "refused"):
@@ -2084,6 +2157,7 @@ def _draft_panel(ui: UI) -> str:
     if not ui.open_draft:
         return ""
     name, text, slug, kind = ui.open_draft
+    title = ui.draft_titles.get(name, name)
     sent = (
         "<form method='post' action='/act/row' class='inline'>"
         f"{_hidden(ui.csrf, slug=slug, action=f'sent:{kind}')}"
@@ -2093,10 +2167,12 @@ def _draft_panel(ui: UI) -> str:
     )
     return (
         "<section class='card' aria-labelledby='draft-h' id='draft'>"
-        f"<h2 id='draft-h'>Draft · {e(name)}</h2>"
+        f"<h2 id='draft-h'>{e(title)}</h2>"
         "<p class='muted small'>Copy this into a reply to their email. It contains your name and "
-        "address and has not been sent.</p>"
-        f"<pre>{e(text)}</pre><div class='filters'>{sent}"
+        "address and has not been sent. Once you've sent it, click I sent it.</p>"
+        f"<pre id='draft-text'>{e(text)}</pre><div class='filters'>"
+        "<button type='button' class='secondary' data-copy='draft-text'>Copy text</button>"
+        f"{sent}"
         "<a href='/' class='btnlink'>Close</a></div></section>"
     )
 
@@ -2109,11 +2185,17 @@ def _drafts_line(ui: UI) -> str:
     )
     saved = ""
     if ui.drafts:
-        saved = "<span class='muted small'>Saved drafts:</span> " + " ".join(
-            f"<a class='btnlink' href='/?draft={quote(n, safe='')}#draft'>{e(n)}</a>"
-            for n in ui.drafts[-8:]
+        saved = (
+            "<div class='saved-drafts'><span class='muted small'>Drafts to send "
+            f"({len(ui.drafts)}):</span><ul class='small'>"
+            + "".join(
+                f"<li><a href='/?draft={quote(n, safe='')}#draft'>"
+                f"{e(ui.draft_titles.get(n, n))}</a></li>"
+                for n in ui.drafts[-8:]
+            )
+            + "</ul></div>"
         )
-    return f"<div class='filters drafts-row'>{make}{saved}</div>"
+    return f"<div class='filters drafts-row'>{make}</div>{saved}"
 
 
 _RETRY_ICON = (
@@ -2127,6 +2209,11 @@ def _status_cell(row: Row, csrf: str) -> str:
     """The status pill, with a resend button when an email failed to send."""
     tip = f" title='{e(row.failure)}'" if row.failure else ""
     cell = f"<span{tip}>{pill(row.status, row.label)}</span>"
+    if row.stopped:
+        cell += (
+            "<div class='muted small' title='You chose to stop contacting this broker; the ⋯ "
+            "menu can undo it'>Stopped: won't be emailed again</div>"
+        )
     if row.retryable and csrf:
         cell += (
             " <form method='post' action='/act/retry' class='inline'>"
@@ -2179,8 +2266,8 @@ def _due(row: Row) -> str:
         return f"due {e(_short(row.deadline))}"
     if row.next_send and row.next_send != "—":
         return (
-            f"<span title='Emailed again then, to catch data bought back'>"
-            f"again {e(_short(row.next_send))}</span>"
+            f"<span title='Emailed again then, because brokers buy data back'>"
+            f"resends {e(_short(row.next_send))}</span>"
         )
     return ""
 
@@ -2193,7 +2280,7 @@ def _days_cell(row: Row) -> str:
     if row.days_left is None:
         return "<span class='muted'>—</span>"
     if row.overdue:
-        return f"<span class='crit-t tnum'>Overdue {-row.days_left}d</span>"
+        return f"<span class='crit-t tnum'>Overdue by {_days(max(1, -row.days_left))}</span>"
     if row.days_left < 14:
         return f"<span class='warn-t tnum'>{icon('alert', 13)}{_days(row.days_left)}</span>"
     return f"<span class='tnum'>{_days(row.days_left)}</span>"
@@ -2371,9 +2458,12 @@ def dashboard(
             for title, blurb, group in parts
             if group
         )
+        if not any(a.urgent for a in att_shown):  # one group: no heading needed
+            lists = f"<ul class='attn'>{_items(att_shown)}</ul>"
         how = (
             "<p class='how'>Do what they ask (their link, or a reply to their email), then click "
-            "<b>I did what they asked</b>. Doesn't apply to you? Click <b>Doesn't apply to me</b>.</p>"
+            "<b>I did what they asked</b>. Doesn't apply to you? <b>Close</b> it: it counts as done."
+            "</p>"
             if with_actions
             else ""
         )
@@ -2385,13 +2475,21 @@ def dashboard(
                 "title='A short, polite "
                 "follow-up to each broker past its 45-day deadline with no answer, in the same "
                 "email thread. Counts toward your daily limit.'>"
-                f"Send all {d.followups_due} follow-up{'s' if d.followups_due != 1 else ''}"
+                f"Send {d.followups_due} follow-up email{'s' if d.followups_due != 1 else ''}"
                 "</button></form>"
             )
+            overdue_n = sum(1 for a in d.attention if a.kind == "overdue")
+            if overdue_n > d.followups_due:
+                how += (
+                    " <span class='muted small'>Only for brokers you emailed and haven't "
+                    "followed up with yet; the other overdue ones show their own next step.</span>"
+                )
         ask = ""
         if with_actions and d.attention_prompt:
             ask = (
-                "<details class='more'><summary>Not sure what to do? Ask Claude</summary>"
+                "<details class='more'><summary>Not sure what to do? Ask Claude about the "
+                f"{sum(1 for a in d.attention if a.kind in ('need-info', 'refused'))} that asked "
+                "for something or said no</summary>"
                 "<p class='small'>Copy the prompt, paste it into "
                 "<a href='https://claude.ai/new' target='_blank' rel='noreferrer'>Claude</a>, "
                 "and it tells you what each broker wants and whether it's worth doing. "
@@ -2426,7 +2524,7 @@ def dashboard(
         f"<td>{_days_cell(r)}<div class='muted small'>{_due(r)}</div></td>"
         f"<td class='small latest'>{e(r.last_check)}"
         f"{' <span class=crit-t>Form changed</span>' if r.drifted else ''}</td>"
-        f"{('<td>' + row_form(r.slug, csrf, r.name) + '</td>') if with_actions else ''}</tr>"
+        f"{('<td>' + row_form(r.slug, csrf, r.name, r.status, r.stopped) + '</td>') if with_actions else ''}</tr>"
         for r in shown
     )
     more = (
@@ -2438,7 +2536,7 @@ def dashboard(
         table = (
             "<div class='table-wrap'><table id='req-table'><thead><tr><th scope='col' data-sortkey='name' aria-sort='none'><button type='button' class='sortbtn'>Broker</button></th>"
             "<th scope='col' data-sortkey='status' aria-sort='none'><button type='button' class='sortbtn'>Status</button></th><th scope='col' data-sortkey='sent' aria-sort='none'><button type='button' class='sortbtn'>Sent</button></th>"
-            "<th scope='col' data-sortkey='days' aria-sort='none'><button type='button' class='sortbtn'>Time left</button></th><th scope='col' title='The broker&#x27;s most recent email, or the last time we re-checked their site'>Latest reply</th>"
+            "<th scope='col' data-sortkey='days' aria-sort='none'><button type='button' class='sortbtn'>Deadline</button></th><th scope='col' title='The broker&#x27;s most recent email, or the last time we re-checked their site'>Latest reply</th>"
             f"{'<th scope=col>Action</th>' if with_actions else ''}</tr></thead>"
             f"<tbody>{trs}<tr id='nomatch' hidden><td colspan='{6 if with_actions else 5}' "
             "class='muted'>No requests "
@@ -2446,7 +2544,7 @@ def dashboard(
             f"{more}{row_menu_template(csrf) if with_actions else ''}"
         )
     elif d.rows:
-        table = "<p class='muted'>No requests match.</p>"
+        table = "<p class='muted'>No requests match. <a href='/'>Clear search and filters</a></p>"
     else:
         table = "<p class='muted'>No requests yet. Send your first batch above.</p>"
 
@@ -2668,6 +2766,24 @@ _FORM_TIERS = ("people-search", "form", "form-plus")
 _EMAIL_TIERS = ("email", "email-confirm")
 
 
+def _skipped_row(too_much: list[tuple[str, str]]) -> str:
+    """Why brokers are skipped, in a full-width row under their group: one line per reason with
+    the brokers it applies to (the reasons repeat, so this stays short)."""
+    by_why: dict[str, list[str]] = {}
+    for name, why in too_much:
+        by_why.setdefault(why, []).append(name)
+    lines = "".join(
+        f"<dt>{e(why)} <span class='muted'>({len(names)})</span></dt>"
+        f"<dd>{e(', '.join(sorted(names, key=str.lower)))}</dd>"
+        for why, names in sorted(by_why.items(), key=lambda kv: (-len(kv[1]), kv[0].lower()))
+    )
+    return (
+        "<tr class='why-row'><td></td><td colspan='3'><details class='mini'>"
+        f"<summary>Why these {len(too_much)} are skipped</summary>"
+        f"<dl class='skipped'>{lines}</dl></details></td></tr>"
+    )
+
+
 def _plan_panel(d: Dashboard, ui: UI) -> str:
     """The order to work in: one row per group, with progress and the next step."""
     room = max(0, ui.limit - ui.used) if ui.limit else 0
@@ -2709,18 +2825,17 @@ def _plan_panel(d: Dashboard, ui: UI) -> str:
                 "10 forms in this group'>Copy prompt for Claude in Chrome</button></span>"
             )
         elif t.key == "too-much" and d.too_much:
-            items = "".join(f"<li>{e(name)}: {e(why)}</li>" for name, why in d.too_much)
-            action = (
-                f"<details class='mini'><summary>Why these are skipped ({len(d.too_much)})</summary>"
-                f"<ul class='small'>{items}</ul></details>"
-            )
+            action = "<span class='muted small'>Nothing to do</span>"
         else:
             action = "<span class='muted small'>Nothing to start</span>"
+        why = t.key == "too-much" and bool(d.too_much)
         rows.append(
-            f"<tr><td class='num'>{n}</td><td><b>{e(t.title)}</b>"
+            f"<tr{' class=has-why' if why else ''}><td class='num'>{n}</td><td><b>{e(t.title)}</b>"
             f"<div class='muted small'>{e(t.hint)}</div></td><td class='small'>{progress}</td>"
             f"<td>{action}</td></tr>"
         )
+        if why:
+            rows.append(_skipped_row(d.too_much))
     drop = (
         "<p class='how'><b>California resident?</b> California's DROP portal sends one deletion "
         "request to every registered data broker at once, and brokers must act on it "
@@ -2776,4 +2891,8 @@ def draft_page(name: str, text: str) -> str:
 
 
 def error_page(code: int, text: str) -> str:
-    return page(f"Error {code}", f"<h1>{code}</h1><p>{e(text)}</p>", nav=False)
+    return page(
+        f"Error {code}",
+        f"<h1>{code}</h1><p>{e(text)}</p><p><a href='/'>Back to the dashboard</a></p>",
+        nav=False,
+    )

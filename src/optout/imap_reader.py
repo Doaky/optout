@@ -15,7 +15,7 @@ import re
 from collections.abc import Callable, Iterable
 from datetime import date
 
-from .gmail_label import _ADDR_RE, SUBJECT, _q
+from .gmail_label import _ADDR_RE, SUBJECT, _q, fetch_bodies
 
 _MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 _MSGID_RE = re.compile(r"[A-Za-z0-9._%+@=-]+")
@@ -116,7 +116,7 @@ class ImapReader:
             uids.extend(u for u in self._search(*q) if u not in uids)
         uids = uids[-limit:]
         new = [u for u, mid in self._message_ids(uids).items() if mid not in already_seen]
-        return [raw for u in new if (raw := self._fetch(u))]
+        return fetch_bodies(self._conn, new)
 
     def display_names(self, message_ids: list[str]) -> dict[str, str]:
         from email.utils import parseaddr

@@ -2377,32 +2377,22 @@ def doctor() -> None:
             )
         )
 
-    # ── 2. Playwright + Chromium ─────────────────────────────────────────────
+    # ── 2. Browser for automatic form filling (optional) ──────────────────────
+    _form_hint = (
+        "Only needed to fill web forms automatically. Run: playwright install chromium "
+        "(or install Google Chrome)."
+    )
     try:
         from playwright.sync_api import sync_playwright
 
         with sync_playwright() as pw:
             exe = pw.chromium.executable_path
         if Path(exe).exists():
-            results.append(Check("Playwright / Chromium", "pass", exe))
+            results.append(Check("Form-filling browser", "pass", exe))
         else:
-            results.append(
-                Check(
-                    "Playwright / Chromium",
-                    "fail",
-                    f"Not found at {exe}",
-                    "Run: playwright install chromium",
-                )
-            )
+            results.append(Check("Form-filling browser", "warn", f"Not found at {exe}", _form_hint))
     except Exception as exc:
-        results.append(
-            Check(
-                "Playwright / Chromium",
-                "fail",
-                str(exc),
-                "Run: playwright install chromium",
-            )
-        )
+        results.append(Check("Form-filling browser", "warn", str(exc)[:80], _form_hint))
 
     # ── 3. Config file ───────────────────────────────────────────────────────
     from .config import config_path
@@ -2432,6 +2422,40 @@ def doctor() -> None:
             )
         )
 
+    # ── 3b. Email login (sends nothing) ──────────────────────────────────────
+    try:
+        from .config import load_config as _load
+        from .engine.methods.email import check_login, read_smtp_password
+
+        _cfg = _load()
+        _smtp = _cfg.email.smtp
+        if _cfg.email.method == "smtp" and _smtp is not None:
+            _pw = read_smtp_password(_smtp)
+            if not _pw:
+                results.append(
+                    Check(
+                        "Email login",
+                        "warn",
+                        "No app password saved yet",
+                        "Run: optout smtp-password  (or save it in Settings in optout ui)",
+                    )
+                )
+            elif (_why := check_login(_smtp, _pw)) is None:
+                results.append(Check("Email login", "pass", f"{_smtp.username} @ {_smtp.host}"))
+            else:
+                results.append(
+                    Check(
+                        "Email login",
+                        "fail",
+                        _why,
+                        "Check the app password: optout smtp-password",
+                    )
+                )
+    except FileNotFoundError:
+        pass  # the config check above already says what to do
+    except Exception as exc:
+        results.append(Check("Email login", "fail", str(exc)[:80], "Run: optout smtp-password"))
+
     # ── 4. Database schema ───────────────────────────────────────────────────
     from .db import db_path as _db_path
 
@@ -2443,7 +2467,7 @@ def doctor() -> None:
                     "Database",
                     "warn",
                     f"Not yet created — {_dp}",
-                    "Run: optout queue  (the DB is created automatically)",
+                    "It's created the first time you run optout plan or optout ui.",
                 )
             )
         else:
@@ -2461,7 +2485,8 @@ def doctor() -> None:
                 "Database schema",
                 "fail",
                 str(exc)[:80],
-                f"Schema may be stale. Delete {_dp} and run: optout queue",
+                "Schema may be stale. Back it up (optout state export), then run optout ui to "
+                "upgrade it.",
             )
         )
 

@@ -718,3 +718,25 @@ def test_a_send_cut_off_by_closing_the_app_does_not_block_the_broker(session):
     session.refresh(fresh)
     assert sub.status == "failed" and "Sent mail" in (sub.failure_reason or "")
     assert fresh.status == "queued"
+
+
+def test_brokers_you_have_requests_with_survive_a_refresh(sample_csv, tmp_path):
+    from optout.brokers.importer import restore_missing
+    from optout.brokers.loader import load_broker
+
+    res = parse_ca_registry(sample_csv)
+    out = tmp_path / "imported"
+    write_yaml_dir(res, out, "ca-registry", "2026-10-28")
+    gone = res.brokers[0].slug
+    res.brokers = res.brokers[1:]  # it leaves the registry
+    write_yaml_dir(res, out, "ca-registry", "2026-11-23", keep={gone: "privacy@gone.example"})
+    kept = load_broker(out / f"{gone}.yml")
+    assert "No longer in the registry" in (kept.notes or "")
+    write_yaml_dir(res, out, "ca-registry", "2026-11-24")  # no history: removed as before
+    assert not (out / f"{gone}.yml").exists()
+
+    # One that already vanished is rebuilt from the address the request went to.
+    assert restore_missing(out, {"netwise-data": "privacyofficer@dnb.com"}) == ["netwise-data"]
+    rebuilt = load_broker(out / "netwise-data.yml")
+    assert rebuilt.name == "Netwise Data" and rebuilt.opt_out_email == "privacyofficer@dnb.com"
+    assert rebuilt.domain == "dnb.com" and rebuilt.method == "email"

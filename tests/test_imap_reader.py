@@ -63,3 +63,32 @@ def test_already_seen_messages_are_skipped_and_odd_ids_never_searched():
         assert r.fetch_replies({"<a@x.example>"}, since=date(2026, 11, 1)) == []
         assert r.fetch_message('<a" OR ALL>') is None
         assert r.mark_read_message_ids(["<a@x.example>"]) == 0
+
+
+def test_new_replies_are_downloaded_in_one_request():
+    class Many(FakeIMAP):
+        def uid(self, cmd, *args):
+            self.calls.append((cmd, *args))
+            if cmd == "SEARCH":
+                return "OK", [b"7 8"]
+            if cmd == "FETCH" and "MESSAGE-ID" in args[1]:
+                return "OK", [
+                    (b"1 (UID 7 BODY[HEADER] {9}", b"Message-ID: <a@x>\r\n\r\n"),
+                    b")",
+                    (b"2 (UID 8 BODY[HEADER] {9}", b"Message-ID: <b@x>\r\n\r\n"),
+                    b")",
+                ]
+            if cmd == "FETCH":
+                return "OK", [
+                    (b"1 (UID 7 BODY[] {1}", b"A"),
+                    b")",
+                    (b"2 (UID 8 BODY[] {1}", b"B"),
+                    b")",
+                ]
+            return "OK", [b""]
+
+    fake = Many()
+    with ImapReader("u@x.example", "pw", "h", connect=lambda: fake) as r:
+        assert r.fetch_replies(set(), since=date(2026, 11, 1)) == [b"A", b"B"]
+    bodies = [c for c in fake.calls if c[0] == "FETCH" and "BODY.PEEK[]" in c[2]]
+    assert len(bodies) == 1 and bodies[0][1] == "7,8"

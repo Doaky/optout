@@ -199,3 +199,60 @@ def test_display_names_are_looked_up_in_one_search_and_one_fetch():
     assert verbs == ["SEARCH", "FETCH"]
     query = next(c[2] for c in fake.calls if c[0] == "SEARCH")
     assert query == '"rfc822msgid:a.1@x.com OR rfc822msgid:b.2@y.com"'
+
+
+class BodyIMAP(FakeIMAP):
+    """Search finds UIDs 7, 8, 9; headers give each a Message-ID; bodies come back in one
+    response. `uid_after` puts the UID after the body, as some servers do."""
+
+    def __init__(self, uid_after=False):
+        super().__init__()
+        self.uid_after = uid_after
+
+    def uid(self, cmd, *args):
+        if cmd == "SEARCH":
+            self.calls.append((cmd, *args))
+            return "OK", [b"7 8 9"]
+        if cmd == "FETCH" and "HEADER.FIELDS" in args[1]:
+            self.calls.append((cmd, *args))
+            out = []
+            for u in args[0].encode().split(b","):
+                out += [
+                    (b"1 (UID %s BODY[HEADER] {9}" % u, b"Message-ID: <m%s@x>\r\n\r\n" % u),
+                    b")",
+                ]
+            return "OK", out
+        if cmd == "FETCH":
+            self.calls.append((cmd, *args))
+            out = []
+            for u in args[0].encode().split(b","):
+                if self.uid_after:
+                    out += [(b"1 (BODY[]<0> {5}", b"RAW-" + u), b" UID %s)" % u]
+                else:
+                    out += [(b"1 (UID %s BODY[]<0> {5}" % u, b"RAW-" + u), b")"]
+            return "OK", out
+        return super().uid(cmd, *args)
+
+
+@pytest.mark.parametrize("uid_after", [False, True])
+def test_new_replies_are_downloaded_in_one_request_in_order(uid_after):
+    fake = BodyIMAP(uid_after)
+    with _labeler(fake) as g:
+        raws = g.fetch_replies({"<m8@x>"}, since=date(2026, 11, 1))
+    assert raws == [b"RAW-7", b"RAW-9"]  # the one already seen is skipped
+    bodies = [c for c in fake.calls if c[0] == "FETCH" and "BODY.PEEK[]" in c[2]]
+    assert len(bodies) == 1 and bodies[0][1] == "7,9"  # one round trip, not one per message
+
+
+def test_marking_read_reuses_what_was_just_read_and_batches_the_rest():
+    fake = BodyIMAP()
+    with _labeler(fake) as g:
+        g.fetch_replies(set(), since=date(2026, 11, 1))
+        searches_before = sum(1 for c in fake.calls if c[0] == "SEARCH")
+        n = g.mark_read_message_ids(["<m7@x>", "<m9@x>", "<other1@x>", "<other2@x>", "bad id"])
+    searches = [c for c in fake.calls if c[0] == "SEARCH"][searches_before:]
+    assert len(searches) == 1  # only the two not read this session, in one search
+    assert "rfc822msgid:other1@x OR rfc822msgid:other2@x" in searches[0][2]
+    stores = [c for c in fake.calls if c[0] == "STORE"]
+    assert len(stores) == 1 and stores[0][2:] == ("+FLAGS", "(\\Seen)")
+    assert set(stores[0][1].split(",")) == {"7", "9", "8"} and n == 3

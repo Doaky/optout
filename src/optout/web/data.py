@@ -41,6 +41,7 @@ class Row:
     heard: bool = False  # the broker has replied in some way (even just an acknowledgement)
     retryable: bool = False  # an email that failed to send (not a bounce): can be resent
     failure: str = ""  # why it failed, for the tooltip
+    stopped: bool = False  # you chose "Stop contacting this broker"
     reply_links: dict[str, str] = field(default_factory=dict)  # sender -> its latest email in Gmail
     next_send: str = ""  # when this broker gets emailed again (finished email requests only)
 
@@ -161,6 +162,7 @@ def _collect(
     _TZ = user_tz(config)
     _NOW = now
     names = {b.slug: b.name for b in all_brokers()}
+    stopped = {b.slug for b in all_brokers() if not b.enabled}
     from ..plan import asks_too_much
 
     # They act only on a phone's ad ID, a face photo or a notarised form: listed under "asks
@@ -225,7 +227,7 @@ def _collect(
             days_left=days,
             overdue=overdue,
             last_check=(
-                f"{v.outcome.replace('_', ' ')} {_date(v.checked_at)}"
+                f"{v.outcome.replace('_', ' ')} {_short_date(_date(v.checked_at))}"
                 if v
                 else _reply_summary(latest_reply.get(sub.id))
             ),
@@ -237,6 +239,7 @@ def _collect(
                 sub.status == "failed" and sub.submitted_at is None and sub.method_used == "email"
             ),
             failure=(sub.failure_reason or "")[:200] if sub.status == "failed" else "",
+            stopped=sub.broker_slug in stopped,
             only_covers=(
                 coverage[sub.broker_slug].label()
                 if sub.broker_slug in coverage and coverage[sub.broker_slug].niche
@@ -309,7 +312,7 @@ def _collect(
                         row.slug,
                         row.name,
                         "need-info",
-                        "Needs you",
+                        "Asked for something",
                         "Do what their reply asks, then click "
                         '"I did what they asked" to start a new wait.',
                     ),
@@ -380,34 +383,64 @@ _REPLY_EVENTS = {"confirmation_received", "rejection_received", "broker_acknowle
 def progress_series(
     session: Session, subs: list[Submission], now: datetime
 ) -> list[tuple[str, int, int, int]]:
-    """Cumulative counts per day from the first request sent until today."""
+    """Cumulative counts per day from the first request sent until today.
 
-    sent_days = [_aware(s.submitted_at).astimezone(_TZ).date() for s in subs if s.submitted_at]
+    Counted the same way as the cards above it, so the chart's last point matches them: one
+    request per broker (the latest), "replied" = a reply is on file, "says done" = its
+    status is now done (whether a reply said so or you set it)."""
+    from ..db import InboxMessage
+
+    latest: dict[str, Submission] = {}
+    for s in subs:
+        cur = latest.get(s.broker_slug)
+        if cur is None or s.created_at > cur.created_at:
+            latest[s.broker_slug] = s
+    chosen = list(latest.values())
+    sent_days = [_aware(s.submitted_at).astimezone(_TZ).date() for s in chosen if s.submitted_at]
     if not sent_days:
         return []
-    ids = {s.id for s in subs}
-    first_reply: dict = {}
-    removed: dict = {}
-    for ev in session.exec(select(SubmissionEvent)):
-        if ev.submission_id not in ids:
-            continue
-        day = _aware(ev.created_at).astimezone(_TZ).date()
-        if ev.event_type in _REPLY_EVENTS:
-            first_reply[ev.submission_id] = min(day, first_reply.get(ev.submission_id, day))
-        if ev.event_type in ("confirmation_received", "removed_verified"):
-            # "Says done": the broker confirmed deletion, or a re-search verified it.
-            removed[ev.submission_id] = min(day, removed.get(ev.submission_id, day))
+    today = now.astimezone(_TZ).date()
+    ids = {s.id for s in chosen}
 
-    start, end = min(sent_days), now.astimezone(_TZ).date()
+    first_reply: dict = {}
+    for m in session.exec(
+        select(InboxMessage).where(
+            InboxMessage.submission_id != None,  # noqa: E711 (SQL IS NOT NULL)
+            InboxMessage.state != "ignored",
+        )
+    ):
+        if m.submission_id in ids:
+            day = _aware(m.received_at).astimezone(_TZ).date() if m.received_at else today
+            first_reply[m.submission_id] = min(day, first_reply.get(m.submission_id, day))
+
+    done_event: dict = {}
+    for ev in session.exec(select(SubmissionEvent)):
+        if ev.submission_id in ids and ev.event_type in (
+            "confirmation_received",
+            "removed_verified",
+            "status_set",
+        ):
+            day = _aware(ev.created_at).astimezone(_TZ).date()
+            done_event[ev.submission_id] = min(day, done_event.get(ev.submission_id, day))
+    done: dict = {}
+    for s in chosen:
+        if s.status in ("confirmed", "removed"):
+            fallback = s.confirmed_at or s.updated_at
+            day = done_event.get(s.id) or (
+                _aware(fallback).astimezone(_TZ).date() if fallback else today
+            )
+            done[s.id] = day
+
+    start = min(sent_days)
     out: list[tuple[str, int, int, int]] = []
     day = start
-    while day <= end:
+    while day <= today:
         out.append(
             (
                 day.isoformat(),
                 sum(1 for d in sent_days if d <= day),
                 sum(1 for d in first_reply.values() if d <= day),
-                sum(1 for d in removed.values() if d <= day),
+                sum(1 for d in done.values() if d <= day),
             )
         )
         day += timedelta(days=1)
@@ -642,7 +675,7 @@ _PHONE_MAIL = re.compile(
 
 
 def action_label(text: str, *, has_link: bool, has_other_email: bool) -> str:
-    """A specific pill for a reply that wants something: 'Needs you: Form submission'.
+    """A specific pill for a reply that wants something: 'Asked for: Form submission'.
     Up to two things are named when the reply offers a choice."""
     flat = re.sub(r"\s+", " ", text)
     found: list[str] = []
@@ -657,9 +690,9 @@ def action_label(text: str, *, has_link: bool, has_other_email: bool) -> str:
     if _PHONE_MAIL.search(flat) and len(found) < 2:
         found.append("Phone or mail")
     if not found:
-        return "Needs you"
+        return "Asked for something"
     first, second = found[0], (found[1].lower() if len(found) > 1 else "")
-    return f"Needs you: {first}" + (f" or {second}" if second else "")
+    return f"Asked for: {first}" + (f" or {second}" if second else "")
 
 
 def sent_to(sub: Submission, get_broker) -> str:

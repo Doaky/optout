@@ -15,6 +15,8 @@ from urllib.parse import urlparse
 
 import yaml
 
+from optout import yaml_io
+
 _EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}$")
 _SUFFIXES = {"inc", "llc", "corp", "corporation", "co", "ltd", "lp", "llp", "company", "limited"}
 _EXEMPTION_COLS = {
@@ -165,15 +167,105 @@ def to_broker_dict(b: ImportedBroker, source: str, verified_on: str) -> dict:
     return {k: v for k, v in data.items() if v not in (None, [])}
 
 
-def write_yaml_dir(result: ImportResult, out_dir: Path, source: str, verified_on: str) -> int:
-    """Replace the generated YAML files in out_dir. Returns the number written."""
+_KEPT_NOTE = (
+    "No longer in the registry; kept because you have requests with this broker, so their "
+    "history, name and address stay usable."
+)
+
+
+def write_yaml_dir(
+    result: ImportResult,
+    out_dir: Path,
+    source: str,
+    verified_on: str,
+    keep: dict[str, str] | None = None,
+) -> int:
+    """Replace the generated YAML files in out_dir. Returns the number written.
+
+    keep: slug -> the address you last emailed, for brokers you have requests with. A broker
+    that has left the registry keeps its file (or gets a minimal one rebuilt from that
+    address) instead of vanishing from your history."""
+    keep = keep or {}
+    fresh = {b.slug for b in result.brokers}
     out_dir.mkdir(parents=True, exist_ok=True)
     for old in out_dir.glob("*.yml"):
+        if old.stem in keep and old.stem not in fresh:
+            data = yaml_io.safe_load(old.read_text()) or {}
+            if isinstance(data, dict) and _KEPT_NOTE not in str(data.get("notes", "")):
+                data["notes"] = f"{_KEPT_NOTE} {data.get('notes', '')}".strip()
+                old.write_text(yaml.safe_dump(data, sort_keys=False))
+            continue
         old.unlink()
     for b in result.brokers:
         text = yaml.safe_dump(to_broker_dict(b, source, verified_on), sort_keys=False)
         (out_dir / f"{b.slug}.yml").write_text(text)
+    restore_missing(out_dir, keep, source)
     return len(result.brokers)
+
+
+def restore_missing(out_dir: Path, keep: dict[str, str], source: str = "ca-registry") -> list[str]:
+    """Write a minimal definition for each kept broker that has no file at all (e.g. it left
+    the registry before kept brokers were preserved). The name is rebuilt from its ID, the
+    address is the one you last emailed. Returns the slugs written."""
+    written = []
+    for slug, address in sorted(keep.items()):
+        path = out_dir / f"{slug}.yml"
+        if path.exists() or "@" not in address:
+            continue
+        data = {
+            "slug": slug,
+            "name": " ".join(w.capitalize() for w in slug.split("-")),
+            "domain": address.rsplit("@", 1)[1].lower(),
+            "category": "data_broker",
+            "method": "email",
+            "opt_out_email": address,
+            "required_fields": ["full_name", "current_address"],
+            "legal_basis": [],
+            "statutory_response_days": 45,
+            "enabled": True,
+            "source": source,
+            "notes": f"{_KEPT_NOTE} Rebuilt from the address your request went to; the name "
+            "is a best guess from its ID.",
+        }
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path.write_text(yaml.safe_dump(data, sort_keys=False))
+        written.append(slug)
+    return written
+
+
+def brokers_with_history(defined_elsewhere: set[str]) -> dict[str, str]:
+    """slug -> last address emailed, for every broker you have requests with, except those
+    defined outside the imported list (built-in or your own files)."""
+    import json
+
+    from sqlmodel import select
+
+    from ..db import Submission, db_path, get_session
+
+    if not db_path().exists():
+        return {}
+    out: dict[str, tuple] = {}
+    with get_session() as session:
+        for sub in session.exec(select(Submission)):
+            if sub.broker_slug in defined_elsewhere:
+                continue
+            try:
+                to = str(json.loads(sub.payload_json or "{}").get("to", ""))
+            except ValueError:
+                to = ""
+            when = sub.created_at
+            cur = out.get(sub.broker_slug)
+            if cur is None or (to and when >= cur[1]):
+                out[sub.broker_slug] = (to or (cur[0] if cur else ""), when)
+    return {slug: to for slug, (to, _when) in out.items()}
+
+
+def _defined_elsewhere() -> set[str]:
+    """Slugs of brokers that come from anywhere but the imported registry list."""
+    from .registry import all_brokers, load_registry
+
+    load_registry()
+    return {b.slug for b in all_brokers() if not (b.source or "").startswith("ca-registry")}
 
 
 CA_REGISTRY_URL = "https://cppa.ca.gov/data_broker_registry/registry.csv"
@@ -218,7 +310,8 @@ def import_ca_registry(csv_path: Path | None = None) -> ImportSummary:
     result = parse_ca_registry(csv_path)
     if not result.brokers:
         raise ValueError("No usable brokers found; is this a registry CSV?")
-    n = write_yaml_dir(result, imported_dir(), "ca-registry", date.today().isoformat())
+    keep = brokers_with_history(_defined_elsewhere())
+    n = write_yaml_dir(result, imported_dir(), "ca-registry", date.today().isoformat(), keep)
     return ImportSummary(
         imported=n,
         disabled=sum(1 for b in result.brokers if b.exemptions),

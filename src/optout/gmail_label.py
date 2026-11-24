@@ -24,8 +24,31 @@ IMAP_HOST = "imap.gmail.com"
 SUBJECT = "Data Deletion Request"
 _ADDRESSES_PER_SEARCH = 100
 _IDS_PER_SEARCH = 50
+_BODIES_PER_FETCH = 25  # up to 300 KB each, so a round trip stays a few MB at most
+_UID_RE = re.compile(rb"UID (\d+)")
 _HDR_MSGID = re.compile(r"^Message-ID:\s*<([^>]+)>", re.IGNORECASE | re.MULTILINE)
 _HDR_FROM = re.compile(r"^From:(.*(?:\r?\n[ \t].*)*)", re.IGNORECASE | re.MULTILINE)
+
+
+def fetch_bodies(conn: imaplib.IMAP4, uids: list[bytes]) -> list[bytes]:
+    """The first 300 KB of each message, in the order asked, fetched a batch per round trip
+    (one request for 25 messages, not 25 requests). BODY.PEEK, so nothing is marked read.
+    A server may put the UID before or after the body, so both places are checked."""
+    got: dict[bytes, bytes] = {}
+    for i in range(0, len(uids), _BODIES_PER_FETCH):
+        part = uids[i : i + _BODIES_PER_FETCH]
+        _status, data = conn.uid("FETCH", b",".join(part).decode(), "(UID BODY.PEEK[]<0.300000>)")
+        items = list(data or [])
+        for n, item in enumerate(items):
+            if not isinstance(item, tuple):
+                continue
+            m = _UID_RE.search(item[0])
+            if m is None and n + 1 < len(items) and isinstance(items[n + 1], bytes):
+                m = _UID_RE.search(items[n + 1])
+            uid = m.group(1) if m else (part[0] if len(part) == 1 else None)
+            if uid is not None:
+                got[uid] = bytes(item[1])
+    return [got[u] for u in uids if u in got]
 
 
 def valid_label(name: str) -> bool:
@@ -57,6 +80,7 @@ class GmailLabeler:
         self._username, self._password = username, password
         self._connect = connect or (lambda: imaplib.IMAP4_SSL(IMAP_HOST, 993, timeout=30))
         self._imap: imaplib.IMAP4 | None = None
+        self._uid_by_mid: dict[str, bytes] = {}  # Message-ID -> UID, for mail read this session
 
     # -- connection -------------------------------------------------------
     def __enter__(self) -> GmailLabeler:
@@ -131,17 +155,27 @@ class GmailLabeler:
 
     def mark_read_message_ids(self, message_ids: list[str]) -> int:
         """Mark these messages (by Message-ID) as read. Adds the read flag only: nothing is
-        moved, labelled or deleted, and ids with odd characters are ignored."""
-        done = 0
+        moved, labelled or deleted, and ids with odd characters are ignored. Messages read
+        in this session are already known; the rest are found 50 to a search, and the
+        flag is set 100 messages per command."""
+        uids: list[bytes] = []
+        tokens: list[str] = []
         for mid in message_ids:
             token = mid.strip().strip("<>")
             if not re.fullmatch(r"[A-Za-z0-9._%+@=-]+", token):
                 continue
-            uids = self._search(f"rfc822msgid:{token}")
-            if uids:
-                self._conn.uid("STORE", b",".join(uids).decode(), "+FLAGS", "(\\Seen)")
-                done += len(uids)
-        return done
+            known = self._uid_by_mid.get(f"<{token}>")
+            if known is not None:
+                uids.append(known)
+            else:
+                tokens.append(token)
+        for i in range(0, len(tokens), _IDS_PER_SEARCH):
+            query = " OR ".join(f"rfc822msgid:{t}" for t in tokens[i : i + _IDS_PER_SEARCH])
+            uids.extend(u for u in self._search(query) if u not in uids)
+        for i in range(0, len(uids), 100):
+            chunk = b",".join(uids[i : i + 100]).decode()
+            self._conn.uid("STORE", chunk, "+FLAGS", "(\\Seen)")
+        return len(uids)
 
     def label_all_sent(self) -> int:
         """Catch up: every message you sent with the opt-out subject."""
@@ -160,8 +194,11 @@ class GmailLabeler:
         for query in queries:
             uids.extend(u for u in self._search(query) if u not in uids)
         uids = uids[-limit:]
-        new = [u for u, mid in self._message_ids(uids).items() if mid not in already_seen]
-        return [raw for u in new if (raw := self._fetch(u))]
+        ids = self._message_ids(uids)
+        # Remembered so marking these read later needs no search per message.
+        self._uid_by_mid.update({mid: u for u, mid in ids.items() if mid})
+        new = [u for u, mid in ids.items() if mid not in already_seen]
+        return fetch_bodies(self._conn, new)
 
     def display_names(self, message_ids: list[str]) -> dict[str, str]:
         """Sender display names for saved messages (looked up by Message-ID, headers only)."""
