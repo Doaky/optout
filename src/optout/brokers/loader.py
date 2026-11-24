@@ -7,12 +7,14 @@ from pathlib import Path
 import yaml
 from pydantic import ValidationError
 
+from optout import yaml_io
+
 from .schema import BrokerDef
 
 
 def load_broker(path: Path) -> BrokerDef:
     """Parse and validate a single broker YAML file."""
-    data = yaml.safe_load(path.read_text())
+    data = yaml_io.safe_load(path.read_text())
     try:
         return BrokerDef.model_validate(data)
     except ValidationError as exc:

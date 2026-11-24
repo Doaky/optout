@@ -1,22 +1,59 @@
-# PLACEHOLDERS ONLY. Copy to ~/.config/optout/config.yml and fill in locally.
-# Never commit a real config.
+# Example optout settings. PLACEHOLDERS ONLY: never commit a real config.
+#
+# You don't need this file to get started: `optout` (or `optout init`) asks a few questions
+# and writes ~/.config/optout/config.yml for you. Most settings below can also be changed on
+# the dashboard under Settings. Use this file as a reference for what each setting does, or
+# copy it to ~/.config/optout/config.yml (chmod 600) and fill it in by hand.
+#
+# The email password never goes in this file. Save it with `optout smtp-password` (written to
+# ~/.config/optout/smtp_password, readable only by you), or put it in the environment variable
+# named by password_env.
+
 profile:
-  legal_name: "Jane Q Example"
-  aliases: []
-  dob: "1990-01-01"
+  legal_name: "Jane Q Example"          # as it appears on records
+  aliases: []                           # other names: maiden name, nickname
+  dob: "1990-01-01"                     # only some people-search forms use it; never emailed
   current_address:
     street: "123 Example St"
+    street2: ""                         # apartment, suite, unit
     city: "Richmond"
-    state: "VA"
+    state: "VA"                         # decides which state law your emails cite
     zip: "23219"
+  previous_addresses: []                # e.g. [{street: "1 Old Rd", city: "Austin", state: "TX", zip: "78701"}]
   phones:
-    current: ["+1-555-010-0100"]
+    current: ["555-0100"]               # used by people-search forms, not in emails
   emails:
-    current: ["alias-spokeo@example.invalid"]   # per-broker masked alias, not your real address
+    current: ["you@example.com"]        # the first one goes in your requests
+  relatives: []                         # names on your listings; helps matching
+
 email:
   method: smtp
   smtp:
-    host: smtp.example.invalid
+    host: smtp.gmail.com                # Gmail; iCloud is smtp.mail.me.com
     port: 587
-    username: "user@example.invalid"
-    password_env: OPTOUT_SMTP_PASSWORD
+    username: "you@example.com"         # the account requests are sent from
+    password_env: OPTOUT_SMTP_PASSWORD  # used only if ~/.config/optout/smtp_password is absent
+  # imap_host: imap.example.com         # reading replies when not on Gmail; blank = worked out
+  daily_limit: 40                       # emails per 24 hours
+  send_delay_seconds: 5                 # pause between emails
+  resend_after_days: 180                # email a broker again this long after a finished request
+  # from_address: "privacy@example.com"           # a different From address (optional)
+  # alias_pattern: "optout-{slug}@example.com"    # a different reply address per broker (needs a catch-all)
+  identifiers: minimal                  # minimal: name, address, email. full: adds DOB, phones, old addresses
+  fetch_after_batch: true               # read replies a few minutes after a batch is sent
+  # Gmail only:
+  gmail_label: OPTOUT                   # label put on sent requests and replies
+  mark_replies_read: false              # mark recognised broker replies as read
+  # Unattended sending (the dashboard's "Send automatically", `optout daily`, the scheduled
+  # GitHub Actions run). Off unless you turn it on:
+  allow_unattended: false
+  daily_send_time: "10:00"              # your time zone, 24-hour
+
+timezone: America/New_York              # blank = this computer's zone
+confirm_links: ask                      # ask | auto: open "confirm your request" links from known brokers
+# my_groups: []                         # groups you belong to (Settings > Groups); skips brokers that only cover others
+# backup_dir: "~/Backups/optout"        # encrypted backups of your history; blank = off
+backup_every_days: 7
+
+notify:
+  webhook_url: null                     # e.g. an ntfy topic URL; messages never include your details

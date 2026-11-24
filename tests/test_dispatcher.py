@@ -351,7 +351,7 @@ class TestSubmitCommand:
             result = runner.invoke(app, ["submit"])
 
         assert result.exit_code == 0
-        assert "Submitted" in result.output
+        assert "Awaiting reply" in result.output
 
     def test_submit_failed_shows_reason(self, _cli_env, engine) -> None:
         runner.invoke(app, ["queue", "--broker", "test-email-broker"])
@@ -376,7 +376,7 @@ class TestSubmitCommand:
             result = runner.invoke(app, ["submit"])
 
         assert result.exit_code == 0
-        assert "Needs input" in result.output
+        assert "Needs you" in result.output
 
     def test_submit_broker_flag_filters(self, _cli_env, engine) -> None:
         runner.invoke(app, ["queue"])  # queue all

@@ -118,7 +118,7 @@
 - {from: '@proxima.ai', phrase: please confirm by clicking the link below or responding to this email, outcome: need-info}
 - {from: '@reachdata.zendesk.com', phrase: "hello, this is an automated response", outcome: auto-reply}
 - {from: '@smartbackgroundchecks.com', phrase: "if you waited longer than 24 hours to click the link below, you will need to start over and generate another link", outcome: need-info, broker: smartbackgroundchecks}
-- {from: '@transunion.com', phrase: please allow sufficient time for our team to verify your identity and process your request, outcome: need-info}
+- {from: '@transunion.com', phrase: no further action is needed from you unless you are seeking use of the self-service options, outcome: auto-reply, override: true}
 - {from: '@truepeoplesearch.com', phrase: "if you have more than one record on our site, you may need to submit a second request with information matching the other records", outcome: need-info, broker: free-data-services}
 - {from: '@truepeoplesearch.com', phrase: "if you waited longer than 24 hours to click the link below, you will need to start over and generate another link", outcome: need-info, broker: free-data-services}
 - {from: '@truepeoplesearch.com', phrase: this email address is dedicated to customer service inquiries and is not intended for privacy-related requests, outcome: need-info, broker: free-data-services}
@@ -147,7 +147,144 @@
 - {from: '@mogean.com', phrase: "we hold no personal information about the named individual, so there is nothing for us to delete", outcome: no-data, broker: mogean}
 - {from: '@mrginc.com', phrase: "we don't have any information on file but we have still placed you on our general opt out suppression file", outcome: no-data, broker: media-resource-group}
 - {from: '@usmarketinggrp.com', phrase: your information has been set to opt-out status and added to our opt-out records, outcome: deleted, broker: bh-marketing-group}
+# The people-search sites' "Privacy Request In Progress" receipt after their form. Its tip about
+# submitting "a second request" for other records is advice, not a request for action.
+- {from: '@fastpeoplesearch.com', phrase: "your privacy request has been received. the information we are using to process your request can be found below", outcome: auto-reply, broker: fastpeoplesearch, override: true}
+- {from: '@usphonebook.com', phrase: "your privacy request has been received. the information we are using to process your request can be found below", outcome: auto-reply, broker: usphonebook, override: true}
+- {from: '@smartbackgroundchecks.com', phrase: "your privacy request has been received. the information we are using to process your request can be found below", outcome: auto-reply, broker: smartbackgroundchecks, override: true}
+- {from: '@cyberbackgroundchecks.com', phrase: "your privacy request has been received. the information we are using to process your request can be found below", outcome: auto-reply, broker: cyberbackgroundchecks, override: true}
+- {from: '@familytreenow.com', phrase: "your privacy request has been received. the information we are using to process your request can be found below", outcome: auto-reply, broker: family-tree-now, override: true}
+- {from: '@accurateappend.com', phrase: "upon receiving your request, we have promptly processed it, and your information has been opted out as per your instructions", outcome: deleted, broker: accurate-append}
+- {from: '@babelstreet.com', phrase: "if you are seeking to exercise a privacy right, please submit your request through our secure data subject rights", outcome: need-info, broker: babel-street}
+- {from: '@captiv8.io', phrase: "has identified those methods in its privacy notice which are the following methods: - submit a request through", outcome: need-info, broker: captiv8}
+- {from: '@grin.co', phrase: grin action required - confirmation of your privacy rights request, outcome: need-info, broker: grin-technologies}
+- {from: '@leadmemedia.com', phrase: your request to delete your personal information is accepted and your personal information has been deleted, outcome: deleted, broker: lead-me-media}
+- {from: '@mail.jmr-media.com', phrase: "because we do not maintain a consumer-facing database or individualized consumer records, we have no personal information to delete", outcome: no-data, broker: jmr-media-consulting}
+- {from: '@mail.jmr-media.com', phrase: we have received your request to opt out of the sale or sharing of your personal information, outcome: auto-reply, broker: jmr-media-consulting}
+- {from: '@minerva.io', phrase: please verify your email address by following this link, outcome: need-info, broker: minerva-bi}
+- {from: '@sg.getrev.ai', phrase: "if you do not reply to verify your request within 45 days from the date of this email, your request will be denied", outcome: need-info, broker: leadcrunch}
+- {from: '@carneydirect.com', phrase: the information provided has been added to our master opt-out file, outcome: deleted, broker: guidestar-direct}
+- {from: '@visitiq.io', phrase: we’ve received your request and created case, outcome: auto-reply, broker: driveniq, override: true}
+- {from: '@choreograph.com', phrase: "choreograph consumer preference portal your privacy request has been completed successfully", outcome: deleted, broker: choreograph}
+- {from: '@focus-usa.com', phrase: "your optout request has been processed and if present you will be removed from our database within 24 hours", outcome: deleted, broker: focus-usa}
+- {from: '@fusable.com', phrase: "your request has been logged with request id", outcome: auto-reply, broker: randall-reilly}
+- {from: '@intentiq.com', phrase: "so please do click the link above so that we may promptly address your request", outcome: need-info, broker: intent-iq}
+- {from: '@interseller.io', phrase: "hello, thank you for reaching out", outcome: auto-reply, broker: perf-labs}
+- {from: '@kycdata.com', phrase: "* generally speaking, consumer privacy acts exempt public records data", outcome: denied, broker: on-hold-america}
+- {from: '@numlookup.com', phrase: "please confirm that your information has been removed after 5 days", outcome: deleted, broker: numlookup}
+- {from: '@pmg.com', phrase: "to ensure these requests are handled accurately, please submit them through our website's official form", outcome: need-info, broker: pmg-worldwide}
+- {from: '@popacta.com', phrase: "privacy rights and opt-out re", outcome: need-info, broker: pop-acta-media}
+- {from: '@possiblenowmarketing.com', phrase: "this email address is not monitored and therefore any messages sent to this address will not receive personalized attention", outcome: need-info, broker: possiblenow}
+- {from: '@precisely.com', phrase: "state privacy laws, please submit your request through our online privacy rights web", outcome: need-info, broker: placeiq}
+- {from: '@propertyreach.com', phrase: "+property-reach-l-p, in order to process your privacy request, please fill out the appropriate form at the link below", outcome: need-info, broker: property-reach-l-p}
+- {from: '@prospectbase.com', phrase: "thank you for contacting prospectbase", outcome: auto-reply, broker: prospectbase-uk}
+- {from: '@purecars.com', phrase: "please contact us via our online form or toll-free number to submit a request and we will be happy to assist you", outcome: need-info, broker: purecars-technologies}
+- {from: '@relpro.com', phrase: "hello and thank you for your email", outcome: auto-reply, broker: relpro}
+- {from: '@ripple-fx.com', phrase: "if you have a bill that you need to submit for payment, please email", outcome: need-info, broker: ripple-effect-strategies}
+- {from: '@rocketreach.co', phrase: "thanks for reaching out to us", outcome: auto-reply, broker: rocketreach}
+- {from: '@sharethrough.com', phrase: "dear sir/madam: thank you for reaching out to sharethrough inc", outcome: auto-reply, broker: sharethrough}
+- {from: '@sheerid.com', phrase: "+sheerid, thanks for reaching out to us", outcome: auto-reply, broker: sheerid}
+- {from: '@siteimpact.com', phrase: "we will notify you once your request has been completed or if additional information is needed to process it", outcome: need-info, broker: site-impact}
+- {from: '@thebridgecorp.com', phrase: "email not processed - action required", outcome: need-info, broker: owmn}
+- {from: '@thebridgecorp.com', phrase: "to request the removal of your personal information please use our secure dedicated privacy portal to ensure identity verification and security", outcome: need-info, broker: owmn}
+- {from: '@visitiq.io', phrase: "however, we do not process data requests via email", outcome: need-info, broker: driveniq}
+- {from: '@crosswalknyc.com', phrase: "hello, thank you for reaching out", outcome: auto-reply, broker: crosswalk-technologies}
+- {from: '@rayinsights.com', phrase: "we searched our records and did not find any information associated with the contact information you provided", outcome: no-data, broker: ray-cdp}
+- {from: '@sheerid.com', phrase: "we have found no record of a verification attempt made to sheerid based on the user data provided", outcome: no-data, broker: sheerid}
+- {from: '@sms-inc.com', phrase: "is unable to process your request and no further action is required in response to your request", outcome: denied, broker: specialists-marketing-services}
+- {from: '@spydialer.com', phrase: "this email address is dedicated to customer service inquiries and is not intended for privacy-related requests", outcome: need-info, broker: spy-labs-adco}
+- {from: '@01advertising.com', phrase: data subject access request - processed successfully, outcome: deleted, broker: 01advertising}
+- {from: '@maxmind.com', phrase: "if you wish to make your request directly to us, please provide the name of our customer on whose behalf we processed your personal information", outcome: need-info, broker: maxmind}
+- {from: '@moodys.com', phrase: "thank you for contacting moody\x92s", outcome: auto-reply, broker: moody-s}
+- {from: '@pipl.com', phrase: your request to opt-out has been processed and completed, outcome: deleted, broker: pipl}
+- {broker: adsquare-gmbh, from: '@adsquare.com', outcome: auto-reply, phrase: your request has been successfully submitted}
+- {from: '@aisinfo.com', phrase: "in response, we deleted any personal information we store in our customer relationship management software", outcome: deleted, broker: ais-portfolio-services}
+- {broker: the-alesco-group, from: '@alescodata.com', outcome: need-info, phrase: we have received your request and will process it in accordance with applicable privacy laws where}
+- {broker: zenleads, from: '@apollo.io', outcome: auto-reply, phrase: thank you for contacting the data protection officer (dpo) for apollo.io}
+- {from: '@blackrock.com', phrase: "our team is currently reviewing your request, and we will ensure that it is completed in accordance with applicable data protection requirements", outcome: deleted, broker: preqin}
+- {from: '@clientcommand.com', phrase: "to complete your request, you will need to use our online webform which can be found", outcome: need-info, broker: summit-resources}
+- {broker: comscore, from: '@comscore.com', outcome: deleted, phrase: your data subject rights request to comscore crm}
+- {from: '@fetcher.ai', phrase: "hi there, thank you for reaching out", outcome: auto-reply, broker: tiplinks}
+- {from: '@firstam.com', phrase: "hello, thank you for your request", outcome: auto-reply, broker: first-american-data-tree}
+- {from: '@fusion92.com', phrase: "hello, thank you for contacting", outcome: auto-reply, broker: virtual-marketing}
+- {broker: graze-social-pbc, from: '@graze.social', outcome: no-data, phrase: 'we located no records associated with any of them: no graze account, no billing or subscription record, and no stored personal data'}
+- {broker: gunderson-direct, from: '@gundir.com', outcome: auto-reply, phrase: thank you for your inquiry}
+- {from: '@health-union.com', phrase: "if you are submitting requests for multiple email addresses, each email address must be submitted separately through our secure privacy portal here", outcome: need-info, broker: health-union}
+- {from: '@here.com', phrase: "if you have already deleted your account or unsubscribed from our mailing list, your information may have been removed before our search", outcome: deleted, broker: here-north-america}
+- {broker: collateral-analytics, from: '@ice.com', outcome: need-info, phrase: 'dear sir or madam, in order to complete your request below, please complete the following form: privacy web'}
+- {broker: ileads-com, from: '@ileads.com', outcome: need-info, phrase: your request regarding your personal information}
+- {broker: innovis-data-solutions, from: '@innovis.com', outcome: denied, phrase: we are unable to grant an exemption to you to use other submission channels}
+- {from: '@ispot.tv', phrase: "if we need additional information to verify your identity or to process your request, we will contact you separately", outcome: need-info, broker: ispot-tv}
+- {broker: iwave-information-systems, from: '@kindsight.io', outcome: need-info, phrase: all opt-out requests must be submitted through the web form listed above so we have enough information to validate your request}
+- {broker: lookify-io, from: '@lookify.io', outcome: need-info, phrase: please submit your request directly through our dedicated secure privacy rights request portal}
+- {broker: marriott-international, from: '@marriott.com', outcome: auto-reply, phrase: 'we have received your request to: delete my personal data (resulting in loyalty account(s) closure)'}
+- {broker: revenue-roll, from: '@meettie.com', outcome: deleted, phrase: we are writing to confirm that your request to delete your personal data from tie’s systems has been completed}
+- {from: '@networx.com', phrase: "we received your request, but do not have your details in our system", outcome: auto-reply, broker: networx-systems}
+- {from: '@ocean.io', phrase: "hello, thank you for your request about your personal data at ocean.io", outcome: auto-reply, broker: ocean-global}
+- {from: '@parasolleads.com', phrase: "upon reviewing our database, we have found that we currently do not have any of the information on record", outcome: no-data, broker: parasol-media}
+- {from: '@partnerscredit.com', phrase: "accordingly, the information maintained by partners is expressly exempt from state data privacy laws and regulations", outcome: denied, broker: partners-credit-and-verification-solutions}
+- {broker: innovation-brands, from: '@proxima.ai', outcome: no-data, phrase: we can confirm that we do not have any personal data in our systems which matches the personal data provided}
+- {broker: pubmatic, from: '@pubmatic.com', outcome: denied, phrase: we are unable to fulfill your request due to a lack of information needed to authenticate your request}
+- {from: '@recruitbot.com', phrase: "to protect your information, we need to verify your identity before processing your request", outcome: need-info, broker: recruitbot}
+- {broker: revelio-labs, from: '@reveliolabs.com', outcome: need-info, phrase: please provide this person’s linkedin url}
+- {from: '@rocketreach.co', phrase: "per your request, your profile has been successfully removed from rocketreach", outcome: deleted, broker: rocketreach}
+- {broker: saferent-solutions, from: '@saferentsolutions.com', outcome: denied, phrase: the information saferent retains and provides is subject to the fair credit reporting act (fcra) and is therefore exempt from deletion requests}
+- {broker: samba-tv, from: '@samba.tv', outcome: auto-reply, phrase: thank you for contacting us to exercise your privacy rights}
+- {broker: zipstorm, from: '@seekout.com', outcome: need-info, phrase: 'please note that you can exercise your privacy rights under applicable law, including gdpr or us state laws, using our privacy choices portal'}
+- {from: '@semcasting.com', phrase: "however, it was sent to an inbox that is not monitored for privacy compliance", outcome: need-info, broker: semcasting}
+- {broker: the-segerdahl, from: '@sg360.com', outcome: need-info, phrase: 'please submit your request through our official online request portal at the link below: data request form'}
+- {from: '@speedeondata.com', phrase: "greetings, we have received your email", outcome: auto-reply, broker: speedeon-data}
+- {from: '@spglobal.com', phrase: "in order to help us respond as quickly and efficiently as possible, please submit your information using our personal information request form, found", outcome: need-info, broker: s-p-global}
+- {from: '@swoop.com', phrase: "dear requestor, thank you for contacting swoop privacy", outcome: auto-reply, broker: swoop-com}
+- {broker: swordfish-ai, from: '@swordfish.ai', outcome: auto-reply, phrase: 'this is an automated response to let you know we’ve received your request, and a support ticket has been created'}
+- {broker: swordfish-ai, from: '@swordfish.ai', outcome: deleted, phrase: your request to opt out of the sale or sharing of your personal information has been received and successfully processed}
+- {from: '@t-mobile.com', phrase: "however, for security reasons, we do not accept data requests through email", outcome: need-info, broker: t-mobile-usa}
+- {broker: teads, from: '@teads.com', outcome: need-info, phrase: response to your data subject request}
+- {from: '@telesign.com', phrase: "hello, thank you for contacting telesign", outcome: auto-reply, broker: telesign}
+- {from: '@thedatagroup.com', phrase: "if you are submitting a request on behalf of another individual, please use the online form and include authorization documentation", outcome: need-info, broker: the-data-group}
+- {from: '@unacast.com', phrase: "dear sir/madam, this message is an acknowledgment that we have received your request and we will get back to you shortly with additional detail", outcome: auto-reply, broker: unacast}
+- {broker: versar-data-solutions, from: '@versium.com', outcome: auto-reply, phrase: thank you for contacting versium analytics}
+- {from: '@vizio.com', phrase: "if you desire to access or delete your personal information, please submit your request using the following webform", outcome: need-info, broker: vizio-services}
+- {from: '@vrtcal.com', phrase: "dear consumer, thanks for reaching out to us", outcome: auto-reply, broker: vrtcal-markets}
+- {from: '@wiland.com', phrase: "in order to enable our processing of your request, please submit your privacy choices using the forms accessible through our privacy choices web portal", outcome: need-info, broker: wiland}
+- {broker: wurl, from: '@wurl.com', outcome: auto-reply, phrase: 'hi, thanks for reaching out to'}
+- {broker: xactus, from: '@xactus.com', outcome: need-info, phrase: you do not need to submit it again}
+- {from: '@affinityanswers.com', phrase: your request has been honored, outcome: no-data, broker: affinity-answers}
+- {from: '@censia.com', phrase: 'was about: ---------------------------------------------- siddhant nitin amidwar, oct 29', outcome: auto-reply, broker: censia}
+- {from: '@checkpeople.com', phrase: please reply above this line -- hi thank you for contacting checkpeople.com, outcome: auto-reply, broker: checkpeople}
+- {from: '@completemedicallists.com', phrase: your recent privacy inquiry, outcome: deleted, broker: complete-medical-lists}
+- {from: '@dealerx.com', phrase: we have deleted the personal information associated with the details you provided from our records, in accordance with applicable privacy laws, outcome: deleted, broker: dealerx-partners}
+- {from: '@experian.com', phrase: your personal data management request was successfully submitted, outcome: auto-reply, broker: experian-marketing-solutions}
+- {from: '@faraday.io', phrase: in response to your request, we confirm that your personal data has been deleted from our systems in accordance with applicable data privacy regulations, outcome: deleted, broker: faraday}
+- {from: '@freepeoplesearch.com', phrase: please reply above this line -- hi thank you for contacting freepeoplesearch.com, outcome: auto-reply, broker: freepeoplesearch-com}
+- {from: '@idm.us.com', phrase: we searched our databases and did not find any records matching the information you provided, outcome: no-data, broker: integrated-direct-marketing}
+- {from: '@information.com', phrase: please reply above this line -- hi thank you for contacting information.com, outcome: auto-reply, broker: information-com}
+- {from: '@inmar.com', phrase: this email is for privacy-related topics only and is not monitored for other topics, outcome: need-info, broker: inmar-brand-solutions}
+- {from: '@ipsos.com', phrase: 'if you could please provide me with a copy of the research invitation, privacy policy, or website which has triggered your request for privacy', outcome: need-info, broker: ipsos}
+- {from: '@leadspace.com', phrase: your data removal request — leadspace, outcome: auto-reply, broker: leadspace}
+- {from: '@learnmore.com', phrase: please reply above this line -- hi thank you for contacting learnmore.com, outcome: auto-reply, broker: learnmore}
+- {from: '@marketops.com', phrase: we have deleted the personal information associated with the details you provided from our records, in accordance with applicable privacy laws, outcome: deleted, broker: marketops}
+- {from: '@mobilityglobal.com', phrase: please submit your request into our mobility global personal information request form using our privacy web, outcome: need-info, broker: r-l-polk}
+- {from: '@nexsales.com', phrase: 'we will be taking to ensure your request is handled appropriately: verification: to safeguard your personal information, we will need to verify your identity', outcome: need-info, broker: nexsales-solutions}
+- {from: '@optable.co', phrase: please reply with them and we will add those as well, outcome: need-info, broker: optable-technologies-us}
+- {from: '@publicrecord.com', phrase: please reply above this line -- hi thank you for contacting publicrecord.com, outcome: auto-reply, broker: publicrecordcom}
+- {from: '@pwc.com', phrase: please click the button below to access your request in the portal, outcome: need-info, broker: pwc-product-sales}
+- {from: '@relpro.com', phrase: if a profile existed on our platform, we have removed it, outcome: deleted, broker: relpro}
+- {from: '@sbfe.org', phrase: 'sbfe only processes and stores data from united states companies and individuals; gdpr does not apply to sbfe', outcome: denied, broker: sbfe}
+- {from: '@semantiqhealth.com', phrase: 'however, we were unable to locate any personal information associated with the details submitted', outcome: no-data, broker: semantiq}
+- {from: '@sovrn.com', phrase: thank you for contacting sovrn privacy, outcome: auto-reply, broker: sovrn}
+- {from: '@theorg.com', phrase: 'hi, thank you for reaching out', outcome: auto-reply, broker: orgio}
+- {from: '@ups.com', phrase: please confirm your email by clicking on the button below, outcome: need-info, broker: ups-capital}
+- {from: '@uspeoplesearch.com', phrase: please reply above this line -- hi thank you for contacting uspeoplesearch.com, outcome: auto-reply, broker: uspeoplesearch-com}
+- {from: '@clientcommand.com', phrase: please confirm your email by clicking on the button below, outcome: need-info, broker: summit-resources}
+- {from: '@dealmachine.com', phrase: dealmachine privacy portal use this code to verify your privacy request, outcome: need-info, broker: dealmachine-operations}
+- {from: '@dealmachine.com', phrase: we have received your request to submit a, outcome: auto-reply, broker: dealmachine-operations}
+- {from: '@dentsu.com', phrase: please confirm your email by clicking on the button below, outcome: need-info, broker: merkle}
+- {from: '@spydialer.com', phrase: 'if you waited longer than 24 hours to click the link below, you will need to start over and generate another link', outcome: need-info, broker: spy-labs-adco}
+
 # --- shared platforms (never pin a broker) ---
+- {from: '@bigid.cloud', phrase: please confirm this request was sent by you, outcome: need-info}
+- {from: '@healthlinkdimensions.atlassian.net', phrase: "to ensure we accurately fulfill your request and protect your privacy, we need to verify your information", outcome: need-info}
 - {from: '@clearview-ai.zendesk.com', phrase: submit a request to exercise your consumer rights, outcome: need-info}
 - {from: '@discotechnology.zendesk.com', phrase: thank you for reaching out to disco with your request, outcome: auto-reply}
 - {from: '@hightouch.io', phrase: each email address must be submitted separately through hightouch preferences, outcome: need-info}
@@ -159,3 +296,164 @@
 - {from: '@instantly.ai', phrase: "we are writing to confirm that your personal data has been deleted from the systems that process it, in accordance with applicable data protection law", outcome: deleted}
 - {from: '@m.onetrust.com', phrase: our privacy team left you a comment, outcome: need-info}
 - {from: '@m.onetrust.com', phrase: you must confirm your email address within, outcome: need-info}
+- {from: '@privacy-auto.pdlnotices.com', phrase: "to ensure a timely response, please submit your individual rights request through our privacy center", outcome: need-info}
+- {from: '@salesintel.zendesk.com', phrase: "it has been submitted for processing in accordance with gdpr and privacy legislations", outcome: auto-reply}
+- {from: '@sharethis.com', phrase: "please type your reply above this line -## hello, thank you for reaching out", outcome: auto-reply}
+- {from: '@yello.co', phrase: "thank you for your inquiry", outcome: auto-reply}
+- {from: '@bigid.cloud', phrase: "for a request to know, delete, or correct inaccurate information, you will hear back from us within 45 calendar days from the date that we receive your request", outcome: auto-reply}
+- {from: '@sproutsocial.zendesk.com', phrase: "please do not write below this line ## thanks for reaching out to sprout support", outcome: auto-reply}
+- {from: '@sproutsocial.zendesk.com', phrase: "thanks for reaching out to support", outcome: auto-reply}
+- {from: '@bigid.cloud', phrase: "verify your email for a new crexi privacy request click here if you can't see this email privacy request request id", outcome: need-info}
+- {from: '@classmates.zendesk.com', phrase: "if you live in a state that offers privacy rights, we may contact you to verify your identity and other details about your request", outcome: need-info}
+- {from: '@equifax.com', phrase: nctue is exempt from state-level privacy acts and "right to be forgotten" statutes, outcome: denied}
+- {from: '@groundtruth.com', phrase: i can confirm that we do not have any of the information you provided in our systems, outcome: no-data}
+- {from: '@leadiqhelp.zendesk.com', phrase: we're unable to locate any data connected to this email/s, outcome: no-data}
+- {from: '@m.onetrust.com', phrase: please click the button below to access your request in the portal view request, outcome: need-info}
+- {from: '@m.onetrust.com', phrase: please click the button below to access your request in the privacy portal, outcome: need-info}
+- {from: '@m.onetrust.com', phrase: please click the button below to access your request in the privacy portal view request, outcome: need-info}
+- {from: '@m.onetrust.com', phrase: 'precisely software inc hello, thank you for contacting precisely''s global privacy office and submitting this request', outcome: auto-reply}
+- {from: '@onspotdata.com', phrase: we received your request and have processed it, outcome: auto-reply}
+- {from: '@supersetinbox.com', phrase: please reply with the phone number you would like us to use for verification and record matching, outcome: need-info}
+- {from: '@tickets.helpdesk.com', phrase: 'hi, hello, your information has been removed as requested', outcome: deleted}
+- {from: '@trustsuperset.com', phrase: this message confirms that your request to exercise your data rights has been completed, outcome: deleted}
+- {from: '@mtalley.zendesk.com', phrase: this email address is dedicated to customer service inquiries and is not intended for privacy-related requests, outcome: need-info}
+- {from: '@m.onetrust.com', phrase: in order to confirm this request, please click on the link below, outcome: need-info}
+- {from: '@m.onetrust.com', phrase: please confirm your email by clicking the button below and note that you have 7 days to complete this action, outcome: need-info}
+
+# --- web-form removals that email you a link to finish ---
+- {from: '@applovin.com', phrase: enter this code to verify your identity and submit your request, outcome: need-info, broker: applovin}
+- {from: '@peoplesearchnow.com', phrase: if you waited longer than 24 hours to click the link below, you will need to start over and generate another link, outcome: need-info, broker: peoplesearchnow}
+- {from: '@propertyreach.com', phrase: if you waited longer than 24 hours to click the link below, you will need to start over and generate another link, outcome: need-info, broker: property-reach-l-p}
+- {from: '@searchpeoplefree.com', phrase: if you waited longer than 24 hours to click the link below, you will need to start over and generate another link, outcome: need-info, broker: searchpeoplefree}
+- {from: '@usa-people-search.com', phrase: if you waited longer than 24 hours to click the link below, you will need to start over and generate another link, outcome: need-info, broker: usa-people-search}
+- {from: '@searchpeoplefree.com', phrase: successfully processed your privacy request, outcome: deleted, broker: searchpeoplefree}
+- {from: '@peoplesearchnow.com', phrase: successfully processed your privacy request, outcome: deleted, broker: peoplesearchnow}
+- {from: '@usa-people-search.com', phrase: successfully processed your privacy request, outcome: deleted, broker: usa-people-search}
+- {from: '@spydialer.com', phrase: successfully processed your privacy request, outcome: deleted, broker: spy-labs-adco}
+- {from: '@bombora.com', phrase: we have taken action per your request, outcome: deleted, broker: bombora}
+- {from: '@databaseusallc.com', phrase: we will delete all information from our files that we have about you, outcome: deleted, broker: infofree-com}
+- {from: '@cyberbackgroundchecks.com', phrase: successfully processed your privacy request, outcome: deleted, broker: cyberbackgroundchecks}
+- {from: '@familytreenow.com', phrase: successfully processed your privacy request, outcome: deleted, broker: family-tree-now}
+- {from: '@fastpeoplesearch.com', phrase: successfully processed your privacy request, outcome: deleted, broker: fastpeoplesearch}
+- {from: '@usphonebook.com', phrase: successfully processed your privacy request, outcome: deleted, broker: usphonebook}
+- {from: '@smartbackgroundchecks.com', phrase: successfully processed your privacy request, outcome: deleted, broker: smartbackgroundchecks}
+
+# --- learned from sorted replies ---
+- {from: '@applovin.com', phrase: 'please do not reply to this email', outcome: auto-reply, broker: applovin}
+- {from: '@audienceacuity.com', phrase: 'hello, thank you for contacting audience acuity', outcome: auto-reply, broker: audience-acuity}
+- {from: '@bombora.com', phrase: 'privacy request / bombora.com results', outcome: deleted, broker: bombora}
+- {from: '@centerfield.com', phrase: 'thank you for reaching out to business.com', outcome: auto-reply}
+- {from: '@hireright.com', phrase: 'your message couldn''t be delivered', outcome: need-info, broker: hireright}
+- {from: '@kloudend.com', phrase: 'we searched our records using the details you provided and were unable to locate any personal information associated with those identifiers', outcome: no-data, broker: kloudend}
+- {from: '@peoplesearchnow.com', phrase: 'if you have more than one record on our site, you may need to submit a second request with information matching the other records', outcome: need-info, broker: peoplesearchnow}
+- {from: '@privaterecords.net', phrase: 'to confirm, click the link below click to remove your information', outcome: need-info, broker: private-records}
+- {from: '@propertyreach.com', phrase: 'however, we were unable to locate your information in our database using the details you provided at the time of your request', outcome: no-data, broker: property-reach-l-p}
+- {from: '@searchpeoplefree.com', phrase: 'if you have more than one record on our site, you may need to submit a second request with information matching the other records', outcome: need-info, broker: searchpeoplefree}
+- {from: '@spydialer.com', phrase: 'if you have more than one record on our site, you may need to submit a second request with information matching the other records', outcome: need-info, broker: spy-labs-adco}
+- {from: '@usa-people-search.com', phrase: 'if you have more than one record on our site, you may need to submit a second request with information matching the other records', outcome: need-info, broker: usa-people-search}
+- {from: '@babelstreet.com', phrase: 'may you please confirm the applicable privacy request ticket number', outcome: auto-reply, broker: babel-street}
+- {from: '@exactmatchmarketing.com', phrase: 'thank you for contacting exact match', outcome: auto-reply, broker: exact-match-marketing}
+- {from: '@fusion92.com', phrase: 'your request has been honored', outcome: deleted, broker: virtual-marketing}
+- {from: '@getrev.ai', phrase: 'thank you for your request and please reach out with any questions you may have', outcome: auto-reply, broker: leadcrunch}
+- {from: '@infopay.com', phrase: 'based on the information you provided, infopay no longer maintains any information related to you or that includes your personal information', outcome: no-data, broker: infopay}
+- {from: '@m.onetrust.com', phrase: 'nexxen international ltd hi, your privacy-related request', outcome: deleted}
+- {from: '@privaterecords.net', phrase: 'we received your request to remove your information, and it is still waiting', outcome: auto-reply, broker: private-records}
+- {from: '@samba.tv', phrase: 'furthermore, based on the information you provided we could not find any record of processing your personal data', outcome: no-data, broker: samba-tv}
+- {from: '@bigid.cloud', phrase: "verify your email for a new privacy request click here if you can't see this email privacy request request id", outcome: need-info}
+- {from: '@bigid.cloud', phrase: "your privacy request was received click here if you can't see this email privacy request request id", outcome: auto-reply}
+- {from: '@cengage.com', phrase: "click on the link below to proceed processing your request to remove all your data that may currently be held in cengage systems", outcome: need-info, broker: cengage-learning}
+- {from: '@clientcommand.com', phrase: "privacy rights request acknowledgement email", outcome: need-info, broker: summit-resources}
+- {from: '@datasys.com', phrase: "please open your request page to confirm your request using a code sent to your email", outcome: need-info, broker: datasys-group}
+- {from: '@datasys.com', phrase: "your deletion request is complete datasys — privacy request platform hi", outcome: deleted, broker: datasys-group}
+- {from: '@hireez.com', phrase: "* your confirmation code is below ---- use this code to verify your request and continue to the next step", outcome: need-info, broker: hireteammate}
+- {from: '@inmarket.com', phrase: "privacy request / inmarket.com results", outcome: deleted, broker: inmarket-media}
+- {from: '@purecars.com', phrase: "purecars dsar - deletion request", outcome: deleted, broker: purecars-technologies}
+
+# --- learned from the 2026-11-18 batch of replies ---
+- {from: "@adsquare.com", phrase: "your privacy request has been completed", outcome: "deleted", broker: "adsquare-gmbh"}
+- {from: "@blackpearl.com", phrase: "we have completed a search across our systems and found no data associated with your email address", outcome: "no-data", broker: "black-pearl-group"}
+- {from: "@catalist.us", phrase: "your catalist privacy request - delete/opt-out", outcome: "deleted", broker: "catalist"}
+- {from: "@cbinsights.com", phrase: "dear requester, please verify your email address by following this link", outcome: "need-info", broker: "cb-information-services"}
+- {from: "@cbinsights.com", phrase: "in order to process your request and safeguard your data, you must verify your email address by clicking the link below", outcome: "need-info", broker: "cb-information-services"}
+- {from: "@cbinsights.com", phrase: "opt out request: canceled", outcome: "auto-reply", broker: "cb-information-services"}
+- {from: "@cbinsights.com", phrase: "please verify your email address by following this link", outcome: "need-info", broker: "cb-information-services"}
+- {from: "@cengage.com", phrase: "your right to be forgotten request is in process and will be completed within 30 days", outcome: "auto-reply", broker: "cengage-learning"}
+- {from: "@cisive.com", phrase: "any data that is not subject to fcra retention requirements has been deleted from our active systems", outcome: "denied"}
+- {from: "@clientcommand.com", phrase: "please click the button below to access your request in the privacy portal", outcome: "need-info", broker: "summit-resources"}
+- {from: "@connectedinvestors.com", phrase: "connected investors has been unable to verify your identity as a connected investors user with the information you have provided", outcome: "need-info", broker: "connected-investors"}
+- {from: "@datadesk.io", phrase: "dear sender, thank you for your email", outcome: "auto-reply", broker: "datadesk"}
+- {from: "@datafy.com", phrase: "hello, your request has been processed", outcome: "deleted", broker: "datafy"}
+- {from: "@datalinedata.com", phrase: "hello, thank you for reaching out to dataline", outcome: "auto-reply", broker: "dataline"}
+- {from: "@dealmachine.com", phrase: "we have removed and suppressed that email address to prevent it from being added to our database in the future", outcome: "deleted", broker: "dealmachine-operations"}
+- {from: "@definitivehc.com", phrase: "opt out request: canceled", outcome: "auto-reply", broker: "definitive-healthcare"}
+- {from: "@erepublic.com", phrase: "confirmation of your request to delete personal data", outcome: "auto-reply", broker: "e-republic"}
+- {from: "@evorra.com", phrase: "your opt-out / deletion request has been processed for the email(s) provided", outcome: "deleted", broker: "evorra"}
+- {from: "@experian.com", phrase: "to keep your data secure, you will be asked to verify your identity again", outcome: "need-info", broker: "experian-marketing-solutions"}
+- {from: "@findem.ai", phrase: "response to request to delete data", outcome: "deleted", broker: "findem"}
+- {from: "@forddirect.com", phrase: "the most secure and efficient way to submit a dsr for deletion is through our official online web form", outcome: "need-info", broker: "dealerdirect"}
+- {from: "@healthwisedata.com", phrase: "opt out request to healthwise data", outcome: "deleted", broker: "healthwise-data"}
+- {from: "@instantcheckmate.com", phrase: "this is done to verify your identity", outcome: "need-info", broker: "instant-checkmate"}
+- {from: "@iriworldwide.com", phrase: "please click the button below to access your request in the privacy portal", outcome: "need-info"}
+- {from: "@keymarketingadvantage.com", phrase: "hello, we are writing to inform you that we have successfully processed your request to delete your personal information from our database", outcome: "deleted", broker: "key-marketing-advantage"}
+- {from: "@lsmapps.com", phrase: "we have conducted an extensive search in our database and were not able to find any data associated with the email address you provided", outcome: "no-data", broker: "l-s-mobile-apps-holdings"}
+- {from: "@m.onetrust.com", phrase: "please click the button below to access an important update about your privacy request", outcome: "need-info"}
+- {from: "@m.onetrust.com", phrase: "use this one-time access code to access your request in the privacy portal", outcome: "need-info"}
+- {from: "@m1-data.com", phrase: "your request was received and has been ingested for processing", outcome: "auto-reply", broker: "m1-data-analytics"}
+- {from: "@melissa.com", phrase: "melissa data corporation - response to consumer privacy request", outcome: "auto-reply", broker: "melissa-data"}
+- {from: "@melissa.com", phrase: "thank you for contacting melissa data regarding your data privacy rights", outcome: "auto-reply", broker: "melissa-data"}
+- {from: "@morningstar.com", phrase: "we do not have any data associated with this email address in our platform", outcome: "no-data"}
+- {from: "@mrss.com", phrase: "request for data deletion from m+r", outcome: "deleted", broker: "m-r-strategic-services"}
+- {from: "@mstreetlegal.com", phrase: "thank you for contacting me", outcome: "auto-reply", broker: "dspolitical"}
+- {from: "@nordicdataresources.com", phrase: "dear sender, thank you for your email", outcome: "auto-reply", broker: "nordic-data-resources-as"}
+- {from: "@oan.pl", phrase: "dear sender, thank you for your email", outcome: "auto-reply", broker: "online-advertising-network-sp-z-o-o"}
+- {from: "@onaudience.com", phrase: "dear sender, thank you for your email", outcome: "auto-reply", broker: "onaudience"}
+- {from: "@optout.leadpost.com", phrase: "confirm your leadpost opt out & delete request", outcome: "need-info", broker: "leadpost"}
+- {from: "@optout.leadpost.com", phrase: "per your request, we have deleted any data we have stored about you", outcome: "deleted", broker: "leadpost"}
+- {from: "@pbinfo.com", phrase: "pbi was unable to verify your identity or match your provided information with information in our records", outcome: "need-info", broker: "pension-benefit-information"}
+- {from: "@placeexchange.com", phrase: "dear consumer, your request has been processed and executed", outcome: "deleted", broker: "place-exchange"}
+- {from: "@plungedigital.com", phrase: "based on the information you provided, we were unable to locate a matching record in our database", outcome: "no-data", broker: "plunge"}
+- {from: "@possiblenow.com", phrase: "do-not-reply - your request for delete/do not sell my data to possiblenow", outcome: "deleted", broker: "possiblenow"}
+- {from: "@propensity.com", phrase: "your request has been honored", outcome: "deleted", broker: "addapptation"}
+- {from: "@safegraph.com", phrase: "hello, thank you for contacting safegraph's privacy team", outcome: "auto-reply", broker: "safegraph"}
+- {from: "@statsocial.com", phrase: "we've thoroughly reviewed our databases and confirm that any data pertaining to the identity you provided has been deleted", outcome: "deleted", broker: "statsocial"}
+- {from: "@steppingblocks.com", phrase: "we are writing to confirm that your privacy request submitted under the california consumer privacy act (ccpa) has been completed", outcome: "no-data", broker: "steppingblocks"}
+- {from: "@telesign.com", phrase: "thank you for reaching out to telesign with your enquiry", outcome: "auto-reply", broker: "telesign"}
+- {from: "@ventiveiq.com", phrase: "at this time, we were unable to locate personal information relating to the consumer in our systems", outcome: "no-data", broker: "ventiveiq"}
+- {from: "@verifications.instantcheckmate.com", phrase: "your deletion request for instantcheckmate has been processed", outcome: "deleted", broker: "instant-checkmate"}
+- {from: "@verifications.ussearch.com", phrase: "your deletion request for ussearch has been processed", outcome: "deleted", broker: "ussearch"}
+- {from: "@m.onetrust.com", phrase: "to view your completed request in the privacy portal", outcome: "deleted"}
+- {from: "@sharelocalmedia.com", phrase: "we have fulfilled your request", outcome: "deleted", broker: "share-local-media"}
+- {from: "@sharelocalmedia.com", phrase: "it will be processed shortly", outcome: "auto-reply", broker: "share-local-media"}
+- {from: "@verifications.peopleconnect.us", phrase: "login to the suppression tool", outcome: "need-info"}
+- {from: "@twinedata.com", phrase: "we have searched our records and resolved this request", outcome: "deleted", broker: "twine-data"}
+- {from: "@suus.inc", phrase: "completed your request by removing your information", outcome: "deleted", broker: "suus"}
+- {from: "@mail.us.transcend.io", phrase: "your data erasure from", outcome: "deleted"}
+- {from: "@mediawallah.com", phrase: "removed any personal information associated with you", outcome: "deleted", broker: "mediawallah"}
+- {from: "@privacy.hubspot.com", phrase: "we have taken action per your request", outcome: "deleted", broker: "hubspot"}
+- {from: "@penlink.mail.datagrail.io", phrase: "we have processed your request in accordance with applicable law", outcome: "deleted", broker: "pen-link"}
+- {from: "@kbsynergy.com", phrase: "has been automatically processed", outcome: "deleted", broker: "kb-synergy"}
+- {from: "@clay.com", phrase: "did not locate personal information about you", outcome: "no-data", broker: "clay-labs"}
+- {from: "@supplierio.atlassian.net", phrase: "we hold no information about you", outcome: "no-data", broker: "qurium-solutions"}
+- {from: "@datasubject.com", phrase: "there is a new message about your data rights request", outcome: "need-info"}
+- {from: "@datasubject.com", phrase: "no personal information matching the identifying information you provided was found", outcome: "no-data"}
+- {from: "@attomdata.com", phrase: "we did not locate any personal information associated with the details you provided", outcome: "no-data", broker: "attom-data-solutions"}
+- {from: "@apollo.io", phrase: "we did not find any data linked to the information you provided", outcome: "no-data"}
+- {from: "@cengage.com", phrase: "your do not sell request is now complete", outcome: "auto-reply", broker: "cengage-learning"}
+- {from: "@bigid.cloud", phrase: "we have verified your identity", outcome: "auto-reply"}
+- {from: "@catalina.com", phrase: "your email address did not match a record in the systems we searched", outcome: "need-info", broker: "catalina-marketing"}
+
+# --- learned from the 2026-11-22 batch of replies ---
+- {from: "@backgroundsonline.com", phrase: "i confirmed we do not have any data about you in our system or in any system that is under our control", outcome: "no-data", broker: "iq-data-systems"}
+- {from: "@cashmereai.com", phrase: "we received your request to delete your personal information on november 19", outcome: "auto-reply", broker: "pludo"}
+- {from: "@cashmereai.com", phrase: "we searched our records and found no personal information about you to delete", outcome: "no-data", broker: "pludo"}
+- {from: "@cashmereai.com", phrase: "your privacy request has been received - cashmere", outcome: "auto-reply", broker: "pludo"}
+- {from: "@definitivehc.com", phrase: "privacy request / definitivehc.com results", outcome: "deleted", broker: "definitive-healthcare"}
+- {from: "@email.beenverified.com", phrase: "your opt-out request is verified", outcome: "deleted", broker: "beenverified-llc-and-its-subsidiaries-and-affiliat"}
+- {from: "@scanbuy.com", phrase: "as a result, we do not have any personal data to disclose or delete in response to your request", outcome: "no-data", broker: "scanbuy"}
+- {from: "@seekout.com", phrase: "dear data subject, per your request, your profile has been deleted, and this matter is now closed", outcome: "deleted", broker: "zipstorm"}
+- {from: "@missionwired-privacy.com", phrase: "we processed your deletion request for the information we have associated with", outcome: "deleted", broker: "anne-lewis-strategies"}
+- {from: "@mail.us.transcend.io", phrase: "deletion request completed", outcome: "deleted"}
+- {from: "@mail.us.transcend.io", phrase: "we have received your delete my information request", outcome: "auto-reply"}
+- {from: "@sentilink.com", phrase: "to the extent that we determine that we have collected and retained personal information", outcome: "auto-reply", broker: "sentilink"}
+- {from: "@trueblueanalytics.org", phrase: "we did not locate a matching record in our current dataset", outcome: "no-data", broker: "true-blue-analytics"}
+- {from: "@cashmereai.com", phrase: "no further action is needed from you at this time", outcome: "auto-reply", broker: "pludo"}

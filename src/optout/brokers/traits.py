@@ -15,6 +15,8 @@ from importlib.resources import files
 
 import yaml
 
+from optout import yaml_io
+
 from ..config import config_dir
 from .schema import BrokerDef
 
@@ -24,6 +26,7 @@ TRAITS = (
     "requires_phone_verification",
     "requires_listing_url",
     "requires_account",
+    "requires_payment",
     "requires_id_upload",
     "requires_notarization",
     "requires_device_ids",
@@ -50,7 +53,7 @@ def _local_path():
 def shared_traits() -> dict[str, set[str]]:
     try:
         return _parse(
-            yaml.safe_load(files("optout").joinpath("data/broker_traits.yml").read_text())
+            yaml_io.safe_load(files("optout").joinpath("data/broker_traits.yml").read_text())
         )
     except (OSError, yaml.YAMLError):
         return {}
@@ -58,7 +61,7 @@ def shared_traits() -> dict[str, set[str]]:
 
 def local_traits() -> dict[str, set[str]]:
     try:
-        return _parse(yaml.safe_load(_local_path().read_text()))
+        return _parse(yaml_io.safe_load(_local_path().read_text()))
     except (OSError, yaml.YAMLError):
         return {}
 

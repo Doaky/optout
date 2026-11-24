@@ -144,3 +144,27 @@ def test_bulk_email_cites_the_users_state_law(texan, profile):
     )
     general = _render_body(bulk, ohio, contact_email="a@x.invalid", minimal=True)
     assert "§" not in general and "privacy laws that apply to you" in general
+
+
+def test_followup_draft_before_the_deadline_does_not_claim_it_passed(profile, broker):
+    early = make_draft(
+        "followup", _sub(deadline_days=10), broker, profile, contact_email="x", now=NOW
+    )
+    assert "I have not received a response" not in early.body
+    assert "how it is progressing" in early.body
+    late = make_draft(
+        "followup", _sub(deadline_days=-5), broker, profile, contact_email="x", now=NOW
+    )
+    assert "I have not received a response" in late.body
+
+
+def test_draft_dates_follow_the_users_time_zone(profile, broker):
+    from datetime import UTC, datetime
+    from zoneinfo import ZoneInfo
+
+    sub = _sub()
+    sub.submitted_at = datetime(2026, 10, 9, 2, 0, tzinfo=UTC)  # Oct 8, 10 pm in New York
+    d = make_draft(
+        "followup", sub, broker, profile, contact_email="x", tz=ZoneInfo("America/New_York")
+    )
+    assert "On October 08, 2026" in d.body

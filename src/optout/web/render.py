@@ -33,43 +33,106 @@ _LOGO = (
 )
 FAVICON = "data:image/svg+xml," + quote(_LOGO, safe="/:=' ")
 
+# One icon set: 24-unit grid, 2px round strokes, drawn in currentColor.
+_ICON_PATHS = {
+    "check": "<path d='M5 12.5l4.5 4.5L19 7.5'/>",
+    "x": "<path d='M6 6l12 12M18 6L6 18'/>",
+    "alert": "<path d='M12 6v8'/><path d='M12 18.5v.01'/>",
+    "ring": "<circle cx='12' cy='12' r='6.5'/>",
+    "question": "<path d='M9.2 9a3 3 0 1 1 4.3 2.7c-.9.4-1.5 1.1-1.5 2.1v.4'/><path d='M12 18.5v.01'/>",
+    "more": "<path d='M5.5 12h.01M12 12h.01M18.5 12h.01' stroke-width='3.2'/>",
+    "reply": "<path d='M9 14L4 9l5-5'/><path d='M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5V20'/>",
+    "mail": "<rect x='3' y='5' width='18' height='14' rx='2'/><path d='M3.5 6.5l8.5 6.5 8.5-6.5'/>",
+    "clock": "<circle cx='12' cy='12' r='8.5'/><path d='M12 7.5V12l3 2'/>",
+    "list": "<path d='M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01'/>",
+    "settings": "<circle cx='12' cy='12' r='3'/><path d='M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z'/>",
+}
+
+
+def icon(name: str, size: int = 16, cls: str = "ico") -> str:
+    return (
+        f"<svg class='{cls}' viewBox='0 0 24 24' width='{size}' height='{size}' aria-hidden='true' "
+        "fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' "
+        f"stroke-linejoin='round'>{_ICON_PATHS[name]}</svg>"
+    )
+
+
 CSS = """
 :root{
   --bg:#f5f6f8;--surface:#ffffff;--surface-2:#f0f2f5;--line:#e2e5e9;
-  --text:#15181c;--text-2:#46505a;--muted:#6a7480;
-  --accent:#2a78d6;--accent-hover:#2167bd;--accent-ink:#fff;--ring:rgba(42,120,214,.45);
-  --good:#0ca30c;--warning:#fab219;--serious:#ec835a;--critical:#d03b3b;--info:#2a78d6;--neutral:#8a939d;
-  --chart-surface:#fcfcfb;--grid:#e8e9e6;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;
+  --text:#15181c;--text-2:#46505a;--muted:#5c6672;
+  --accent:#1d68c4;--accent-hover:#1a5fb4;--accent-ink:#fff;--ring:var(--accent);
+  --fill:#1d68c4;--fill-hover:#1a5fb4;--control-line:#858e98;
+  --good:#0ca30c;--warning:#fab219;--serious:#ec835a;--critical:#d03b3b;--info:#7d8896;--neutral:#8a939d;
+  --warn-ink:#a15c00;--crit-ink:#b42323;
+  --chart-surface:#fcfcfb;--grid:#e8e9e6;--s1:#2a78d6;--s2:#e0a100;--s3:#1baf7a;
   --shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.07);
-  --radius:12px;
+  /* Radius scale: cards, then boxes nested in a card (outer minus padding, floored), then
+     controls; items inside a padded popover are tighter still. */
+  --radius:12px;--r-inner:6px;--r-control:6px;--r-item:3px;
+  --maxw:1360px;--gutter:clamp(16px,2.2vw,32px);
+  --ease-out:cubic-bezier(.2,.8,.2,1);--ease-in-out:cubic-bezier(.65,0,.35,1);
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
 }
 @media (prefers-color-scheme:dark){:root{
   --bg:#111214;--surface:#1a1a19;--surface-2:#232422;--line:#30312e;
-  --text:#f0efec;--text-2:#c3c2b7;--muted:#9a998f;
-  --accent:#3987e5;--accent-hover:#5598e7;--ring:rgba(57,135,229,.5);
-  --chart-surface:#1a1a19;--grid:#2c2d2a;--s1:#3987e5;--s2:#d95926;--s3:#199e70;
+  --text:#f0efec;--text-2:#c3c2b7;--muted:#9a998f;--warn-ink:#f0b429;--crit-ink:#f07a7a;
+  --accent:#5598e7;--accent-hover:#6aa5ec;--ring:var(--accent);
+  --fill:#2b6fc4;--fill-hover:#245fa8;--control-line:#74756f;
+  --chart-surface:#1a1a19;--grid:#2c2d2a;--s1:#3987e5;--s2:#f0b429;--s3:#199e70;
   --shadow:0 1px 2px rgba(0,0,0,.4);
 }}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--text);
-  font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-.wrap{max-width:1120px;margin:0 auto;padding:0 16px}
+  font:15px/1.55 var(--sans)}
+/* Content width: roomier on big screens, gutters grow a little with the window. */
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 var(--gutter)}
 .skip{position:absolute;left:-999px;top:8px}.skip:focus{left:16px;z-index:10;
-  background:var(--surface);padding:8px 12px;border-radius:8px}
+  background:var(--surface);padding:8px 12px;border-radius:var(--r-control)}
 a{color:var(--accent);text-underline-offset:2px}
-:focus-visible{outline:3px solid var(--ring);outline-offset:2px;border-radius:6px}
+:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+main:focus{outline:none}
+::placeholder{color:var(--muted);opacity:1}
 .topbar{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--surface) 88%,transparent);
   backdrop-filter:saturate(1.4) blur(8px);border-bottom:1px solid var(--line)}
 .topbar .wrap{display:flex;align-items:center;gap:12px;min-height:56px;flex-wrap:wrap}
 .brand{display:flex;align-items:center;gap:10px;color:var(--text);text-decoration:none;
   font-weight:700;font-size:17px;letter-spacing:-.01em}
 .brand svg{width:28px;height:28px}
-.topbar .sub{color:var(--muted);font-size:13px}
 .topbar .updated{margin-left:auto;color:var(--muted);font-size:13px}
 main{padding:20px 0 48px}
-h1{font-size:24px;letter-spacing:-.02em;margin:4px 0 16px}
+h1{font-size:24px;letter-spacing:-.02em;margin:4px 0 12px}
 h2{font-size:16px;margin:0 0 12px;letter-spacing:-.01em}
+h1,h2,h3,legend{text-wrap:balance}p,li{text-wrap:pretty}
+.tnum,[data-live]{font-variant-numeric:tabular-nums}
+.warn-t{color:var(--warn-ink);font-weight:600}.warn-t .ico{margin-right:3px}.crit-t{color:var(--crit-ink);font-weight:600}
+.ico{display:inline-block;vertical-align:-.15em;flex:none}
+/* Overall progress toward the goal: every broker in the plan done. */
+.goal{margin:0 0 16px}
+.progress.mini{height:4px;margin:6px 0 0;max-width:180px}
+.progress.mini>span{background:var(--good)}
+.goal .gl{display:flex;justify-content:space-between;gap:12px;font-size:13px;color:var(--text-2)}
+.goal .gl b{color:var(--text);font-variant-numeric:tabular-nums}
+.goal .progress{height:10px;margin:6px 0 0}
+.goal .progress>span{background:var(--good)}
+.allclear{display:flex;align-items:center;gap:12px}
+.allclear .ico{color:var(--good)}
+.allclear p{margin:0}
+/* Needs-you groups: a band per group; the time-sensitive one in the warning colour. */
+h3.att-group{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:16px 0 4px;
+  padding:8px 12px;border-radius:var(--r-inner);font-size:14px;background:var(--surface-2);
+  color:var(--text)}
+h3.att-group .ico{color:var(--text-2)}
+h3.att-group .gc{font-variant-numeric:tabular-nums;font-size:12px;font-weight:700;
+  padding:0 7px;border-radius:999px;background:var(--surface);color:var(--text-2);line-height:20px}
+h3.att-group .gb{flex-basis:100%;font-size:13px;font-weight:400;color:var(--text-2);padding-left:24px}
+h3.att-group.urgent{background:color-mix(in srgb,var(--critical) 9%,var(--surface));
+  box-shadow:inset 3px 0 0 var(--critical);color:var(--crit-ink)}
+h3.att-group.urgent .ico{color:var(--crit-ink)}
+h3.att-group.urgent .gc{background:var(--critical);color:#fff}
+.pill .i svg{stroke-width:2.75}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
   box-shadow:var(--shadow);padding:18px 20px;margin:0 0 16px}
 .grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;margin:0 0 16px}
@@ -79,16 +142,45 @@ h2{font-size:16px;margin:0 0 12px;letter-spacing:-.01em}
 .stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
   box-shadow:var(--shadow);padding:14px 16px}
 .stat .n{font-size:28px;font-weight:700;letter-spacing:-.02em;line-height:1.1;font-variant-numeric:tabular-nums}
-.stat .l{color:var(--text-2);font-size:13px;display:flex;align-items:center;gap:6px;margin-top:4px}
+.stat .l{color:var(--text-2);font-size:13px;margin-top:4px}
 .stat .sub{color:var(--muted);font-size:12px;margin-top:2px}
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
 .muted{color:var(--muted)}.small{font-size:13px}
 .ok{color:var(--good)}.bad{color:var(--critical)}
-.flash{border-radius:10px;padding:10px 14px;margin:0 0 16px;border:1px solid var(--line);background:var(--surface)}
+.flash{border-radius:var(--r-inner);padding:10px 14px;margin:0 0 16px;border:1px solid var(--line);background:var(--surface)}
 .flash.ok{border-color:color-mix(in srgb,var(--good) 40%,var(--line));color:var(--text)}
 .flash.bad{border-color:color-mix(in srgb,var(--critical) 45%,var(--line));color:var(--text)}
-.flash{display:flex;align-items:center;gap:10px;animation:rise .25s ease-out}
-.flash::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--good);flex:none}
+.flash{display:flex;align-items:center;gap:10px;animation:rise .25s ease-out;
+  position:sticky;top:calc(var(--topbar-h,56px) + 8px);z-index:4;box-shadow:0 4px 14px rgb(0 0 0/.12)}
+.flash .x{margin-left:auto;background:none;border:0;color:var(--muted);line-height:0;
+  padding:0;min-width:28px;min-height:28px;border-radius:50%;cursor:pointer}
+.flash .x:hover{background:none;color:var(--text)}
+/* Countdown ring: starts full at the top and drains clockwise; hidden while paused. */
+.flash .x .ring{transform:rotate(-90deg);transform-origin:center;stroke-dasharray:100;
+  stroke-dashoffset:0;opacity:0;transition:opacity .15s var(--ease-out)}
+.flash.counting .x .ring{opacity:.55;animation:drain 12s linear forwards}
+@keyframes drain{to{stroke-dashoffset:100}}
+.flash.out{animation:sink .2s ease-in forwards}
+/* With the script, the banner floats under the header instead of pushing the page down when it
+   appears and pulling it back up when it goes (no-script pages keep it in the flow). */
+.js .flash{position:fixed;top:calc(var(--topbar-h,56px) + 8px);margin:0;
+  background:color-mix(in srgb,var(--surface) 78%,transparent);
+  -webkit-backdrop-filter:saturate(1.4) blur(10px);backdrop-filter:saturate(1.4) blur(10px);
+  left:max(var(--gutter),calc(50% - var(--maxw) / 2 + var(--gutter)));
+  right:max(var(--gutter),calc(50% - var(--maxw) / 2 + var(--gutter)));
+  max-height:min(50vh,420px);overflow:auto;z-index:6}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0 0 0 0);white-space:nowrap;border:0}
+/* Busy button: the label stays (so the size can't change) but is hidden under a spinner. */
+button.working,details.rowmenu button.mitem.working{position:relative;color:transparent!important}
+button.working::after{content:"";position:absolute;inset:0;margin:auto;width:14px;height:14px;
+  border-radius:50%;border:2px solid var(--accent-ink);border-right-color:transparent;
+  animation:spin .7s linear infinite}
+button.secondary.working::after,button.ghost.working::after,button.ibtn.working::after,
+details.rowmenu button.mitem.working::after{border-color:var(--text-2);border-right-color:transparent}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes sink{to{opacity:0;transform:translateY(-4px)}}
+.flash::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--good);flex:none;align-self:flex-start;margin-top:6px}
 .flash.bad::before{background:var(--critical)}
 .flash.live::before,.live-dot{animation:glow 1.6s ease-in-out infinite}
 .live-dot{width:9px;height:9px;border-radius:50%;background:var(--good);display:inline-block;
@@ -108,14 +200,19 @@ h2{font-size:16px;margin:0 0 12px;letter-spacing:-.01em}
 .t-critical{--tone:var(--critical)}.t-info{--tone:var(--info)}.t-neutral{--tone:var(--neutral)}
 .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 a.fpill{text-decoration:none;display:inline-flex;align-items:center;gap:6px;padding:5px 12px;
-  border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--text-2);
+  border-radius:999px;border:1px solid var(--control-line);background:var(--surface);color:var(--text-2);
   font-size:13px;font-weight:600}
 a.fpill:hover{border-color:var(--accent);color:var(--text)}
-a.fpill[aria-current=page]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+a.fpill[aria-current=page]{background:var(--fill);border-color:var(--fill);color:var(--accent-ink)}
 a.fpill[aria-current=page] .dot{box-shadow:0 0 0 2px var(--accent-ink)}
-.fpill .c{font-variant-numeric:tabular-nums;opacity:.75;font-weight:500}
+.fpill .c{font-variant-numeric:tabular-nums;color:inherit;font-weight:500}
 .toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin:0 0 12px}
-.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-inner)}
+/* The full request list scrolls inside its own box (headers stay put) instead of making the
+   page hundreds of rows long. */
+#requests .table-wrap{max-height:min(70vh,720px);overflow:auto;overscroll-behavior:contain;
+  box-shadow:inset 0 -12px 10px -10px rgb(16 24 40/.16)}
+thead th{z-index:1}
 table{border-collapse:collapse;width:100%;font-size:14px}
 th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:middle}
 thead th{position:sticky;top:0;background:var(--surface-2);color:var(--text-2);font-size:12px;
@@ -123,56 +220,87 @@ thead th{position:sticky;top:0;background:var(--surface-2);color:var(--text-2);f
 tbody tr:last-child td{border-bottom:0}
 tbody tr:hover{background:var(--surface-2)}
 td.name{font-weight:600;white-space:normal;min-width:160px}
+td.latest{white-space:normal;min-width:120px}
 td.num{font-variant-numeric:tabular-nums}
-input,select,button{font:inherit;font-size:13.5px;border-radius:6px}
-input,select{padding:7px 10px;border:1px solid var(--line);background:var(--surface);color:var(--text)}
+input,select,button{font:inherit;font-size:13.5px;border-radius:var(--r-control)}
+input,select{padding:7px 10px;border:1px solid var(--control-line);background:var(--surface);color:var(--text)}
+select{max-width:100%}
 input:hover,select:hover{border-color:color-mix(in srgb,var(--accent) 50%,var(--line))}
-button{padding:5px 12px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);
+button{padding:5px 12px;border:1px solid var(--fill);background:var(--fill);color:var(--accent-ink);
   font-weight:500;line-height:1.4;cursor:pointer;transition:background .12s,border-color .12s}
-button:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
-button:active{transform:translateY(1px)}
+button:hover{background:var(--fill-hover);border-color:var(--fill-hover)}
 button[disabled]{opacity:.7;cursor:progress}
 button.big{padding:7px 16px;font-size:14px}
-button.secondary{background:var(--surface);color:var(--text);border-color:var(--line)}
-button.secondary:hover{border-color:var(--accent)}
-button.go{background:#15803d;border-color:#15803d;color:#fff}
-button.go:hover{background:#166534;border-color:#166534}
-@media (prefers-color-scheme:dark){button.go{background:#16a34a;border-color:#16a34a}
-button.go:hover{background:#22c55e;border-color:#22c55e}}
-button.removed{background:#7c3aed;border-color:#7c3aed;color:#fff}
-button.removed:hover{background:#6d28d9;border-color:#6d28d9}
-@media (prefers-color-scheme:dark){button.removed{background:#8b5cf6;border-color:#8b5cf6}
-button.removed:hover{background:#a78bfa;border-color:#a78bfa}}
+button.secondary{background:var(--surface);color:var(--text);border-color:var(--control-line)}
+button.secondary:hover{background:var(--surface);border-color:var(--accent)}
 form.inline{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
 form.inline.rowform{flex-wrap:nowrap}
+.replies form.inline.rowform{flex-wrap:wrap}
 .rowform select{width:150px;padding:5px 8px;font-size:13px}.rowform button{padding:5px 12px;font-size:13px}
 details.rowmenu{position:relative;display:inline-block}
-details.rowmenu>summary{list-style:none;cursor:pointer;width:28px;height:24px;display:inline-flex;
-  align-items:center;justify-content:center;border:1px solid var(--line);border-radius:6px;
-  color:var(--text-2);font-size:16px;line-height:1;user-select:none}
+details.rowmenu>summary{list-style:none;cursor:pointer;width:32px;height:28px;display:inline-flex;
+  align-items:center;justify-content:center;border:1px solid var(--control-line);border-radius:var(--r-control);
+  color:var(--text-2);line-height:1;user-select:none}
 details.rowmenu>summary::-webkit-details-marker{display:none}
+/* The ⋯ drawn in CSS (one per row: an SVG each would add ~250 KB to a long list). */
+details.rowmenu>summary::before{content:"";width:3px;height:3px;border-radius:50%;
+  background:currentColor;box-shadow:-5.5px 0 currentColor,5.5px 0 currentColor}
 details.rowmenu>summary:hover,details.rowmenu[open]>summary{border-color:var(--accent);color:var(--text)}
-details.rowmenu .menu{position:absolute;right:0;top:28px;z-index:20;min-width:210px;padding:6px;
-  background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);
-  display:flex;flex-direction:column;gap:1px}
+/* Fixed, placed by the script next to its button: the request list scrolls in its own box,
+   which would otherwise clip the menu. */
+details.rowmenu .menu{position:fixed;z-index:20;min-width:210px;padding:4px;
+  background:var(--surface);border:1px solid var(--line);border-radius:7px;
+  box-shadow:0 8px 24px rgb(16 24 40/.14),0 2px 6px rgb(16 24 40/.08);
+  display:flex;flex-direction:column;gap:1px;transform-origin:top right}
+/* Without room below, the menu opens upward, still from its button. */
+details.rowmenu.up .menu{transform-origin:bottom right}
 details.rowmenu .mgroup{font-size:11px;text-transform:uppercase;letter-spacing:.04em;
   color:var(--muted);padding:6px 8px 2px}
-details.rowmenu button.mitem{all:unset;cursor:pointer;padding:5px 8px;border-radius:5px;
+details.rowmenu button.mitem{all:unset;cursor:pointer;padding:5px 8px;border-radius:var(--r-item);
   font-size:13px;color:var(--text);white-space:nowrap}
 details.rowmenu button.mitem:hover,details.rowmenu button.mitem:focus-visible{background:var(--surface-2)}
+details.rowmenu button.mitem:focus-visible{outline:2px solid var(--ring);outline-offset:-2px}
+details.rowmenu .mg{display:flex;flex-direction:column;gap:1px}
 .search{display:flex;gap:6px}.search input{width:220px}
-input.combo{width:260px}
+input.combo{width:100%;max-width:260px}
+.reply{grid-template-columns:minmax(0,1fr)}
 .replies .rowform select{width:auto;max-width:280px}
 .js .nojs{display:none}
-.hdr-link{display:inline-flex;align-items:center;gap:6px;color:var(--text-2);text-decoration:none;
-  font-size:14px;font-weight:600;padding:6px 10px;border-radius:8px;border:1px solid var(--line)}
-.hdr-link:hover{color:var(--text);border-color:var(--accent)}
+.hdr-link,.topbar button.hdr{display:inline-flex;align-items:center;gap:6px;height:32px;
+  padding:0 12px;font-size:13.5px;font-weight:500;line-height:1;color:var(--text);
+  text-decoration:none;background:var(--surface);border:1px solid var(--control-line);
+  border-radius:var(--r-control)}
+.hdr-link .ico,.topbar button.hdr .ico{color:var(--text-2)}
+.hdr-link:hover,.topbar button.hdr:hover{background:var(--surface);color:var(--text);border-color:var(--accent)}
+button.hdr.working::after{border-color:var(--text-2);border-right-color:transparent}
+.topbar button.hdr.working .ico{visibility:hidden}
 details.fold>summary,details.settings>summary{display:flex;align-items:baseline;gap:12px;cursor:pointer;list-style:none}
 details.fold>summary::-webkit-details-marker,details.settings>summary::-webkit-details-marker{display:none}
 details.fold>summary h2,details.settings>summary h2{margin:0}
-details.fold>summary::after,details.settings>summary::after{content:"▸";margin-left:auto;color:var(--muted)}
-details.fold[open]>summary::after,details.settings[open]>summary::after{content:"▾"}
-fieldset{border:1px solid var(--line);border-radius:10px;padding:12px 16px 16px;margin:16px 0}
+details.fold[open]>summary,details.settings[open]>summary{margin-bottom:12px}
+details.settings form>fieldset:first-of-type{margin-top:0}
+details.fold>details.mini{margin-top:12px}
+.drafts-row{margin-top:12px}
+/* One chevron, drawn in CSS so it matches the stroke icons; it turns as the section opens. */
+details.fold>summary::after,details.settings>summary::after,details.sub>summary::after,
+th button.sortbtn::after{content:"";width:6px;height:6px;flex:none;
+  border-right:2px solid currentColor;border-bottom:2px solid currentColor;
+  transform:translateY(-2px) rotate(45deg)}
+details.fold>summary::after,details.settings>summary::after,details.sub>summary::after{
+  margin-left:auto;color:var(--muted);align-self:center;transform:rotate(-45deg)}
+details.fold[open]>summary::after,details.settings[open]>summary::after,
+details.sub[open]>summary::after{transform:translateY(-2px) rotate(45deg)}
+fieldset{border:1px solid var(--line);border-radius:var(--r-inner);padding:12px 16px 16px;margin:16px 0}
+details.sub{border:1px solid var(--line);border-radius:var(--r-inner);padding:0 16px;margin:16px 0}
+details.sub>summary{display:flex;align-items:center;gap:12px;cursor:pointer;list-style:none;
+  padding:12px 0;font-weight:700}
+details.sub>summary::-webkit-details-marker{display:none}
+details.sub>summary .muted{font-weight:400}
+details.sub[open]{padding-bottom:16px}
+/* Settings is long: keep Save in reach while you scroll it. */
+.savebar{position:sticky;bottom:0;z-index:3;display:flex;gap:12px;align-items:center;
+  margin:16px 0 0;padding:12px 0;border-top:1px solid var(--line);
+  background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(6px)}
 legend{font-weight:700;padding:0 6px}
 .fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px}
 .fld{display:flex;flex-direction:column;gap:4px;font-size:13px}
@@ -182,7 +310,7 @@ legend{font-weight:700;padding:0 6px}
 .fw{display:flex;flex-direction:column;gap:4px}
 details.fhelp>summary{cursor:pointer;color:var(--accent);font-size:12.5px;width:max-content}
 details.fhelp>div{margin-top:6px;padding:10px 12px;border:1px solid var(--line);
-  border-radius:8px;background:var(--surface-2);font-size:13px;line-height:1.5}
+  border-radius:var(--r-inner);background:var(--surface-2);font-size:13px;line-height:1.5}
 details.fhelp p{margin:0 0 8px}details.fhelp ol,details.fhelp ul{margin:0 0 8px;padding-left:20px}
 details.fhelp code{font-size:12px}
 .check{display:flex;gap:8px;align-items:center;margin-top:12px;font-size:14px}
@@ -211,16 +339,17 @@ details.mini[open]>summary{margin-bottom:6px}
 .coverage{max-width:760px}
 th button.sortbtn{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:5px;
   font:inherit;text-transform:inherit;letter-spacing:inherit;color:inherit}
-th button.sortbtn::after{content:"↕";opacity:.35;font-size:11px}
-th[aria-sort=ascending] button.sortbtn::after{content:"▲";opacity:1;color:var(--accent)}
-th[aria-sort=descending] button.sortbtn::after{content:"▼";opacity:1;color:var(--accent)}
+th button.sortbtn::after{opacity:.35;width:5px;height:5px}
+th[aria-sort=ascending] button.sortbtn::after{opacity:1;color:var(--accent);
+  transform:translateY(1px) rotate(225deg)}
+th[aria-sort=descending] button.sortbtn::after{opacity:1;color:var(--accent)}
 th button.sortbtn:hover{color:var(--text)}
-th button.sortbtn:focus-visible{outline:2px solid var(--ring);outline-offset:2px;border-radius:4px}
+th button.sortbtn:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
 .gsec h3{margin:12px 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.05em;
   color:var(--muted)}
-.gbox{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:6px 18px}
+.gbox{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:6px 18px}
 .gopt{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.4;
-  cursor:pointer;padding:6px 8px;border-radius:8px}
+  cursor:pointer;padding:6px 8px;border-radius:var(--r-inner)}
 .gopt:hover{background:var(--surface-2)}
 .gopt input{margin-top:3px;flex:none}
 .gopt .also{display:block;font-size:12px;color:var(--accent);margin-top:2px}
@@ -230,25 +359,32 @@ th button.sortbtn:focus-visible{outline:2px solid var(--ring);outline-offset:2px
 .coverage form + form{margin-top:6px}
 .att-actions{display:flex;gap:6px;align-items:center;flex:none}
 .att-actions button{padding:6px 14px;font-size:13px}
+.att-stack{display:flex;flex-direction:column;gap:6px;align-items:stretch}
+.att-stack form{display:block;margin:0}.att-stack button{width:100%}
 form.redirect{margin-top:6px;gap:8px}
 button.mini{padding:2px 9px;font-size:12.5px}
 /* Quiet row actions: outlined, filled only on hover. */
-button.ghost{background:transparent;color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--line))}
+button.ghost{background:transparent;color:var(--accent);border-color:var(--accent)}
 button.ghost:hover{background:color-mix(in srgb,var(--accent) 12%,transparent);border-color:var(--accent);color:var(--accent)}
 .actions{display:inline-flex;align-items:center;gap:10px;white-space:nowrap}
 table.plan td{white-space:normal;vertical-align:middle}table.plan td:last-child{white-space:nowrap;width:1%}
-button.ibtn{padding:0;background:var(--surface);color:var(--text-2);border-color:var(--line)}
+@media (max-width:600px){table.plan,table.plan tbody{display:block}table.plan tr{display:grid;grid-template-columns:2em minmax(0,1fr);gap:6px 8px;padding:12px 0;border-bottom:1px solid var(--line)}table.plan td{display:block;padding:0;border:0}table.plan td.num{grid-row:span 3}table.plan td:last-child{white-space:normal;width:auto}}
+button.ibtn{padding:0;background:var(--surface);color:var(--text-2);border-color:var(--control-line)}
 button.ibtn:hover{color:var(--text);border-color:var(--accent);background:var(--surface)}
-button.ibtn.mini{width:26px;height:26px;border-radius:6px;margin-left:4px;display:inline-flex;
+button.ibtn.mini{width:26px;height:26px;border-radius:var(--r-control);margin-left:4px;display:inline-flex;
   align-items:center;justify-content:center;vertical-align:middle}
 a.ibtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;
-a.ibtn.mini{width:22px;height:22px;margin-left:6px;vertical-align:middle;border-radius:5px}
-  border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--text-2)}
+  border-radius:var(--r-control);border:1px solid var(--control-line);background:var(--surface);color:var(--text-2)}
+a.ibtn.mini{width:24px;height:24px;margin-left:6px;vertical-align:middle}
 a.ibtn:hover{border-color:var(--accent);color:var(--text)}
 @media (max-width:700px){.att{flex-direction:column;align-items:flex-start}}
-a.btnlink{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:8px;
-  border:1px solid var(--line);background:var(--surface);color:var(--text);text-decoration:none;
-  font-weight:600;font-size:14px}
+.attn li.att{align-items:flex-start;padding:12px 0}
+@media (max-width:700px){.attn li.att{align-items:stretch}}
+a.btnlink{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:var(--r-control);
+  border:1px solid var(--control-line);background:var(--surface);color:var(--text);text-decoration:none;
+  font-weight:500;font-size:13.5px;line-height:1.4}
+a.btnlink.primary{background:var(--fill);border-color:var(--fill);color:var(--accent-ink)}
+a.btnlink.primary:hover{background:var(--fill-hover);border-color:var(--fill-hover)}
 a.btnlink:hover{border-color:var(--accent)}
 hr{border:0;border-top:1px solid var(--line);margin:18px 0}
 body.busy{cursor:progress}
@@ -261,25 +397,27 @@ body.busy .topbar::after{opacity:1;animation:sweep 1.1s ease-in-out infinite}
 .sendrow{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-top:12px}
 .sendrow label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--text-2)}
 details.emails>summary,details.more>summary{cursor:pointer;font-weight:600;color:var(--accent);margin:8px 0}
-details.email{margin:8px 0;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
+details.email{margin:8px 0;border:1px solid var(--line);border-radius:var(--r-inner);background:var(--surface-2)}
 details.email>summary{cursor:pointer;padding:8px 12px;font-size:14px}
 details.email>div{padding:0 12px 12px}
-pre{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;
-  white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;margin:8px 0}
+/* Emails and letters are prose: sans. Only prompts, JSON and patterns (.code) are monospace. */
+pre{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-inner);padding:12px 14px;
+  white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.55 var(--sans);margin:8px 0}
+pre.code,textarea.code{font:13px/1.55 var(--mono)}
 details.email pre{background:var(--surface)}
 .attn,.replies{list-style:none;margin:0;padding:0}
 .reply{padding:12px 0;border-bottom:1px solid var(--line);display:grid;gap:6px}
 .reply:last-child{border-bottom:0}
 .reply-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .steps{padding-left:20px;display:grid;gap:10px}
-.redacted{margin:6px 0 8px;padding:8px 10px;border-radius:8px;font-size:13px;
+.redacted{margin:6px 0 8px;padding:8px 10px;border-radius:var(--r-inner);font-size:13px;
   background:color-mix(in srgb,var(--good) 10%,transparent);
   border:1px solid color-mix(in srgb,var(--good) 30%,transparent)}
 details.peek{display:block;margin:8px 0 0}
 details.peek>summary{cursor:pointer;color:var(--accent);font-size:13px;width:max-content}
 details.peek pre{max-height:340px;overflow:auto}.steps li{line-height:1.6}
-textarea{font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;width:100%;padding:8px 10px;
-  border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);
+textarea{font:14px/1.5 var(--sans);width:100%;padding:8px 10px;
+  border:1px solid var(--control-line);border-radius:var(--r-control);background:var(--surface);color:var(--text);
   margin:6px 0}
 .hidden-copy{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
 .attn li{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;
@@ -287,7 +425,7 @@ textarea{font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;width:100%;pa
 .attn li:last-child{border-bottom:0}
 .progress{height:8px;border-radius:999px;background:var(--surface-2);overflow:hidden;margin:8px 0 4px}
 .progress>span{display:block;height:100%;background:var(--accent);border-radius:999px;
-  transition:width .6s ease}
+  transition:width .6s var(--ease-in-out)}
 .bars{display:grid;gap:10px;margin:4px 0 8px}
 .bar{display:grid;grid-template-columns:7.5em 1fr 3em;align-items:center;gap:10px;font-size:13px}
 .bar .bl{color:var(--text-2)}.bar .bv{font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
@@ -296,19 +434,68 @@ textarea{font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;width:100%;pa
 .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--text-2);margin:0 0 6px}
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .legend i{width:14px;height:3px;border-radius:2px;display:inline-block}
-svg.chart{width:100%;height:auto;display:block;background:var(--chart-surface);border-radius:8px}
+/* The chart never draws larger than its own size (1000 wide), so its text stays 13-14px. */
+.chartbox{background:var(--chart-surface);border-radius:var(--r-inner)}
+svg.chart{width:100%;max-width:1000px;margin:0;height:auto;display:block}
 .chart .grid line{stroke:var(--grid);stroke-width:1}
-.chart .axis{fill:var(--muted);font-size:11px}
-.chart .lbl{fill:var(--text);font-size:12px;font-weight:600}
+.chart .axis{fill:var(--muted);font-size:13px}
+.chart .lbl{fill:var(--text);font-size:14px;font-weight:600}
 .chart .col .xh{stroke:var(--muted);stroke-width:1;opacity:0}
 .chart .col:hover .xh{opacity:.6}
 .chart .col rect{fill:transparent}
-@media (prefers-reduced-motion:no-preference){a.fpill,button,tbody tr{transition:background-color .12s,border-color .12s}}
-@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}
-  .card,.stat{transition:box-shadow .15s,border-color .15s}}
-@media (prefers-reduced-motion:reduce){.flash.live::before,.live-dot,.flash{animation:none}
+.chart .col .tip{opacity:0;pointer-events:none;transition:opacity .08s}
+.chart .col:hover .tip,.chart .col:focus-within .tip{opacity:1}
+.chart .col .tip rect.tipbox{fill:var(--surface);stroke:var(--line);stroke-width:1}
+.chart .tipt{fill:var(--text);font-size:14px}
+.chart .tiph{font-weight:600}
+.chart .tipv{font-weight:600;font-variant-numeric:tabular-nums}
+/* The row you just changed: a short tint that fades, so you can see what your click did. */
+tr.just>td,li.just{animation:just 1.4s var(--ease-out)}
+@keyframes just{from{background:color-mix(in srgb,var(--accent) 16%,transparent)}to{background:transparent}}
+@keyframes pop{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:none}}
+@keyframes pulse{0%{transform:scale(1)}40%{transform:scale(1.12)}100%{transform:scale(1)}}
+html{scroll-padding-top:calc(var(--topbar-h,56px) + var(--flash-h,0px) + 12px);scroll-padding-bottom:72px}
+@media (prefers-reduced-motion:no-preference){
+  a.fpill,a.btnlink,tbody tr{transition:background-color .12s,border-color .12s}
+  /* Press: a slight shrink, no tween while held, quick settle on release. */
+  button,a.btnlink,a.ibtn,details.rowmenu>summary{transition:background-color .12s,border-color .12s,
+    transform .16s var(--ease-out)}
+  button:active:not([disabled]),a.btnlink:active,a.ibtn:active,details.rowmenu>summary:active{
+    transform:scale(.97);transition-duration:0s}
+  details.rowmenu[open] .menu{animation:pop .18s var(--ease-out)}
+  details.fold>summary::after,details.settings>summary::after,details.sub>summary::after{
+    transition:transform .2s var(--ease-out)}
+  .allclear .ico{animation:pulse .5s var(--ease-out) .15s}
+  /* Needs-you items settle in one after another on first load (not after every click). */
+  html:not(.swapped) ul.attn>li{animation:rise .25s var(--ease-out) both}
+  html:not(.swapped) ul.attn>li:nth-child(2){animation-delay:30ms}
+  html:not(.swapped) ul.attn>li:nth-child(3){animation-delay:60ms}
+  html:not(.swapped) ul.attn>li:nth-child(4){animation-delay:90ms}
+  html:not(.swapped) ul.attn>li:nth-child(5){animation-delay:120ms}
+  html:not(.swapped) ul.attn>li:nth-child(n+6){animation-delay:150ms}
+  html{scroll-behavior:smooth}
+  .card,.stat{transition:box-shadow .15s,border-color .15s}
+  .goal .progress>span{transition:width .6s var(--ease-in-out)}}
+/* Folding sections ease open and shut (browsers that can animate to height:auto). */
+@supports (interpolate-size:allow-keywords){@media (prefers-reduced-motion:no-preference){
+  :root{interpolate-size:allow-keywords}
+  details.fold::details-content,details.settings::details-content,details.sub::details-content{
+    block-size:0;overflow:clip;transition:block-size .22s var(--ease-out),
+    content-visibility .22s allow-discrete}
+  details.fold[open]::details-content,details.settings[open]::details-content,
+  details.sub[open]::details-content{block-size:auto}
+  details.fold:not([open])::details-content,details.settings:not([open])::details-content,
+  details.sub:not([open])::details-content{transition-duration:.18s}}}
+@media (prefers-reduced-motion:reduce){.flash.live::before,.live-dot,.flash,.flash.out{animation:none}
+  button.working::after{animation-duration:2s}
   .progress>span{transition:none}}
-@media (forced-colors:active){.pill,.fpill{border:1px solid CanvasText}}
+@media (forced-colors:active){.pill,.fpill{border:1px solid CanvasText}
+  details.rowmenu>summary::before{forced-color-adjust:none;background:ButtonText;
+    box-shadow:-5.5px 0 ButtonText,5.5px 0 ButtonText}
+  .progress>span,.dot,.pd{forced-color-adjust:none;background:Highlight}
+  a.fpill[aria-current=page]{forced-color-adjust:none;background:Highlight;color:HighlightText}
+  :focus-visible{outline-color:Highlight}}
+.req{color:var(--crit-ink)}
 """
 
 
@@ -358,10 +545,76 @@ const sortRows = () => {
     'aria-sort', th.dataset.sortkey === sortKey ? (sortDir > 0 ? 'ascending' : 'descending') : 'none'));
 };
 
-const swap = async (res) => {
+// Keep the status message just under the sticky header, and let it be dismissed.
+const topbar = d.querySelector('.topbar');
+const setBarH = () => d.documentElement.style.setProperty('--topbar-h', (topbar ? topbar.offsetHeight : 56) + 'px');
+setBarH();
+window.addEventListener('resize', setBarH);
+// Screen readers hear short confirmations ("Copied") that only change a button's label.
+const announce = (t) => {
+  let r = d.getElementById('announce');
+  if (!r) {
+    r = d.createElement('div'); r.id = 'announce'; r.className = 'sr-only';
+    r.setAttribute('role', 'status'); r.setAttribute('aria-live', 'polite'); d.body.appendChild(r);
+  }
+  r.textContent = ''; setTimeout(() => { r.textContent = t; }, 50);
+};
+let flashTimer = 0;
+const FLASH_MS = 12000;
+const setFlashH = (f) => d.documentElement.style.setProperty(
+  '--flash-h', f && f.isConnected ? (f.offsetHeight + 8) + 'px' : '0px');
+const closeFlash = (f) => {
+  f.classList.add('out');
+  setTimeout(() => { f.remove(); setFlashH(null); }, 200);
+};
+const pinFlash = () => {
+  clearTimeout(flashTimer);
+  const f = d.querySelector('main .flash');
+  setFlashH(f);
+  if (!f) return;
+  const x = d.createElement('button');
+  x.type = 'button'; x.className = 'x'; x.setAttribute('aria-label', 'Dismiss');
+  // The ring around the × drains while the message counts down to closing itself.
+  x.innerHTML = '<svg viewBox="0 0 28 28" width="28" height="28" aria-hidden="true" fill="none" ' +
+    'stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+    '<circle class="ring" cx="14" cy="14" r="12" pathLength="100"/>' +
+    '<path d="M10 10l8 8M18 10l-8 8"/></svg>';
+  x.addEventListener('click', () => { clearTimeout(flashTimer); closeFlash(f); });
+  f.appendChild(x);
+  if (!f.classList.contains('ok') || f.classList.contains('live')) return;  // errors stay put
+  // Counts down from the start each time; paused (ring hidden) while the pointer or keyboard
+  // focus is on the message, so it never closes while you're reading it.
+  const run = () => {
+    clearTimeout(flashTimer);
+    f.classList.remove('counting'); void f.offsetWidth; f.classList.add('counting');
+    flashTimer = setTimeout(() => closeFlash(f), FLASH_MS);
+  };
+  const hold = () => { clearTimeout(flashTimer); f.classList.remove('counting'); };
+  f.addEventListener('mouseenter', hold);
+  f.addEventListener('mouseleave', () => { if (!f.contains(d.activeElement)) run(); });
+  f.addEventListener('focusin', hold);
+  f.addEventListener('focusout', (e) => { if (!f.contains(e.relatedTarget) && !f.matches(':hover')) run(); });
+  run();
+};
+// After an action, tint the broker's row (or its Needs-you item) briefly.
+const markChanged = (slug) => {
+  if (!slug) return;
+  const sel = (window.CSS && CSS.escape) ? CSS.escape(slug) : slug;
+  const hits = d.querySelectorAll('li.att[data-slug="' + sel + '"], tr[data-slug="' + sel + '"]');
+  hits.forEach((el) => {
+    el.classList.remove('just'); void el.offsetWidth; el.classList.add('just');
+    setTimeout(() => el.classList.remove('just'), 1500);
+  });
+};
+pinFlash();
+
+const swap = async (res, slug) => {
   const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
   const fresh = doc.querySelector('main');
   if (!fresh) { location.href = res.url; return; }
+  d.documentElement.classList.add('swapped');
+  const list = d.querySelector('#requests .table-wrap');
+  const listY = list ? list.scrollTop : 0;
   const keepQ = (d.getElementById('q') || {}).value || '';
   const y = window.scrollY;
   d.querySelector('main').replaceWith(fresh);
@@ -376,36 +629,38 @@ const swap = async (res) => {
   applyFolds();
   const draft = d.getElementById('draft');
   const settings = d.getElementById('settings');
-  const flash = d.querySelector('.flash');
-  if (flash) flash.scrollIntoView({ block: 'nearest' });  // say what happened, wherever you were
-  else if (draft) draft.scrollIntoView({ block: 'start' });
+  // Stay where you were: the status message is pinned under the header, so there is
+  // nothing to scroll to (and jumping to the top would lose your place in the list).
+  if (draft) draft.scrollIntoView({ block: 'start' });
   else if (settings && settings.open) settings.scrollIntoView({ block: 'start' });
-  else window.scrollTo(0, y);
+  else window.scrollTo({ top: y, behavior: 'instant' });
+  const list2 = d.querySelector('#requests .table-wrap');
+  if (list2) list2.scrollTop = listY;
+  pinFlash();
+  markChanged(slug);
   start();
 };
 
 const post = async (form, submitter) => {
   d.body.classList.add('busy');
   const btn = submitter || form.querySelector('button[type=submit]:not(.nojs)');
-  let dots = null;
+  const fields = [...form.querySelectorAll('button, select, input')].filter((el) => !el.disabled);
   try {
     // Read the fields first: disabled fields are left out of a submission.
     const body = new URLSearchParams(new FormData(form, submitter || undefined));
-    if (btn) {
-      btn.style.width = btn.offsetWidth + 'px';  // keep the size while the label changes
-      let n = 0;
-      const show = () => { btn.textContent = 'Working' + '.'.repeat((n++ % 3) + 1); };
-      show();
-      dots = setInterval(show, 400);
-    }
-    form.querySelectorAll('button, select, input').forEach((el) => { el.disabled = true; });
+    // A spinner over the label (kept, invisible) so the button never changes size.
+    if (btn) { btn.classList.add('working'); btn.setAttribute('aria-busy', 'true'); }
+    fields.forEach((el) => { el.disabled = true; });
+    const slugField = form.querySelector('input[name=slug]');
     // getAttribute, not form.action: a field named "action" shadows that property.
     const res = await fetch(form.getAttribute('action'), { method: 'POST', body });
-    if (res.ok) await swap(res); else location.reload();
+    if (res.ok) await swap(res, slugField ? slugField.value : ''); else location.reload();
   } catch (_) {
     location.reload();
   } finally {
-    if (dots) clearInterval(dots);
+    // Only matters for a form outside the swapped area (the header's reply-check button).
+    if (btn) { btn.classList.remove('working'); btn.removeAttribute('aria-busy'); }
+    fields.forEach((el) => { if (el.isConnected) el.disabled = false; });
     d.body.classList.remove('busy');
   }
 };
@@ -415,10 +670,23 @@ d.addEventListener('submit', (e) => {
   if (f.getAttribute('role') === 'search') { e.preventDefault(); filter(); return; }
   if ((f.getAttribute('method') || 'get').toLowerCase() !== 'post') return;
   e.preventDefault();
+  const ask = e.submitter && e.submitter.dataset.confirm;
+  if (ask && !window.confirm(ask)) return;  // buttons that send email ask first
   post(f, e.submitter);
 });
-// Row menus: one open at a time, closed by a click elsewhere.
+// Row menus: built from one shared template on first open; one open at a time, closed by a
+// click elsewhere.
 d.addEventListener('click', (e) => {
+  const sum = e.target.closest && e.target.closest('details.rowmenu > summary');
+  if (sum) {
+    const m = sum.parentElement;
+    const tpl = d.getElementById('rowmenu-tpl');
+    if (tpl && !m.querySelector('form')) {
+      const f = tpl.content.firstElementChild.cloneNode(true);
+      f.querySelector('input[name=slug]').value = m.dataset.slug || '';
+      m.appendChild(f);
+    }
+  }
   d.querySelectorAll('details.rowmenu[open]').forEach((m) => {
     if (!m.contains(e.target)) m.removeAttribute('open');
   });
@@ -430,15 +698,60 @@ d.addEventListener('change', (e) => {
 });
 
 d.addEventListener('input', (e) => { if (e.target.id === 'q') filter(); });
+d.addEventListener('keydown', (e) => {
+  const m = e.target.closest && e.target.closest('details.rowmenu[open]');
+  if (!m) return;
+  if (e.key === 'Escape') {
+    e.preventDefault(); m.removeAttribute('open'); m.querySelector('summary').focus(); return;
+  }
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  const items = [...m.querySelectorAll('button.mitem')];
+  if (!items.length) return;
+  e.preventDefault();
+  const i = items.indexOf(d.activeElement);
+  const n = e.key === 'ArrowDown' ? (i + 1) % items.length : (i <= 0 ? items.length - 1 : i - 1);
+  items[n].focus();
+});
+d.addEventListener('focusout', (e) => {
+  const m = e.target.closest && e.target.closest('details.rowmenu[open]');
+  if (m && e.relatedTarget && !m.contains(e.relatedTarget)) m.removeAttribute('open');
+});
+// A row menu is pinned to the window (the list's own scroll box would clip it). It opens under
+// its button, or above when there's no room below, follows the button as things scroll, and
+// closes once the button scrolls out of sight.
+const placeMenu = (el, opening) => {
+  const menu = el.querySelector('.menu');
+  if (!menu) return;
+  const r = el.querySelector('summary').getBoundingClientRect();
+  const box = el.closest('.table-wrap');
+  const b = box ? box.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+  if (r.bottom < b.top || r.top > b.bottom) { el.removeAttribute('open'); return; }
+  menu.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
+  if (opening) {
+    el.classList.toggle('up', r.bottom + 4 + menu.offsetHeight > window.innerHeight - 8
+      && r.top > menu.offsetHeight + 12);
+  }
+  const up = el.classList.contains('up');
+  menu.style.top = up ? '' : (r.bottom + 4) + 'px';
+  menu.style.bottom = up ? (window.innerHeight - r.top + 4) + 'px' : '';
+};
+const followMenus = () => d.querySelectorAll('details.rowmenu[open]').forEach((m) => placeMenu(m, false));
+d.addEventListener('scroll', followMenus, { capture: true, passive: true });
+window.addEventListener('resize', followMenus);
 
 // Folded sections stay folded across visits and page updates.
 const applyFolds = () => {
   d.querySelectorAll('details.fold[id]').forEach((el) => {
-    try { if (localStorage.getItem('fold:' + el.id) === 'closed') el.removeAttribute('open'); } catch (_) {}
+    try {
+      const v = localStorage.getItem('fold:' + el.id);
+      if (v === 'closed') el.removeAttribute('open');
+      else if (v === 'open') el.setAttribute('open', '');
+    } catch (_) {}
   });
 };
 d.addEventListener('toggle', (ev) => {
   const el = ev.target;
+  if (el.matches && el.matches('details.rowmenu') && el.open) { placeMenu(el, true); return; }
   if (!el.matches || !el.matches('details.fold[id]')) return;
   try { localStorage.setItem('fold:' + el.id, el.open ? 'open' : 'closed'); } catch (_) {}
 }, true);
@@ -472,8 +785,16 @@ d.addEventListener('click', (e) => {
     // Built fresh on the server; copied in the same click (ClipboardItem keeps the click's
     // permission while the text is fetched). Falls back to the page that shows it.
     const url = fetchBtn.dataset.copyUrl;
-    const label = fetchBtn.textContent;
-    const said = (t) => { fetchBtn.textContent = t; setTimeout(() => { fetchBtn.textContent = label; }, 2500); };
+    const label = fetchBtn.dataset.label || fetchBtn.textContent;
+    fetchBtn.dataset.label = label;
+    fetchBtn.style.minWidth = fetchBtn.offsetWidth + 'px';  // no jump while the label swaps
+    fetchBtn.classList.add('working');
+    const said = (t) => {
+      fetchBtn.classList.remove('working');
+      fetchBtn.textContent = 'Copied';
+      announce(t);
+      setTimeout(() => { fetchBtn.textContent = label; }, 2500);
+    };
     const text = fetch(url + '?format=json', { cache: 'no-store' })
       .then((r) => r.json()).then((j) => { if (!j.text) throw new Error('empty'); return j; });
     const blob = text.then((j) => new Blob([j.text], { type: 'text/plain' }));
@@ -481,8 +802,8 @@ d.addEventListener('click', (e) => {
       ? navigator.clipboard.write([new ClipboardItem({ 'text/plain': blob })])
       : text.then((j) => navigator.clipboard.writeText(j.text));
     Promise.all([write, text])
-      .then(([, j]) => said('Copied ' + j.count + ' ✓ paste into Claude in Chrome'))
-      .catch(() => { location.href = url; });
+      .then(([, j]) => said(j.msg || ('Copied ' + j.count + '. Paste into Claude in Chrome')))
+      .catch(() => { fetchBtn.classList.remove('working'); location.href = url; });
     return;
   }
   const btn = e.target.closest('[data-copy]');
@@ -490,12 +811,14 @@ d.addEventListener('click', (e) => {
   const src = d.getElementById(btn.dataset.copy);
   if (!src) return;
   const label = btn.textContent;
-  const done = () => { btn.textContent = 'Copied ✓'; setTimeout(() => { btn.textContent = label; }, 1600); };
-  if (navigator.clipboard) navigator.clipboard.writeText(src.value).then(done, () => src.select());
-  else { src.select(); d.execCommand('copy'); done(); }
+  btn.style.minWidth = btn.offsetWidth + 'px';
+  const done = () => { btn.textContent = 'Copied'; announce('Copied'); setTimeout(() => { btn.textContent = label; }, 1600); };
+  if (navigator.clipboard) navigator.clipboard.writeText(src.value ?? src.textContent).then(done, () => {});
+  else if (src.select) { src.select(); d.execCommand('copy'); done(); }
 });
 
 let polling = false;
+let lastQuarter = 0;
 const tick = async () => {
   try {
     const res = await fetch('/api/job', { cache: 'no-store' });
@@ -505,8 +828,15 @@ const tick = async () => {
       const pct = Math.round((100 * (j.sent + j.failed)) / Math.max(j.total, 1));
       const bar = p && p.querySelector('.progress>span');
       const txt = p && p.querySelector('[data-live]');
-      if (bar) bar.style.width = pct + '%';
-      if (txt) txt.textContent = j.sent + ' sent, ' + j.failed + ' failed of ' + j.total;
+      const said = j.sent + ' sent, ' + j.failed + ' failed of ' + j.total;
+      if (bar) {
+        bar.style.width = pct + '%';
+        bar.parentElement.setAttribute('aria-valuenow', pct);
+        bar.parentElement.setAttribute('aria-valuetext', said);
+      }
+      if (txt) txt.textContent = said;
+      const quarter = Math.floor(pct / 25);
+      if (quarter > lastQuarter && quarter < 4) { lastQuarter = quarter; announce(said); }
       if (j.state !== 'running') {
         polling = false;
         await swap(await fetch('/?m=finished'));
@@ -518,7 +848,9 @@ const tick = async () => {
 };
 const start = () => {
   const p = d.getElementById('send');
-  if (!polling && p && p.dataset.state === 'running') { polling = true; setTimeout(tick, 1000); }
+  if (!polling && p && p.dataset.state === 'running') {
+    polling = true; lastQuarter = 0; setTimeout(tick, 1000);
+  }
 };
 
 const fillZone = () => {
@@ -527,6 +859,38 @@ const fillZone = () => {
     try { tz.value = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (_) {}
   }
 };
+
+// When optout is stopped in the terminal, say so (a page can't close itself unless a script
+// opened it, so window.close() is only a best effort).
+let misses = 0;
+const watch = () => {
+  fetch('/api/job', {cache: 'no-store', credentials: 'same-origin'})
+    .then((r) => { misses = r.status === 403 ? misses + 1 : 0; })
+    .catch(() => { misses += 1; })
+    .finally(() => {
+      if (misses >= 2) { stopped(); return; }
+      setTimeout(watch, 4000);
+    });
+};
+const stopped = () => {
+  if (d.getElementById('gone')) return;
+  const b = d.createElement('div');
+  b.id = 'gone';
+  b.style.cssText = 'position:fixed;inset:0;z-index:99;display:flex;align-items:center;' +
+    'justify-content:center;background:rgba(0,0,0,.6);padding:20px';
+  b.innerHTML = '<div role="alertdialog" aria-modal="true" aria-labelledby="gone-h" ' +
+    'aria-describedby="gone-p" tabindex="-1" style="background:Canvas;color:CanvasText;' +
+    'border-radius:12px;padding:24px 28px;max-width:420px;text-align:center">' +
+    '<h2 id="gone-h" style="margin:0 0 8px">' +
+    'optout has stopped</h2><p id="gone-p" style="margin:0">It was closed in the terminal, so this page ' +
+    'no longer updates. You can close this tab. To use it again, run <code>optout ui</code> ' +
+    'and open the new link.</p></div>';
+  d.body.appendChild(b);
+  d.querySelectorAll('body > header, body > main, body > .skip').forEach((el) => { el.inert = true; });
+  b.firstElementChild.focus();
+  try { window.close(); } catch (_) {}
+};
+setTimeout(watch, 4000);
 
 filter();
 start();
@@ -585,19 +949,15 @@ def page(
     back = "<a href='/' class='small'>← Dashboard</a>" if nav else ""
     upd = f"<span class='updated'>Updated {e(updated)}</span>" if updated else ""
     settings_link = (
-        "<a class='hdr-link' href='/#settings' aria-label='Settings'>"
-        "<svg viewBox='0 0 24 24' width='18' height='18' aria-hidden='true'><path fill='currentColor' "
-        "d='M19.4 13a7.5 7.5 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.9"
-        "a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.5 7.5 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 "
-        "1.7 1l.4 2.9h4l.4-2.9a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 "
-        "0 0 1 0 7z'/></svg><span>Settings</span></a>"
+        f"<a class='hdr-link' href='/#settings'>{icon('settings', 17)}<span>Settings</span></a>"
         if updated
         else ""
     )
     fetch = (
         "<form method='post' action='/act/inbox' class='inline'>"
-        f"{_hidden(fetch_csrf)}<button type='submit' class='mini go' title='Read new broker "
-        "replies from Gmail and update the list'>Fetch emails</button></form>"
+        f"{_hidden(fetch_csrf)}<button type='submit' class='hdr' title='Read new "
+        f"broker replies in your inbox and update the list'>{icon('mail', 16)}Check for replies"
+        "</button></form>"
         if fetch_csrf and updated and not nav
         else ""
     )
@@ -613,9 +973,9 @@ def page(
         "<a class='skip' href='#main'>Skip to content</a>"
         "<header class='topbar'><div class='wrap'>"
         f"<a class='brand' href='/' aria-label='optout home'>{_LOGO}<span>optout</span></a>"
-        f"<span class='sub'>Data-broker opt-outs</span>{back}{upd}"
+        f"{back}{upd}"
         f"{fetch}{'' if nav else settings_link}</div></header>"
-        f"<main id='main' class='wrap'>{_toggle_labels(body)}</main>"
+        f"<main id='main' class='wrap' tabindex='-1'>{_toggle_labels(body)}</main>"
         f"<script>{LIVE_JS}</script></body></html>"
     )
 
@@ -624,16 +984,16 @@ def page(
 
 # status code -> (tone, icon). Color never carries meaning alone: icon + text label.
 _PILL = {
-    "removed": ("good", "✓"),
-    "confirmed": ("good", "✓"),
-    "awaiting_broker_confirmation": ("info", "●"),
-    "submitted": ("info", "●"),
-    "awaiting_user_input": ("warning", "!"),
-    "rejected": ("critical", "✕"),
-    "failed": ("serious", "!"),
-    "queued": ("neutral", "○"),
-    "closed": ("neutral", "○"),
-    "expired": ("neutral", "○"),
+    "removed": ("good", "check"),
+    "confirmed": ("good", "check"),
+    "awaiting_broker_confirmation": ("info", "dot"),
+    "submitted": ("info", "dot"),
+    "awaiting_user_input": ("warning", "alert"),
+    "rejected": ("critical", "x"),
+    "failed": ("serious", "alert"),
+    "queued": ("neutral", "ring"),
+    "closed": ("neutral", "ring"),
+    "expired": ("neutral", "ring"),
 }
 
 
@@ -642,8 +1002,8 @@ _SHORT = {
     "submitted": "Sent",
     "confirmed": "Broker says done",
     "removed": "Removed (verified)",
-    "awaiting_user_input": "Needs input",
-    "rejected": "Refused",
+    "awaiting_user_input": "Needs you",
+    "rejected": "Broker said no",
 }
 
 
@@ -651,17 +1011,17 @@ def _clean(label: str, status: str = "") -> str:
     return _SHORT.get(status) or label.replace("✓", "").replace("⚡", "").strip()
 
 
-def _icon(icon: str) -> str:
-    # A text "●" sits on the font baseline and looks off-centre; draw dots with CSS.
-    if icon == "●":
+def _icon(name: str) -> str:
+    # "In progress" is a solid dot (CSS); everything else comes from the one icon set.
+    if name == "dot":
         return "<span class='pd' aria-hidden='true'></span>"
-    return f"<span class='i' aria-hidden='true'>{icon}</span>"
+    return f"<span class='i' aria-hidden='true'>{icon(name, 12)}</span>"
 
 
 def pill(status: str, label: str) -> str:
-    tone, icon = _PILL.get(status, ("neutral", "●"))
+    tone, glyph = _PILL.get(status, ("neutral", "dot"))
     text = _clean(label, status) if status in _SHORT and label in _STATUS_LABELS else _clean(label)
-    return f"<span class='pill t-{tone}'>{_icon(icon)}{e(text)}</span>"
+    return f"<span class='pill t-{tone}'>{_icon(glyph)}{e(text)}</span>"
 
 
 def _tone_var(status: str) -> str:
@@ -687,6 +1047,11 @@ def _nice_max(v: int) -> tuple[int, int]:
 def _fmt_day(iso: str) -> str:
     d = date.fromisoformat(iso)
     return d.strftime("%b ") + str(d.day)
+
+
+def _long_day(iso: str) -> str:
+    d = date.fromisoformat(iso)
+    return f"{d.strftime('%a, %b')} {d.day}, {d.year}"
 
 
 def progress_chart(series: list[tuple[str, int, int, int]]) -> str:
@@ -729,8 +1094,9 @@ def progress_chart(series: list[tuple[str, int, int, int]]) -> str:
             f"{table}"
         )
 
-    w, h = 720, 260
-    ml, mr, mt, mb = 40, 112, 14, 30
+    # Drawn about as wide as the card at full width, so its text shows near its real size.
+    w, h = 1000, 290
+    ml, mr, mt, mb = 44, 180, 14, 32
     pw, ph = w - ml - mr, h - mt - mb
     top, step = _nice_max(max(r[1] for r in series))
     n = len(series)
@@ -776,26 +1142,50 @@ def progress_chart(series: list[tuple[str, int, int, int]]) -> str:
     ends.sort(key=lambda t: t[0])
     placed: list[float] = []
     for end in ends:
-        placed.append(max(end[0], placed[-1] + 16) if placed else end[0])
+        placed.append(max(end[0], placed[-1] + 19) if placed else end[0])
     shift = max(0.0, placed[-1] - (mt + ph + 4))
     labels = "".join(
         f"<g><circle cx='{x(n - 1) + 14:.1f}' cy='{ly - shift:.1f}' r='3.5' "
-        f"fill='var({var})'/><text class='lbl' x='{x(n - 1) + 22:.1f}' "
+        f"fill='var({var})'/><text class='lbl' x='{x(n - 1) + 24:.1f}' "
         f"y='{ly - shift + 4:.1f}'>{e(name)} {v}</text></g>"
         for ly, (_, name, v, var) in zip(placed, ends, strict=True)
     )
     colw = pw / (n - 1)
+    tw, th = 196, 90
+
+    def tip(i: int, r: tuple[str, int, int, int]) -> str:
+        """The hover card for one day: full date, then all three counts."""
+        left = x(i) > ml + pw / 2  # keep it inside the chart: flip to the left of the line
+        tx = x(i) - tw - 10 if left else x(i) + 10
+        rows = "".join(
+            f"<circle cx='{tx + 12:.1f}' cy='{mt + 36 + 18 * k - 4:.1f}' r='4' fill='var({var})'/>"
+            f"<text class='tipt' x='{tx + 22:.1f}' y='{mt + 36 + 18 * k:.1f}'>{e(name)}</text>"
+            f"<text class='tipt tipv' x='{tx + tw - 10:.1f}' y='{mt + 36 + 18 * k:.1f}' "
+            f"text-anchor='end'>{v}</text>"
+            for k, ((name, var), v) in enumerate(zip(_SERIES, r[1:], strict=True))
+        )
+        marks = "".join(
+            f"<circle cx='{x(i):.1f}' cy='{y(v):.1f}' r='4.5' fill='var({var})' "
+            "stroke='var(--chart-surface)' stroke-width='2'/>"
+            for (_, var), v in zip(_SERIES, r[1:], strict=True)
+        )
+        return (
+            f"<g class='tip'>{marks}<rect x='{tx:.1f}' y='{mt}' width='{tw}' height='{th}' rx='6' "
+            "class='tipbox'/>"
+            f"<text class='tipt tiph' x='{tx + 10:.1f}' y='{mt + 19}'>{e(_long_day(r[0]))}</text>"
+            f"{rows}</g>"
+        )
+
     cols = "".join(
         f"<g class='col'><rect x='{x(i) - colw / 2:.1f}' y='{mt}' width='{colw:.1f}' "
         f"height='{ph}'/><line class='xh' x1='{x(i):.1f}' x2='{x(i):.1f}' y1='{mt}' "
-        f"y2='{mt + ph}'/><title>{e(_fmt_day(r[0]))}: {r[1]} sent · {r[2]} replied · "
-        f"{r[3]} say it's done</title></g>"
+        f"y2='{mt + ph}'/>{tip(i, r)}</g>"
         for i, r in enumerate(series)
     )
     svg = (
-        f"<svg class='chart' viewBox='0 0 {w} {h}' role='img' aria-labelledby='ct'>"
+        f"<div class='chartbox'><svg class='chart' viewBox='0 0 {w} {h}' role='img' aria-labelledby='ct'>"
         f"<title id='ct'>{e(summary)}</title><g class='grid'>{grid}</g>{yl}{xl}"
-        f"{''.join(lines)}{''.join(dots)}{labels}{cols}</svg>"
+        f"{''.join(lines)}{''.join(dots)}{labels}{cols}</svg></div>"
     )
     return f"{legend}{svg}{table}"
 
@@ -838,19 +1228,22 @@ class UI:
 ROW_ACTIONS = [
     (
         "Email",
-        [("draft:auto", "Write a follow-up email"), ("send-again", "Send the request again now")],
+        [
+            ("draft:auto", "Write a reminder draft (not sent)"),
+            ("send-again", "Send the original request again now (sends email)"),
+        ],
     ),
     (
         "Set status",
         [
             ("status:awaiting_broker_confirmation", "Awaiting reply"),
             ("status:confirmed", "Broker says done"),
-            ("status:awaiting_user_input", "Action needed"),
-            ("status:rejected", "Refused"),
+            ("status:awaiting_user_input", "Needs you"),
+            ("status:rejected", "Broker said no"),
             ("status:closed", "Closed"),
         ],
     ),
-    ("Other", [("toggle:off", "Never contact this broker")]),
+    ("Other", [("toggle:off", "Stop contacting this broker")]),
 ]
 
 
@@ -862,20 +1255,30 @@ def _hidden(csrf: str, **fields: str) -> str:
 
 
 def row_form(slug: str, csrf: str, name: str = "") -> str:
-    """A small ⋯ button that opens the row's actions: for the odd case the tool got wrong."""
+    """A small ⋯ button for the row. Its menu is cloned from one shared template when opened
+    (839 copies of a 15-button form made the page 1 MB heavier)."""
+    return (
+        f"<details class='rowmenu' data-slug='{e(slug)}'>"
+        f"<summary title='More actions' aria-label='Actions for {e(name or slug)}'></summary>"
+        "</details>"
+    )
+
+
+def row_menu_template(csrf: str) -> str:
+    """The one copy of the row menu; the page script clones it into a row that opens."""
     groups = "".join(
-        f"<div class='mgroup'>{e(group)}</div>"
+        f"<div class='mg' role='group' aria-label='{e(group)}'>"
+        f"<div class='mgroup' aria-hidden='true'>{e(group)}</div>"
         + "".join(
             f"<button type='submit' name='action' value='{e(v)}' class='mitem'>{e(t)}</button>"
             for v, t in items
         )
+        + "</div>"
         for group, items in ROW_ACTIONS
     )
     return (
-        "<details class='rowmenu'>"
-        f"<summary title='More actions' aria-label='Actions for {e(name or slug)}'>⋯</summary>"
-        f"<form method='post' action='/act/row' class='menu'>{_hidden(csrf, slug=slug)}"
-        f"{groups}</form></details>"
+        "<template id='rowmenu-tpl'><form method='post' action='/act/row' class='menu'>"
+        f"{_hidden(csrf, slug='')}{groups}</form></template>"
     )
 
 
@@ -888,6 +1291,12 @@ def _send_panel(ui: UI) -> str:
         pct = int(100 * done / total)
         failed = "".join(f"<li>{e(s)}: {e(why)}</li>" for s, why in job.get("failed", []))
         stopped = f"<p class='bad'>Stopped: {e(job['stopped'])}</p>" if job.get("stopped") else ""
+        nxt = (
+            "<p class='small'>Done. Replies are sorted as they arrive: clear answers are "
+            "applied for you, and anything that needs you shows up under <b>Needs you</b>.</p>"
+            if job.get("state") == "done" and job.get("sent") and not job.get("stopped")
+            else ""
+        )
         status = (
             f"<p>{'<span class=live-dot></span>' if job.get('state') == 'running' else ''}"
             f"<b>{'Sending…' if job.get('state') == 'running' else 'Batch finished'}</b> "
@@ -895,7 +1304,7 @@ def _send_panel(ui: UI) -> str:
             f"{len(job.get('failed', []))} failed of {job.get('total', 0)}</span></p>"
             f"<div class='progress' role='progressbar' aria-label='Sending progress' "
             f"aria-valuemin='0' aria-valuemax='100' aria-valuenow='{pct}'>"
-            f"<span style='width:{pct}%'></span></div>{stopped}"
+            f"<span style='width:{pct}%'></span></div>{stopped}{nxt}"
             f"{('<ul class=small>' + failed + '</ul>') if failed else ''}"
         )
     n = len(ui.previews)
@@ -946,22 +1355,22 @@ def _send_panel(ui: UI) -> str:
     return (
         f"<section class='card' aria-labelledby='send-h' id='send' "
         f"data-state='{e(str(job.get('state', 'idle')))}'>"
-        f"<h2 id='send-h'>Send a batch</h2>{status}{inner}</section>"
+        f"<h2 id='send-h'>Send today's emails</h2>{status}{inner}</section>"
     )
 
 
 _GUESS = {
-    "deleted": ("good", "✓", "Says deleted"),
-    "no-data": ("good", "✓", "Says no data"),
-    "denied": ("critical", "✕", "Refused"),
-    "need-info": ("warning", "!", "Action needed"),
-    "auto-reply": ("info", "●", "Automated reply"),
-    "bounced": ("serious", "!", "Bounced"),
-    "unknown": ("neutral", "?", "Not sure"),
+    "deleted": ("good", "check", "Says deleted"),
+    "no-data": ("good", "check", "Says no data"),
+    "denied": ("critical", "x", "Broker said no"),
+    "need-info": ("warning", "alert", "Needs you"),
+    "auto-reply": ("info", "dot", "Automated reply"),
+    "bounced": ("serious", "alert", "Bounced"),
+    "unknown": ("neutral", "question", "Not sure"),
 }
 _REVIEW_OPTIONS = [
     ("deleted", "They deleted it / have no data"),
-    ("denied", "They refused"),
+    ("denied", "Broker said no"),
     ("need-info", "They want me to do something"),
     ("auto-reply", "Automated reply only"),
     ("close", "Doesn't apply to me (close it)"),
@@ -970,23 +1379,12 @@ _REVIEW_OPTIONS = [
 
 
 def _guess_pill(kind: str) -> str:
-    tone, icon, text = _GUESS.get(kind, _GUESS["unknown"])
-    return f"<span class='pill t-{tone}'>{_icon(icon)}{e(text)}</span>"
+    tone, glyph, text = _GUESS.get(kind, _GUESS["unknown"])
+    return f"<span class='pill t-{tone}'>{_icon(glyph)}{e(text)}</span>"
 
 
 def _replies_panel(ui: UI) -> str:
-    head = (
-        "<div class='toolbar'><span class='muted small'>"
-        f"{e(ui.inbox_status)}</span>"
-        + (
-            "<form method='post' action='/act/inbox' class='inline'>"
-            f"{_hidden(ui.csrf)}<button type='submit' class='secondary'>Check for replies"
-            "</button></form>"
-            if ui.inbox_ok
-            else ""
-        )
-        + "</div>"
-    )
+    head = f"<div class='toolbar'><span class='muted small'>{e(ui.inbox_status)}</span>" + "</div>"
     if not ui.replies:
         body = "<p class='muted'>No replies need a look. Clear answers are applied for you.</p>"
     else:
@@ -1048,16 +1446,17 @@ def _replies_panel(ui: UI) -> str:
             )
             + "<button type='button' class='secondary' data-copy='claude-prompt'>Copy prompt"
             "</button> <details class='peek'><summary>See exactly what will be copied</summary>"
-            f"<pre>{e(ui.claude_prompt)}</pre></details></li>"
+            f"<pre id='claude-prompt' class='code'>{e(ui.claude_prompt)}</pre></details></li>"
             "<li>Paste it into <a href='https://claude.ai/new' target='_blank' "
             "rel='noreferrer'>Claude</a> and send it.</li>"
             "<li>Paste Claude's answer here:"
             "<form method='post' action='/act/claude-apply'>"
-            f"{_hidden(ui.csrf)}<textarea name='answer' rows='5' required "
+            f"{_hidden(ui.csrf)}<textarea class='code' name='answer' rows='5' required "
             "placeholder='Paste the JSON Claude gives you' aria-label='Answer from Claude'>"
-            "</textarea><button type='submit'>Apply Claude's answer</button></form></li></ol>"
-            f"<textarea id='claude-prompt' class='hidden-copy' readonly aria-hidden='true' "
-            f"tabindex='-1'>{e(ui.claude_prompt)}</textarea></details>"
+            "</textarea><button type='submit'>Save Claude's results</button>"
+            "<p class='muted small'>A summary of what was applied, and anything that "
+            "wasn't, appears at the top of the page.</p></form></li></ol>"
+            "</details>"
         )
         body = (
             f"<p>{n} repl{'y' if n == 1 else 'ies'} the tool wasn't sure about:</p>"
@@ -1068,24 +1467,23 @@ def _replies_panel(ui: UI) -> str:
         share = (
             f"<details class='more'><summary>Share what you've learned "
             f"({ui.learned_count} reply pattern{'s' if ui.learned_count != 1 else ''})</summary>"
-            "<p class='small'>Patterns from replies you've sorted, with your personal details "
-            "removed. Contributing them means the next person's replies sort themselves. Check "
-            "there's nothing personal, then "
-            "<a href='https://github.com/Doaky/optout/issues/new?title=Known%20broker%20replies' "
-            "target='_blank' rel='noreferrer'>open an issue</a> and paste them.</p>"
+            "<p class='small'>Optional. This is how the tool recognised the replies you sorted, "
+            "with your personal details removed. If you want to help, copy it and post it as a "
+            "new issue on the project's GitHub page (a free GitHub account is needed) so other "
+            "people's replies sort themselves. Look it over first; nothing is sent from here.</p>"
             "<button type='button' class='secondary' data-copy='learned'>Copy patterns</button>"
-            f"<pre>{e(ui.learned_yaml)}</pre>"
+            f"<pre class='code'>{e(ui.learned_yaml)}</pre>"
             f"<textarea id='learned' class='hidden-copy' readonly aria-hidden='true' "
             f"tabindex='-1'>{e(ui.learned_yaml)}</textarea></details>"
         )
     return _fold("replies", "Broker replies", f"{head}{body}{share}")
 
 
-def _fold(fid: str, title: str, body: str, note: str = "") -> str:
+def _fold(fid: str, title: str, body: str, note: str = "", *, open_: bool = True) -> str:
     """A card you can fold away; the browser remembers which ones you folded."""
     extra = f"<span class='muted small'>{note}</span>" if note else ""
     return (
-        f"<details class='card fold' id='{e(fid)}' open><summary><h2 id='{e(fid)}-h'>"
+        f"<details class='card fold' id='{e(fid)}'{' open' if open_ else ''}><summary><h2 id='{e(fid)}-h'>"
         f"{e(title)}</h2>{extra}</summary>{body}</details>"
     )
 
@@ -1100,8 +1498,9 @@ def _field(
     attrs: str = "",
     help_html: str = "",
 ) -> str:
+    star = "<span class='req' aria-hidden='true'> *</span>" if "required" in attrs else ""
     box = (
-        f"<label class='fld'><span>{e(label)}</span>"
+        f"<label class='fld'><span>{e(label)}{star}</span>"
         f"<input type='{kind}' name='{name}' value='{e(value)}' {attrs}>"
         f"{f'<small>{e(hint)}</small>' if hint else ''}</label>"
     )
@@ -1113,11 +1512,31 @@ def _field(
     )
 
 
+def _state_field(current: str) -> str:
+    """A list of states rather than a 2-letter box: typing "Virginia" into a short box used
+    to become "VI" (the Virgin Islands) and quietly drop the state's law from every email."""
+    from .settings import US_STATES
+
+    code = current.strip().upper()
+    opts = [] if code in US_STATES or not code else [(code, f"{code} (as saved)")]
+    opts += sorted(US_STATES.items(), key=lambda kv: kv[1])
+    options = "".join(
+        f"<option value='{e(c)}'{' selected' if c == code else ''}>{e(name)}</option>"
+        for c, name in opts
+    )
+    blank = "" if code else "<option value='' selected disabled>Choose your state</option>"
+    return (
+        "<label class='fld'><span>State<span class='req' aria-hidden='true'> *</span></span>"
+        f"<select name='state' required autocomplete='address-level1'>{blank}{options}</select>"
+        "</label>"
+    )
+
+
 _SEND_AS_HELP = (
     "<p>Brokers normally see your Gmail address in the From line. <b>Send as</b> makes the "
     "emails come from a different address instead, so your main one stays off their lists.</p>"
-    "<ol><li>In Gmail open Settings &rarr; <i>Accounts and Import</i> &rarr; <i>Send mail "
-    "as</i> &rarr; <i>Add another email address</i>, and confirm it (Gmail sends that address "
+    "<ol><li>In Gmail open Settings &rarr; <b>Accounts and Import</b> &rarr; <b>Send mail "
+    "as</b> &rarr; <b>Add another email address</b>, and confirm it (Gmail sends that address "
     "a code).</li><li>Type that address here.</li></ol>"
     "<p>It must be an address Gmail has verified; otherwise Gmail quietly sends from your "
     "normal address. Leave blank to send from your own address.</p>"
@@ -1125,7 +1544,7 @@ _SEND_AS_HELP = (
 _ALIAS_HELP = (
     "<p>Gives every broker its own reply address. If spam later arrives at "
     "<code>optout-acme-data@yourdomain.com</code>, you know Acme Data passed your address on. "
-    "<code>{slug}</code> is replaced with the broker's short name.</p>"
+    "Type <code>{slug}</code> exactly as shown: it is replaced with each broker's ID (for example <code>acme-data</code>).</p>"
     "<p>You need an address that accepts mail for any name. Options:</p><ul>"
     "<li><b>Gmail's own plus addresses</b>, no setup: <code>yourname+{slug}@gmail.com</code>. "
     "Mail still reaches your inbox. (A broker could strip the <code>+</code> part, but it "
@@ -1192,11 +1611,12 @@ def _groups_fieldset(v: dict[str, str]) -> str:
         "start skipping brokers that only cover other groups."
     )
     return (
-        "<fieldset><legend>Groups you belong to</legend>"
+        "<details class='sub'><summary>Groups you belong to "
+        f"<span class='muted small'>{len(mine - {''})} ticked</span></summary>"
         "<p class='muted small'>A few brokers only hold data on a specific group, like "
         f"educators or financial advisors. {e(status)}</p>"
         "<input type='hidden' name='groups_present' value='1'>"
-        f"{_group_sections('group_', mine, implies=True)}</fieldset>"
+        f"{_group_sections('group_', mine, implies=True)}</details>"
     )
 
 
@@ -1221,22 +1641,56 @@ def _confirm_field(v: dict[str, str]) -> str:
     )
 
 
+def _gmail_options(v: dict) -> str:
+    """The settings that only work with Gmail. For any other provider they are replaced by a
+    note, and their saved values ride along unchanged so switching later loses nothing."""
+    if v.get("is_gmail"):
+        return (
+            "<label class='check'><input type='checkbox' name='fetch_after_batch'"
+            f"{' checked' if v.get('fetch_after_batch') == 'on' else ''}> Read replies in "
+            "shortly after a batch finishes sending (auto-replies and &ldquo;use our "
+            "form&rdquo; answers arrive within minutes)</label>"
+            "<label class='check'><input type='checkbox' name='mark_replies_read'"
+            f"{' checked' if v.get('mark_replies_read') == 'on' else ''}> Mark broker replies "
+            "as read in Gmail once they're recognised (only mail matched to one of your "
+            "requests; anything the tool can't place stays unread for you)</label>"
+        )
+    keep = "".join(
+        f"<input type='hidden' name='{k}' value='{e(v.get(k, ''))}'>"
+        for k in ("gmail_label", "reply_label", "fetch_after_batch", "mark_replies_read")
+    )
+    return (
+        keep + "<p class='muted small'><b>Gmail-only features are off</b> because this isn't a "
+        "Gmail account: labels on sent mail and replies, marking replies as read, and "
+        "&ldquo;open in Gmail&rdquo; links. Sending and reading replies (over IMAP) work "
+        "with any email provider.</p>"
+    )
+
+
 def _settings_panel(ui: UI) -> str:
     v = ui.settings
     if not v:
         return ""
     about = (
-        "<fieldset><legend>About you</legend><div class='fgrid'>"
-        + _field("Full legal name", "legal_name", v["legal_name"], attrs="required")
+        "<fieldset><legend>About you</legend>"
+        "<p class='muted small'>Fields marked <span class='req'>*</span> are required.</p>"
+        "<div class='fgrid'>"
         + _field(
-            "Other names", "aliases", v["aliases"], hint="Comma-separated: maiden name, nickname"
+            "Full legal name", "legal_name", v["legal_name"], attrs="required autocomplete='name'"
+        )
+        + _field(
+            "Other names",
+            "aliases",
+            v["aliases"],
+            attrs="autocomplete='off'",
+            hint="Comma-separated: maiden name, nickname",
         )
         + _field(
             "Date of birth",
             "dob",
             v["dob"],
             kind="date",
-            attrs="required",
+            attrs="required autocomplete='bday'",
             hint="Only some people-search forms use it; never put in emails",
         )
         + _field("Street", "street", v["street"], attrs="required autocomplete='address-line1'")
@@ -1244,17 +1698,18 @@ def _settings_panel(ui: UI) -> str:
             "Apt / Suite / Unit", "street2", v["street2"], attrs="autocomplete='address-line2'"
         )
         + _field("City", "city", v["city"], attrs="required autocomplete='address-level2'")
-        + _field(
-            "State",
-            "state",
-            v["state"],
-            attrs="required maxlength='2' autocomplete='address-level1' style='width:5em'",
-        )
+        + _state_field(v["state"])
         + _field("ZIP", "zip", v["zip"], attrs="required autocomplete='postal-code'")
-        + _field("Phone numbers", "phones", v["phones"], hint="Comma-separated; optional")
+        + _field(
+            "Phone numbers",
+            "phones",
+            v["phones"],
+            attrs="autocomplete='tel'",
+            hint="Comma-separated; optional",
+        )
         + _field("Relatives on your listings", "relatives", v["relatives"], hint="Optional")
         + "</div><label class='fld wide'><span>Previous addresses</span>"
-        f"<textarea name='previous' rows='3' placeholder='12 Oak St, Richmond, VA 23219'>"
+        f"<textarea name='previous' rows='3' autocomplete='off' placeholder='12 Oak St, Richmond, VA 23219'>"
         f"{e(v['previous'])}</textarea><small>One per line: street, city, ST ZIP. "
         "Your last one or two is plenty.</small></label></fieldset>"
     )
@@ -1266,8 +1721,13 @@ def _settings_panel(ui: UI) -> str:
             v["daily_limit"],
             kind="number",
             attrs="min='1' max='500' required",
-            hint="Gmail allows 500 sends in any rolling 24 hours, counting everything you "
-            "send, not just these. Raise this to send another batch now.",
+            hint=(
+                "Gmail allows 500 sends in any rolling 24 hours, counting everything you "
+                "send, not just these. Raise this to send another batch now."
+                if v.get("is_gmail")
+                else "Your email provider limits how much you can send in a day; stay well "
+                "under it. Raise this to send another batch now."
+            ),
         )
         + _field(
             "Email each broker again after (days)",
@@ -1286,31 +1746,36 @@ def _settings_panel(ui: UI) -> str:
             kind="number",
             attrs="min='0' max='120' required",
         )
-        + _field(
-            "Label for sent requests",
-            "gmail_label",
-            v["gmail_label"],
-            hint="Gmail label, e.g. OPTOUT. Blank to skip.",
-        )
-        + _field(
-            "Label for broker replies",
-            "reply_label",
-            v["reply_label"],
-            hint="Replies get this label and are read automatically.",
+        + (
+            _field(
+                "Label for sent requests",
+                "gmail_label",
+                v["gmail_label"],
+                hint="Gmail label, e.g. OPTOUT. Blank to skip.",
+            )
+            + _field(
+                "Label for broker replies",
+                "reply_label",
+                v["reply_label"],
+                hint="Replies get this label and are read automatically.",
+            )
+            if v.get("is_gmail")
+            else ""
         )
         + _field(
             "Send as (optional)",
             "from_address",
             v["from_address"],
             kind="email",
+            attrs="autocomplete='email'",
             hint="Show a different address in the From line. Blank = your own.",
             help_html=_SEND_AS_HELP,
         )
         + _field(
-            "Per-broker alias (optional)",
+            "A different reply address for each broker (optional)",
             "alias_pattern",
             v["alias_pattern"],
-            hint="A separate reply address per broker, e.g. you+{slug}@gmail.com",
+            hint="Lets you see which broker passed your address on, e.g. you+{slug}@gmail.com (write {slug} exactly; it becomes the broker's ID)",
             help_html=_ALIAS_HELP,
         )
         + _confirm_field(v)
@@ -1332,14 +1797,7 @@ def _settings_panel(ui: UI) -> str:
         + "</div><label class='check'><input type='checkbox' name='allow_unattended'"
         f"{' checked' if v['allow_unattended'] == 'on' else ''}> Send each day's batch "
         "automatically at that time (no clicking Send)</label>"
-        "<label class='check'><input type='checkbox' name='fetch_after_batch'"
-        f"{' checked' if v.get('fetch_after_batch') == 'on' else ''}> Read replies in shortly "
-        "after a batch finishes sending (auto-replies and &ldquo;use our form&rdquo; answers "
-        "arrive within minutes)</label>"
-        "<label class='check'><input type='checkbox' name='mark_replies_read'"
-        f"{' checked' if v.get('mark_replies_read') == 'on' else ''}> Mark broker replies as "
-        "read in Gmail once they're recognised (only mail matched to one of your requests; "
-        "anything the tool can't place stays unread for you)</label>"
+        + _gmail_options(v)
         + _TZ_LIST
         + f"<p class='muted small'>Sending from <b>{e(v['sender'])}</b> via {e(v['host'])}. "
         "To change the account, run <code>optout init</code>.</p></fieldset>"
@@ -1349,7 +1807,7 @@ def _settings_panel(ui: UI) -> str:
         f"{_hidden(ui.csrf)}<label class='fld'><span>App password</span>"
         "<input type='password' name='password' autocomplete='new-password' required "
         "placeholder='New app password'></label>"
-        "<button type='submit' class='secondary'>Test &amp; save</button></form>"
+        "<button type='submit' class='secondary'>Check it and save</button></form>"
         "<p class='muted small'>Signs in to check it before saving; it's never shown again. "
         "Gmail: <a href='https://myaccount.google.com/apppasswords' target='_blank' "
         "rel='noreferrer'>create an app password</a>.</p>"
@@ -1360,15 +1818,17 @@ def _settings_panel(ui: UI) -> str:
         "Gmail</span></summary>"
         f"<form method='post' action='/act/settings'>{_hidden(ui.csrf)}{about}{sending}"
         f"{_groups_fieldset(v)}{_backup_fieldset(v)}"
-        "<fieldset><legend>Contributor tools</legend><label class='check'>"
+        "<details class='sub'><summary>Help improve optout "
+        "<span class='muted small'>Advanced</span></summary><label class='check'>"
         "<input type='checkbox' name='contributor_tools'"
-        f"{' checked' if v.get('contributor_tools') == 'on' else ''}> Show coverage tools on "
-        "&ldquo;Needs your attention&rdquo;</label><p class='muted small'>Adds a panel to each "
+        f"{' checked' if v.get('contributor_tools') == 'on' else ''}> Show tools for judging which people a broker covers, on "
+        "&ldquo;Needs you&rdquo;</label><p class='muted small'>Adds a panel to each "
         "item for judging who a broker covers (educators only, financial advisors only, "
         "&hellip;), with a prompt you can paste into Claude. What you save can be shared back "
         "so other people skip brokers that don't apply to them. Limits: Claude can be wrong, "
-        "so check its answer; a broker's own reply is the best evidence.</p></fieldset>"
-        "<button type='submit' class='big'>Save settings</button></form>"
+        "so check its answer; a broker's own reply is the best evidence.</p></details>"
+        "<div class='savebar'><button type='submit' class='big'>Save settings</button>"
+        "<span class='muted small'>Saves every section above.</span></div></form>"
         "<form method='post' action='/act/backup' class='inline'>"
         f"{_hidden(ui.csrf)}<button type='submit' class='secondary'>Back up now</button></form>"
         f"<hr>{password}</details>"
@@ -1377,7 +1837,9 @@ def _settings_panel(ui: UI) -> str:
 
 def _backup_fieldset(v: dict[str, str]) -> str:
     return (
-        "<fieldset><legend>Backups</legend><div class='fgrid'>"
+        "<details class='sub'><summary>Backups "
+        f"<span class='muted small'>{'On' if v.get('backup_dir') else 'Off'}</span></summary>"
+        "<div class='fgrid'>"
         + _field(
             "Backup folder",
             "backup_dir",
@@ -1400,7 +1862,7 @@ def _backup_fieldset(v: dict[str, str]) -> str:
         "<small>At least 16 characters. Backups are encrypted with it; keep a copy somewhere "
         "safe (a password manager), because without it a backup can't be opened. Restore "
         "with <code>OPTOUT_STATE_KEY='…' optout state import FILE</code>.</small></label>"
-        f"</div><p class='muted small'>{e(v.get('backup_status', ''))}</p></fieldset>"
+        f"</div><p class='muted small'>{e(v.get('backup_status', ''))}</p></details>"
     )
 
 
@@ -1421,14 +1883,7 @@ def _link_note(host: str) -> str:
     return f" Their link goes to <b>{e(host)}</b>."
 
 
-_GMAIL_ICON = (
-    "<svg viewBox='0 0 24 24' width='18' height='18' aria-hidden='true'>"
-    "<path fill='#4285F4' d='M2 7v11.5c0 .55.45 1 1 1h3V10.2z'/>"
-    "<path fill='#34A853' d='M18 10.2v9.3h3c.55 0 1-.45 1-1V7z'/>"
-    "<path fill='#FBBC04' d='M18 5.2v5l4-3.2V6c0-1.3-1.5-2-2.5-1.2z'/>"
-    "<path fill='#EA4335' d='M6 10.2V5.2l6 4.5 6-4.5v5l-6 4.5z'/>"
-    "<path fill='#C5221F' d='M2 6v1l4 3.2v-5L4.5 4.8C3.5 4 2 4.7 2 6z'/></svg>"
-)
+_GMAIL_ICON = icon("mail", 17)
 _LINK_ICON = (
     "<svg viewBox='0 0 24 24' width='17' height='17' aria-hidden='true' fill='none' "
     "stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
@@ -1446,10 +1901,10 @@ def _coverage_panel(a: Attention, csrf: str) -> str:
         "<span class='muted'> The general public: not limited to a group.</span></span></label>"
     )
     return (
-        "<details class='mini coverage'><summary>Coverage</summary>"
-        "<p class='muted small'>Does this broker only hold data on a specific group? "
-        "People outside it can skip it. Judge from their own reply; if you can't tell, "
-        "leave it as Everyone.</p>"
+        "<details class='mini coverage'><summary>Optional: does this broker only cover certain people?</summary>"
+        "<p class='muted small'>Some brokers hold data on one kind of person only, such as "
+        "teachers or financial advisors. If this one does and that isn't you, tick the group "
+        "and the tool will skip it for you. If you can't tell, leave it on Everyone.</p>"
         f"<form method='post' action='/act/coverage'>{_hidden(csrf, slug=a.slug)}"
         f"{boxes}<div class='gsec'><div class='gbox'>{everyone}</div></div>"
         "<div class='noterow'>"
@@ -1457,17 +1912,15 @@ def _coverage_panel(a: Attention, csrf: str) -> str:
         "placeholder='One line on who they cover (no personal details)' aria-label='Note'>"
         "<button type='submit' class='secondary'>Save</button></div></form>"
         + (
-            "<p class='small'><b>Or ask Claude:</b> copy the prompt, paste it into "
+            "<p class='small'><b>Not sure? Ask Claude:</b> copy the prompt, paste it into "
             "<a href='https://claude.ai/new' target='_blank' rel='noreferrer'>Claude</a>, "
             "then paste its answer below. Your details are replaced with placeholders.</p>"
-            f"<button type='button' class='secondary' data-copy='cov-{e(a.slug)}'>Copy prompt"
-            "</button>"
+            f"<button type='button' class='secondary' "
+            f"data-copy-url='/coverage-prompt/{e(a.slug)}'>Copy prompt</button>"
             f"<form method='post' action='/act/coverage-claude'>{_hidden(csrf, slug=a.slug)}"
-            "<textarea name='answer' rows='4' required placeholder='Paste Claude&#x27;s answer'"
+            "<textarea class='code' name='answer' rows='4' required placeholder='Paste Claude&#x27;s answer'"
             " aria-label='Answer from Claude'></textarea>"
             "<button type='submit' class='secondary'>Apply Claude&#x27;s answer</button></form>"
-            f"<textarea id='cov-{e(a.slug)}' class='hidden-copy' readonly aria-hidden='true' "
-            f"tabindex='-1'>{e(a.coverage_prompt)}</textarea>"
             if a.coverage_prompt
             else ""
         )
@@ -1481,23 +1934,27 @@ def _expiry_pill(days: float | None) -> str:
         return ""
     if days <= 0:
         return (
-            " <span class='pill t-critical' title='Their deadline for this step has passed: "
-            "you may need to resubmit'>Expired</span>"
+            " <span class='crit-t small' title='Past their deadline for this step: "
+            "you may need to resubmit'>Overdue</span>"
         )
     left = (
         f"{round(days * 24)} hours"
         if days < 1
         else f"{int(days)} day{'s' if int(days) != 1 else ''}"
     )
-    return f" <span class='pill t-critical' title='Their own deadline for this step'>{left} left</span>"
+    return (
+        f" <span class='warn-t small tnum' title='Their own deadline for this step'>"
+        f"{left} left</span>"
+    )
 
 
-def _attention_item(a: Attention, csrf: str, contributor: bool = False) -> str:
-    def act(action: str, label: str, cls: str = "secondary") -> str:
+def _attention_item(a: Attention, csrf: str, contributor: bool = False, lead: bool = False) -> str:
+    def act(action: str, label: str, cls: str = "secondary", confirm: str = "") -> str:
+        ask = f" data-confirm='{e(confirm)}'" if confirm else ""
         return (
             "<form method='post' action='/act/row' class='inline'>"
             f"{_hidden(csrf, slug=a.slug, action=action)}"
-            f"<button type='submit' class='{cls}'>{e(label)}</button></form>"
+            f"<button type='submit' class='{cls}'{ask}>{e(label)}</button></form>"
         )
 
     icons: list[str] = []
@@ -1519,6 +1976,11 @@ def _attention_item(a: Attention, csrf: str, contributor: bool = False) -> str:
             f"{_LINK_ICON}</a>"
         )
     buttons: list[str] = []
+    # The main next step: filled on the first item in the list only, an accent outline on
+    # the rest (one filled button per region). It's the confirm click when we can do it for
+    # you; everything else is a neutral outline.
+    main = "" if lead else "ghost"
+    primary = main if a.confirm != "known" else "secondary"
     if a.confirm:
         remember = "<input type='hidden' name='remember' value='1'>" if a.confirm == "teach" else ""
         title = (
@@ -1529,28 +1991,36 @@ def _attention_item(a: Attention, csrf: str, contributor: bool = False) -> str:
         buttons.append(
             "<form method='post' action='/act/confirm' class='inline'>"
             f"{_hidden(csrf, slug=a.slug)}{remember}"
-            f"<button type='submit' class='{'' if a.confirm == 'known' else 'secondary'}' "
+            f"<button type='submit' class='{main if a.confirm == 'known' else 'secondary'}' "
             f"title='{e(title)}'>"
-            f"{'Confirm for me' if a.confirm == 'known' else 'Confirm &amp; remember'}</button>"
+            f"{'Click their confirm link for me' if a.confirm == 'known' else 'Confirm &amp; remember'}</button>"
             "</form>"
         )
     if a.kind == "need-info":
-        buttons.append(act("status:awaiting_broker_confirmation", "Done", cls=""))
+        buttons.append(
+            act("status:awaiting_broker_confirmation", "I did what they asked", cls=primary)
+        )
         buttons.append(
             "<form method='post' action='/act/row' class='inline'>"
             f"{_hidden(csrf, slug=a.slug, action='form-removed')}"
-            "<button type='submit' class='removed' title='You filled in their form and it said "
-            "your data was removed'>Form removed</button></form>"
+            "<button type='submit' class='secondary' title='You filled in their form and it said "
+            "your data was removed'>I filled in their form and it said removed</button></form>"
         )
     elif a.kind == "refused":
-        buttons.append(act("draft:appeal", "Appeal", cls=""))
-        buttons.append(act("send-again", "Send again"))
+        buttons.append(act("draft:appeal", "Write appeal draft", cls=main))
+        buttons.append(
+            act(
+                "send-again",
+                "Send again now",
+                confirm=f"Email your original request to {a.name} again now?",
+            )
+        )
     elif a.kind == "overdue":
-        buttons.append(act("draft:followup", "Follow up", cls=""))
+        buttons.append(act("draft:followup", "Write follow-up draft", cls=main))
     elif a.kind == "stalled":
-        buttons.append(act("form-submitted", "I resubmitted it", cls=""))
+        buttons.append(act("form-submitted", "I resubmitted it", cls=main))
     if a.kind in ("need-info", "refused", "overdue", "stalled"):
-        buttons.append(act("status:closed", "Close"))
+        buttons.append(act("status:closed", "Doesn't apply to me"))
 
     redirect = ""
     if a.alt_emails and a.kind in ("need-info", "refused"):
@@ -1558,7 +2028,7 @@ def _attention_item(a: Attention, csrf: str, contributor: bool = False) -> str:
             "<form method='post' action='/act/resend-to' class='inline redirect'>"
             f"{_hidden(csrf, slug=a.slug, address=addr)}"
             f"<span class='muted small'>Their reply names <b>{e(addr)}</b>.</span>"
-            "<button type='submit' class='mini go'>Send my request there</button></form>"
+            "<button type='submit' class='mini secondary'>Email my request to that address</button></form>"
             for addr in a.alt_emails
         )
     quote = _URL_IN_TEXT.sub("", a.quote).replace("  ", " ").strip()
@@ -1574,11 +2044,11 @@ def _attention_item(a: Attention, csrf: str, contributor: bool = False) -> str:
         a.kind, "serious"
     )
     return (
-        "<li class='att'><div class='att-main'>"
+        f"<li class='att' data-slug='{e(a.slug)}'><div class='att-main'>"
         f"<div class='att-head'><b>{e(a.name)}</b> <span class='pill t-{tone}'>{e(a.why)}</span>"
         f"{_expiry_pill(a.expires_in)}</div>{quote_html}{redirect}{email}"
         f"{_coverage_panel(a, csrf) if contributor else ''}</div>"
-        f"<div class='att-actions'>{''.join(icons)}{''.join(buttons)}</div></li>"
+        f"<div class='att-actions'>{''.join(icons)}<div class='att-stack'>{''.join(buttons)}</div></div></li>"
     )
 
 
@@ -1624,10 +2094,10 @@ def _draft_panel(ui: UI) -> str:
     return (
         "<section class='card' aria-labelledby='draft-h' id='draft'>"
         f"<h2 id='draft-h'>Draft · {e(name)}</h2>"
-        "<p class='muted small'>Copy this into a reply in Gmail. It contains your name and "
+        "<p class='muted small'>Copy this into a reply to their email. It contains your name and "
         "address and has not been sent.</p>"
         f"<pre>{e(text)}</pre><div class='filters'>{sent}"
-        "<a href='/' class='fpill'>Close</a></div></section>"
+        "<a href='/' class='btnlink'>Close</a></div></section>"
     )
 
 
@@ -1640,10 +2110,10 @@ def _drafts_line(ui: UI) -> str:
     saved = ""
     if ui.drafts:
         saved = "<span class='muted small'>Saved drafts:</span> " + " ".join(
-            f"<a class='fpill' href='/?draft={quote(n, safe='')}#draft'>{e(n)}</a>"
+            f"<a class='btnlink' href='/?draft={quote(n, safe='')}#draft'>{e(n)}</a>"
             for n in ui.drafts[-8:]
         )
-    return f"<div class='filters' style='margin-top:12px'>{make}{saved}</div>"
+    return f"<div class='filters drafts-row'>{make}{saved}</div>"
 
 
 _RETRY_ICON = (
@@ -1691,7 +2161,10 @@ def _reply_from(row: Row) -> str:
 
     shown = ", ".join(one(a) for a in row.reply_from[:2])
     more = f" +{len(row.reply_from) - 2}" if len(row.reply_from) > 2 else ""
-    return f"<div class='muted small' title='Replies came from'>↩ {shown}{more}</div>"
+    return (
+        f"<div class='muted small replyfrom' title='Replies came from'>"
+        f"{icon('reply', 13)} {shown}{more}</div>"
+    )
 
 
 def _short(iso: str) -> str:
@@ -1712,14 +2185,34 @@ def _due(row: Row) -> str:
     return ""
 
 
+def _days(n: int) -> str:
+    return f"{n} day{'' if n == 1 else 's'}"
+
+
 def _days_cell(row: Row) -> str:
     if row.days_left is None:
         return "<span class='muted'>—</span>"
     if row.overdue:
-        return pill("rejected", f"Overdue {-row.days_left}d")
+        return f"<span class='crit-t tnum'>Overdue {-row.days_left}d</span>"
     if row.days_left < 14:
-        return f"<span class='pill t-warning'>{row.days_left} days</span>"
-    return f"{row.days_left} days"
+        return f"<span class='warn-t tnum'>{icon('alert', 13)}{_days(row.days_left)}</span>"
+    return f"<span class='tnum'>{_days(row.days_left)}</span>"
+
+
+def _attention_hint(d: Dashboard) -> str:
+    """What the 'need your attention' number is made of, so it matches the lists below."""
+    kinds: dict[str, int] = {}
+    for a in d.attention:
+        kinds[a.kind] = kinds.get(a.kind, 0) + 1
+    names = [
+        ("need-info", "asked for something"),
+        ("refused", "said no"),
+        ("overdue", "overdue"),
+        ("stalled", "confirmation email missing"),
+        ("drift", "form changed"),
+    ]
+    parts = [f"{kinds[k]} {label}" for k, label in names if kinds.get(k)]
+    return " · ".join(parts)
 
 
 def _stats(d: Dashboard, ui: UI | None) -> str:
@@ -1729,36 +2222,16 @@ def _stats(d: Dashboard, ui: UI | None) -> str:
     sent = sum(1 for r in d.rows if r.submitted != "—")
     # (number, label, colour, one-line explanation)
     heard = sum(1 for r in d.rows if r.heard)
-    silent = sum(
-        1
-        for r in d.rows
-        if not r.heard and r.status in ("awaiting_broker_confirmation", "submitted")
-    )
+    silent = max(0, sent - heard)  # sent but nothing back yet: heard + silent = sent
+    removed = by.get("removed", 0)
+    # The goal bar above counts brokers; this counts requests, so say so.
+    done_hint = f"They told you it's deleted · of {sent} requests sent"
+    if removed:  # only people-search sites can be re-searched; otherwise it's a permanent 0
+        done_hint += f" · {removed} confirmed by a re-search"
     tiles: list[tuple[object, str, str, str]] = [
-        (sent, "Requests sent", "var(--s1)", "Deletion requests that went out"),
-        (heard, "Heard back", _tone_var("submitted"), "Brokers that have replied in any way"),
-        (silent, "No reply yet", "var(--neutral)", "Most take weeks to answer"),
-        (
-            by.get("confirmed", 0),
-            "Broker says done",
-            _tone_var("confirmed"),
-            "They told you it's deleted",
-        ),
+        (sent, "Requests sent", "var(--s1)", f"{heard} have replied · {silent} haven't yet"),
+        (by.get("confirmed", 0) + removed, "Broker says done", _tone_var("confirmed"), done_hint),
     ]
-    if d.verifiable or by.get("removed", 0):
-        # Only meaningful for sites the tool can search itself; hidden otherwise so a
-        # permanent 0 doesn't look like failure.
-        tiles.append(
-            (by.get("removed", 0), "Verified removed", "var(--s3)", "We searched; you're gone")
-        )
-    tiles.append(
-        (
-            len(d.attention),
-            "Need your attention",
-            _tone_var("awaiting_user_input"),
-            "Something for you to do",
-        )
-    )
     if d.resend_due_30d:
         tiles.append(
             (
@@ -1768,20 +2241,11 @@ def _stats(d: Dashboard, ui: UI | None) -> str:
                 f"Finished requests are sent again every {d.resend_after_days} days",
             )
         )
-    if ui and ui.limit:
-        tiles.append(
-            (
-                f"{ui.used}/{ui.limit}",
-                "Last 24 hours",
-                "var(--neutral)",
-                "Emails sent, of your limit",
-            )
-        )
     return (
         "<section class='stats' aria-label='Summary'>"
         + "".join(
             f"<div class='stat'><div class='n'>{e(str(n))}</div>"
-            f"<div class='l'><span class='dot' style='background:{c}'></span>{e(label)}</div>"
+            f"<div class='l'>{e(label)}</div>"
             f"<div class='sub'>{e(hint)}</div></div>"
             for n, label, c, hint in tiles
         )
@@ -1812,6 +2276,46 @@ def _filters(d: Dashboard, status_filter: str | None, query: str) -> str:
     return "<nav class='filters' aria-label='Filter by status'>" + "".join(pills) + "</nav>"
 
 
+def _done_of(d: Dashboard) -> tuple[int, int]:
+    """(done, total) toward the whole goal. The plan's groups when there is one (brokers
+    skipped on purpose don't count against you), otherwise the request rows."""
+    tiers = [t for t in d.plan if t.key != "too-much"]
+    if tiers:
+        return sum(t.done for t in tiers), sum(t.total for t in tiers)
+    done = sum(1 for r in d.rows if r.status in ("confirmed", "removed"))
+    return done, len(d.rows)
+
+
+def _headline(d: Dashboard, ready: int = 0) -> str:
+    n = len(d.attention)
+    if n:
+        return f"{n} broker{'s' if n != 1 else ''} need{'s' if n == 1 else ''} you"
+    done, total = _done_of(d)
+    if total and done >= total:
+        return f"All {total} brokers done"
+    if ready:
+        return f"{ready} email{'s' if ready != 1 else ''} ready to send"
+    if d.rows:
+        return "You're all caught up"
+    return "Your opt-out requests"
+
+
+def _goal(d: Dashboard) -> str:
+    """One bar for the whole job: how close you are to every broker being done."""
+    done, total = _done_of(d)
+    if not total:
+        return ""
+    pct = 100 * done / total
+    return (
+        f"<div class='goal'><div class='gl'><span><b>{done}</b> of <b>{total}</b> brokers done"
+        f"</span><span class='tnum'>{int(pct)}%</span></div>"
+        "<div class='progress' role='progressbar' aria-label='Brokers done' aria-valuemin='0' "
+        f"aria-valuemax='{total}' aria-valuenow='{done}' "
+        f"aria-valuetext='{done} of {total} brokers done'><span style='width:{max(pct, 0.6 if done else 0):.1f}%'></span>"
+        "</div></div>"
+    )
+
+
 def dashboard(
     d: Dashboard,
     *,
@@ -1834,25 +2338,51 @@ def dashboard(
 
     attn = ""
     if d.attention:
-        if with_actions:
-            items = "".join(
-                _attention_item(a, csrf, contributor=d.contributor_tools) for a in d.attention[:40]
-            )
-        else:
-            items = "".join(
+        att_shown = d.attention[:40]
+        parts = [
+            (
+                "Time-sensitive",
+                "Links that expire, confirmations waiting for a click, or steps that have "
+                "lapsed. Do these first.",
+                [a for a in att_shown if a.urgent],
+            ),
+            ("Everything else", "", [a for a in att_shown if not a.urgent]),
+        ]
+
+        first = next((a for _, _, group in parts for a in group), None)
+
+        def _items(group: list[Attention]) -> str:
+            if with_actions:
+                return "".join(
+                    _attention_item(a, csrf, contributor=d.contributor_tools, lead=a is first)
+                    for a in group
+                )
+            return "".join(
                 f"<li><span><b>{e(a.name)}</b> <span class='muted'>· {e(a.why)}</span></span></li>"
-                for a in d.attention[:40]
+                for a in group
             )
+
+        lists = "".join(
+            f"<h3 class='att-group{' urgent' if blurb else ''}'>"
+            f"{icon('clock' if blurb else 'list', 16)}<span>{e(title)}</span>"
+            f"<span class='gc'>{len(group)}</span>"
+            + (f"<span class='gb'>{e(blurb)}</span>" if blurb else "")
+            + f"</h3><ul class='attn'>{_items(group)}</ul>"
+            for title, blurb, group in parts
+            if group
+        )
         how = (
-            "<p class='how'>Do what they ask (their link or the email in Gmail), then click "
-            "<b>Done</b>. Doesn't apply to you? <b>Close</b> it.</p>"
+            "<p class='how'>Do what they ask (their link, or a reply to their email), then click "
+            "<b>I did what they asked</b>. Doesn't apply to you? Click <b>Doesn't apply to me</b>.</p>"
             if with_actions
             else ""
         )
         if with_actions and d.followups_due:
             how += (
                 "<form method='post' action='/act/followups' class='inline'>"
-                f"{_hidden(csrf)}<button type='submit' class='go' title='A short, polite "
+                f"{_hidden(csrf)}<button type='submit' class='ghost' data-confirm='Send "
+                f"{d.followups_due} follow-up email{'s' if d.followups_due != 1 else ''} now?' "
+                "title='A short, polite "
                 "follow-up to each broker past its 45-day deadline with no answer, in the same "
                 "email thread. Counts toward your daily limit.'>"
                 f"Send all {d.followups_due} follow-up{'s' if d.followups_due != 1 else ''}"
@@ -1875,27 +2405,27 @@ def dashboard(
                 )
                 + "<button type='button' class='secondary' data-copy='attn-prompt'>Copy prompt"
                 "</button> <details class='peek'><summary>See exactly what will be copied"
-                f"</summary><pre>{e(d.attention_prompt)}</pre></details>"
-                f"<textarea id='attn-prompt' class='hidden-copy' readonly aria-hidden='true' "
-                f"tabindex='-1'>{e(d.attention_prompt)}</textarea></p></details>"
+                f"</summary><pre id='attn-prompt' class='code'>{e(d.attention_prompt)}</pre></details>"
+                "</p></details>"
             )
         attn = _fold(
             "attention",
-            "Needs your attention",
-            f"{how}{ask}<ul class='attn'>{items}</ul>",
-            f"{len(d.attention)} item{'s' if len(d.attention) != 1 else ''}",
+            "Needs you",
+            f"{how}{ask}{lists}",
+            _attention_hint(d),
         )
 
     trs = "".join(
-        f"<tr data-name='{e((r.name + ' ' + r.slug).lower())}' data-status='{e(r.label)}' "
+        f"<tr data-slug='{e(r.slug)}' data-name='{e((r.name + ' ' + r.slug).lower())}' "
+        f"data-status='{e(r.label)}' "
         f"data-sent='{e(r.submitted if r.submitted != '—' else '')}' "
         f"data-days='{r.days_left if r.days_left is not None else 1000000}'>"
         f"<td class='name'>{e(r.name)}{_reply_from(r)}{_covers_tag(r)}</td>"
         f"<td>{_status_cell(r, csrf if with_actions else '')}</td>"
         f"<td class='num'>{e(_short(r.submitted))}</td>"
         f"<td>{_days_cell(r)}<div class='muted small'>{_due(r)}</div></td>"
-        f"<td class='small'>{e(r.last_check)}"
-        f"{' ' + pill('failed', 'Form changed') if r.drifted else ''}</td>"
+        f"<td class='small latest'>{e(r.last_check)}"
+        f"{' <span class=crit-t>Form changed</span>' if r.drifted else ''}</td>"
         f"{('<td>' + row_form(r.slug, csrf, r.name) + '</td>') if with_actions else ''}</tr>"
         for r in shown
     )
@@ -1908,11 +2438,12 @@ def dashboard(
         table = (
             "<div class='table-wrap'><table id='req-table'><thead><tr><th scope='col' data-sortkey='name' aria-sort='none'><button type='button' class='sortbtn'>Broker</button></th>"
             "<th scope='col' data-sortkey='status' aria-sort='none'><button type='button' class='sortbtn'>Status</button></th><th scope='col' data-sortkey='sent' aria-sort='none'><button type='button' class='sortbtn'>Sent</button></th>"
-            "<th scope='col' data-sortkey='days' aria-sort='none'><button type='button' class='sortbtn'>Time left</button></th><th scope='col' title='The broker's most recent email, or the last time we re-checked their site'>Latest reply</th>"
+            "<th scope='col' data-sortkey='days' aria-sort='none'><button type='button' class='sortbtn'>Time left</button></th><th scope='col' title='The broker&#x27;s most recent email, or the last time we re-checked their site'>Latest reply</th>"
             f"{'<th scope=col>Action</th>' if with_actions else ''}</tr></thead>"
-            f"<tbody>{trs}<tr id='nomatch' hidden><td colspan='7' class='muted'>No requests "
+            f"<tbody>{trs}<tr id='nomatch' hidden><td colspan='{6 if with_actions else 5}' "
+            "class='muted'>No requests "
             "match.</td></tr></tbody></table></div>"
-            f"{more}"
+            f"{more}{row_menu_template(csrf) if with_actions else ''}"
         )
     elif d.rows:
         table = "<p class='muted'>No requests match.</p>"
@@ -1936,24 +2467,32 @@ def dashboard(
         f"<div class='toolbar'>{_filters(d, status_filter, query)}{search}</div>" if d.rows else ""
     )
 
-    chart = _fold("progress", "Progress over time", progress_chart(d.series))
-    if act is not None:
-        top = (
-            act.flash
-            + _notices(act)
-            + f"<div class='grid'>{chart}{_send_panel(act)}</div>"
-            + _draft_panel(act)
+    # Nothing waiting on you is a good moment: say so instead of dropping the section.
+    ready = len(act.previews) if act is not None else 0
+    headline = _headline(d, ready)
+    # Nothing waiting on you: say so, unless the headline already does.
+    if not attn and with_actions and d.rows and headline != "You're all caught up":
+        attn = (
+            "<section class='card allclear' aria-label='Needs you'>"
+            f"{icon('check', 22)}<p><b>Nothing needs you right now.</b> "
+            "<span class='muted'>Brokers that ask for something will show up here.</span></p>"
+            "</section>"
         )
-    else:
-        top = chart
+
+    # The chart is for looking back, so it starts folded and sits below the work.
+    chart = _fold("progress", "Progress over time", progress_chart(d.series), open_=False)
+    top = (_notices(act) + _draft_panel(act)) if act is not None else ""
+    send = _send_panel(act) if act is not None else ""
 
     note = (
-        "<p class='muted small'>“Broker says done” is the broker's word. Only “Removed "
-        "(verified)” means a later re-search confirmed the listing is gone. That's possible "
-        "only for people-search sites with a public search page (<code>optout verify</code>). "
-        "Brokers you emailed have no public search, so “Broker says done” is as far as they "
-        "can go.</p>"
+        "<details class='mini'><summary>What's the difference between “Broker says done” and "
+        "“Removed (verified)”?</summary><p class='muted small'>“Broker says done” is the "
+        "broker's word. “Removed (verified)” means a later re-search confirmed the listing is "
+        "gone. That's possible only for people-search sites with a public search page "
+        "(<code>optout verify</code>). Brokers you emailed have no public search, so “Broker "
+        "says done” is as far as they can go.</p></details>"
     )
+    flash = act.flash if act is not None else ""
     plan = _plan_panel(d, act) if act is not None and d.plan else ""
     replies = _replies_panel(act) if act is not None else ""
     settings = _settings_panel(act) if act is not None else ""
@@ -1966,8 +2505,8 @@ def dashboard(
     refresh = 3 if ui and ui.job.get("state") == "running" else None
     return page(
         "optout · dashboard",
-        f"<h1>Your opt-out requests</h1>{_stats(d, ui)}{plan}{top}{attn}{replies}"
-        f"{requests}{settings}",
+        f"<h1>{e(headline)}</h1>{_goal(d)}{_stats(d, ui)}{flash}{top}{attn}{send}{plan}"
+        f"{replies}{requests}{chart}{settings}",
         nav=False,
         refresh=refresh,
         updated=d.generated,
@@ -1981,6 +2520,16 @@ def dashboard(
 def message_box(text: str, ok: bool = True, live: bool = False) -> str:
     cls = ("ok" if ok else "bad") + (" live" if live else "")
     return f"<div class='flash {cls}' role='status'>{e(text)}</div>"
+
+
+def report_box(title: str, lines: list[str], ok: bool = True) -> str:
+    """The banner after pasting an answer: a headline, then one line per thing that happened."""
+    items = "".join(f"<li>{e(ln)}</li>" for ln in lines)
+    cls = "ok" if ok else "bad"
+    return (
+        f"<div class='flash {cls} report' role='status'><div><b>{e(title)}</b>"
+        f"<ul class='small' style='margin:6px 0 0;padding-left:18px'>{items}</ul></div></div>"
+    )
 
 
 def broker_page(
@@ -2002,7 +2551,7 @@ def broker_page(
         f"<form method='post' action='/act/reply' class='inline'>{hidden}"
         "<select name='outcome' aria-label='Reply'>"
         "<option value='deleted'>They say it's deleted</option>"
-        "<option value='denied'>They refused</option>"
+        "<option value='denied'>Broker said no</option>"
         "<option value='need-info'>They need more info</option>"
         "<option value='auto-reply'>Automated reply only (deadline keeps running)</option>"
         "</select><input name='note' maxlength='200' placeholder='Short note, no personal data' "
@@ -2012,7 +2561,7 @@ def broker_page(
         "<select name='kind' aria-label='Draft type'>"
         "<option value='clarify'>Clarify: reply to an automated answer</option>"
         "<option value='followup'>Follow up: no response yet</option>"
-        "<option value='appeal'>Appeal: they refused</option>"
+        "<option value='appeal'>Appeal: broker said no</option>"
         "<option value='complaint'>Attorney General complaint draft</option>"
         "</select><button type='submit'>Write draft</button></form>"
         "<p class='muted small'>Writes text for you to copy. Nothing is sent.</p></section>"
@@ -2023,8 +2572,11 @@ def broker_page(
         f"{'Disable (never contact)' if enabled else 'Enable'}</button></form></section>"
         "<section class='card'><h2>I sent a follow-up, appeal, or complaint</h2>"
         f"<form method='post' action='/act/escalation-sent' class='inline'>{hidden}"
-        "<select name='kind' aria-label='Kind'><option>clarify</option><option>followup</option>"
-        "<option>appeal</option><option>complaint</option></select>"
+        "<select name='kind' aria-label='What you sent'>"
+        "<option value='clarify'>Clarification</option>"
+        "<option value='followup'>Follow-up</option>"
+        "<option value='appeal'>Appeal</option>"
+        "<option value='complaint'>Attorney General complaint</option></select>"
         "<button type='submit' class='secondary'>Mark as sent</button></form></section>"
         "<section class='card'><h2>History</h2><div class='table-wrap'><table><tbody>"
         f"{ev or '<tr><td>None</td></tr>'}</tbody></table></div></section>"
@@ -2056,16 +2608,16 @@ def campaign_page(
     else:
         form = (
             "<section class='card'><p>Review exactly what will be emailed before anything is "
-            f"sent.</p><a class='fpill' href='/preview?count={batch}'>Preview {batch} emails</a>"
+            f"sent.</p><a class='btnlink primary' href='/preview?count={batch}'>Preview {batch} emails</a>"
             "</section>"
         )
     body = (
-        f"<h1>Send a batch</h1>{flash}"
+        f"<h1>Send today's emails</h1>{flash}"
         f"<p>{len(eligible)} brokers are ready, {skipped} skipped. "
         f"Daily limit: {used}/{limit} used.</p>{status}{form}"
         f"<section class='card'><h2>Next in line</h2><ul>{lines}</ul></section>"
     )
-    return page("Send a batch", body, nav=True, refresh=3 if running else None)
+    return page("Send today's emails", body, nav=True, refresh=3 if running else None)
 
 
 def preview_page(
@@ -2121,12 +2673,24 @@ def _plan_panel(d: Dashboard, ui: UI) -> str:
     room = max(0, ui.limit - ui.used) if ui.limit else 0
     rows = []
     for n, t in enumerate(d.plan, 1):
-        progress = (
-            f"<b>{t.done}</b>/{t.total} done"
-            + (f" · {t.under_way} waiting on them" if t.under_way else "")
-            + (f" · <b>{t.needs_you}</b> need you" if t.needs_you else "")
-            + (f" · {len(t.todo)} not started" if t.todo else "")
-        )
+        if t.key == "too-much":
+            progress = f"{t.total - t.done} skipped on purpose (never emailed)" + (
+                f" · {t.done} already done" if t.done else ""
+            )
+        else:
+            progress = (
+                f"<b>{t.done}</b> of {t.total} done"
+                + (f" · {t.under_way} awaiting reply" if t.under_way else "")
+                + (f" · <b>{t.needs_you}</b> need you (see list below)" if t.needs_you else "")
+                + (f" · {t.refused} said no" if t.refused else "")
+                + (f" · {len(t.todo)} not started" if t.todo else "")
+                + (
+                    "<div class='progress mini' aria-hidden='true'>"
+                    f"<span style='width:{100 * t.done / t.total:.1f}%'></span></div>"
+                    if t.total
+                    else ""
+                )
+            )
         if t.key in _EMAIL_TIERS and t.todo:
             count = min(len(t.todo), room)
             action = (
@@ -2141,14 +2705,13 @@ def _plan_panel(d: Dashboard, ui: UI) -> str:
             action = (
                 "<span class='actions'>"
                 f"<button type='button' class='mini ghost' data-copy-url='/prompt/{t.key}' "
-                "title='Copies a prompt for your browser agent (Claude in Chrome) with the next "
-                "10 forms in this group'>Copy browser prompt</button>"
-                f"<a class='small muted' href='/prompt/{t.key}'>view</a></span>"
+                "title='Copies a prompt for your AI browser helper (Claude in Chrome) with the next "
+                "10 forms in this group'>Copy prompt for Claude in Chrome</button></span>"
             )
         elif t.key == "too-much" and d.too_much:
             items = "".join(f"<li>{e(name)}: {e(why)}</li>" for name, why in d.too_much)
             action = (
-                f"<details class='mini'><summary>Skipped ({len(d.too_much)})</summary>"
+                f"<details class='mini'><summary>Why these are skipped ({len(d.too_much)})</summary>"
                 f"<ul class='small'>{items}</ul></details>"
             )
         else:
@@ -2160,7 +2723,7 @@ def _plan_panel(d: Dashboard, ui: UI) -> str:
         )
     drop = (
         "<p class='how'><b>California resident?</b> California's DROP portal sends one deletion "
-        "request to <i>every</i> registered data broker at once, and brokers must act on it "
+        "request to every registered data broker at once, and brokers must act on it "
         "every 45 days. Do that first: <a href='https://consumer.drop.privacy.ca.gov/' "
         "target='_blank' rel='noreferrer noopener'>consumer.drop.privacy.ca.gov</a>. This list "
         "then covers brokers the registry doesn't, and anything that needs a follow-up.</p>"
@@ -2168,17 +2731,19 @@ def _plan_panel(d: Dashboard, ui: UI) -> str:
         else ""
     )
     paste = (
-        "<details class='mini'><summary>Paste the browser agent's answer</summary>"
+        "<details class='mini'><summary>Paste the AI browser helper's answer</summary>"
         "<form method='post' action='/act/forms-apply'>"
-        f"{_hidden(ui.csrf)}<textarea name='answer' rows='6' style='width:100%' "
+        f"{_hidden(ui.csrf)}<textarea class='code' name='answer' rows='6' "
+        "aria-label='Answer from the AI browser helper' "
         "placeholder='The JSON answer, with or without its ```json fence'></textarea>"
-        "<button type='submit' class='secondary'>Apply</button></form></details>"
+        "<button type='submit' class='secondary'>Apply</button>"
+        "<p class='muted small'>A summary appears at the top of the page.</p></form></details>"
     )
     return _fold(
         "plan",
         "Your plan",
         drop + "<p class='how'>Work down the list: email groups send from here; form groups give "
-        "you a prompt for a browser agent (Claude in Chrome), whose answer you paste back "
+        "you a prompt for an AI browser helper (Claude in Chrome), whose answer you paste back "
         "below.</p><div class='table-wrap'><table class='plan'><tbody>"
         + "".join(rows)
         + f"</tbody></table></div>{paste}",
@@ -2191,11 +2756,11 @@ def prompt_page(title: str, text: str, count: int, csrf: str) -> str:
     else:
         body = (
             f"<h1>{e(title)}: next {count}</h1>"
-            "<p>Copy this into your browser agent (Claude in Chrome). It contains your name, "
+            "<p>Copy this into your AI browser helper (Claude in Chrome). It contains your name, "
             "address and date of birth, so paste it only into your own. When it's done, paste "
-            "its JSON answer into <b>Your plan → Paste the browser agent's answer</b>.</p>"
+            "its JSON answer into <b>Your plan → Paste the AI browser helper's answer</b>.</p>"
             "<p><button type='button' data-copy='prompt-text'>Copy prompt</button></p>"
-            f"<textarea id='prompt-text' rows='24' style='width:100%' readonly>{e(text)}"
+            f"<textarea id='prompt-text' class='code' rows='24' readonly>{e(text)}"
             "</textarea>"
         )
     return page(title, body, nav=True)

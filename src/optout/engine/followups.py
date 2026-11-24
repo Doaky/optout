@@ -18,7 +18,7 @@ from datetime import UTC, datetime, timedelta
 from sqlmodel import Session, select
 
 from ..brokers.schema import BrokerDef
-from ..config import UserConfig
+from ..config import UserConfig, user_tz
 from ..db import Submission, SubmissionEvent, list_events, record_event
 from .campaign import SendLock, sent_today
 from .escalation import make_draft, stage_for
@@ -77,7 +77,9 @@ def _followups_last_day(session: Session, now: datetime) -> int:
 def build(config: UserConfig, sub: Submission, broker: BrokerDef):
     """The follow-up email for one request, threaded onto the original."""
     contact = email_method._contact_email(config, broker, config.profile)
-    draft = make_draft("followup", sub, broker, config.profile, contact_email=contact)
+    draft = make_draft(
+        "followup", sub, broker, config.profile, contact_email=contact, tz=user_tz(config)
+    )
     smtp = config.email.smtp
     msg = email_method._build_message(
         from_addr=config.email.from_address or (smtp.username if smtp else ""),

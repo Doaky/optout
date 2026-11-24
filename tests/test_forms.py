@@ -384,3 +384,41 @@ def test_people_search_list_is_valid():
     for it in items:
         assert it["priority"] in (1, 2, 3) and it["opt_out_url"].startswith("https://")
         assert set(it.get("needs") or []) <= known, it["name"]
+
+
+def test_requires_beyond_a_plain_form_is_learned_even_when_skipped(monkeypatch):
+    from optout.brokers import traits
+
+    learned = []
+    monkeypatch.setattr(traits, "note", lambda slug, t: learned.append((slug, t)) or True)
+    lines = forms.apply_results(
+        None,
+        None,
+        [
+            {
+                "broker": "acme",
+                "outcome": "skipped",
+                "note": "needs a code",
+                "requires": ["phone_verify", "Account", "captcha", "other"],
+            }
+        ],
+    )
+    assert sorted(learned) == [
+        ("acme", "requires_account"),
+        ("acme", "requires_phone_verification"),
+    ]
+    assert "now marked" in lines[0] and "left alone" in lines[0]
+
+
+def test_urgent_means_a_clock_a_waiting_confirm_or_a_missing_followup():
+    from optout.web.data import Attention, is_urgent
+
+    def att(**kw):
+        return Attention("x", "X", kw.pop("kind", "need-info"), "w", "h", **kw)
+
+    assert is_urgent(att(expires_in=-2.0))  # a lapsed link still needs redoing
+    assert is_urgent(att(confirm="known"))
+    assert is_urgent(att(kind="stalled"))
+    assert is_urgent(att(email="If you waited longer than 24 hours to click the link below"))
+    assert not is_urgent(att(email="We will respond within 45 days as the law requires."))
+    assert not is_urgent(att(kind="refused", email="no"))

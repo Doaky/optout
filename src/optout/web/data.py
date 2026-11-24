@@ -18,6 +18,8 @@ from ..brokers.registry import all_brokers
 from ..config import UserConfig
 from ..db import Submission, SubmissionEvent, is_drifted, latest_verification
 from ..engine.campaign import select_brokers, sent_today
+from ..engine.escalation import stage_for
+from ..engine.followups import _sent_kinds
 from ..labels import STATUS_LABEL
 
 
@@ -60,8 +62,9 @@ class Attention:
     coverage: str = ""  # who the broker covers, if limited ("educators")
     coverage_note: str = ""
     coverage_groups: list[str] = field(default_factory=list)
-    coverage_prompt: str = ""  # redacted prompt for Claude (contributor tools only)
+    coverage_prompt: bool = False  # offer a Claude prompt (contributor tools); built on click
     expires_in: float | None = None  # days left before their link/step lapses ("within 5 days")
+    urgent: bool = False  # time-sensitive: a link that expires or a step that has lapsed
 
 
 @dataclass
@@ -140,8 +143,20 @@ _DONE = {"confirmed", "removed", "closed"}
 def collect(
     session: Session, config: UserConfig | None, now: datetime, drafts: int = 0
 ) -> Dashboard:
-    global _TZ, _NOW
+    from ..db import read_cache
+
+    with read_cache(session):  # a few bulk queries instead of thousands of small ones
+        return _collect(session, config, now, drafts)
+
+
+def _collect(
+    session: Session, config: UserConfig | None, now: datetime, drafts: int = 0
+) -> Dashboard:
+    global _TZ, _NOW, _GMAIL
     from ..config import user_tz
+    from ..engine.inbox import uses_gmail
+
+    _GMAIL = config is None or uses_gmail(config)
 
     _TZ = user_tz(config)
     _NOW = now
@@ -238,14 +253,35 @@ def collect(
             dash.resend_due_30d += (when - now).days <= 30
         dash.rows.append(row)
         dash.counts[row.label] = dash.counts.get(row.label, 0) + 1
-        if overdue and days is not None:
+        # Same schedule as the follow-up and draft commands: follow up once, then (after a
+        # grace period) a complaint. Once you've sent the follow-up it leaves this list
+        # until a complaint is due, instead of asking you to send it again.
+        stage = (
+            stage_for(sub, _sent_kinds(session, sub), now)
+            if overdue and sub.status not in ("rejected", "awaiting_user_input")
+            else None
+        )
+        if stage in ("followup", "complaint") and days is not None:
+            late = -days or 1
+            if stage == "followup":
+                detail = (
+                    "They replied, but haven't confirmed deletion within the legal deadline. "
+                    "Send a short follow-up."
+                    if row.heard
+                    else "No answer within the legal deadline. Send a short follow-up."
+                )
+            else:
+                detail = (
+                    "Still no answer after your follow-up. You can complain to your state "
+                    "attorney general; Write drafts makes one for you to send."
+                )
             dash.attention.append(
                 Attention(
                     row.slug,
                     row.name,
                     "overdue",
-                    f"Overdue by {-days} day(s)",
-                    "No answer within the legal deadline. Send a short follow-up.",
+                    f"Overdue by {late} day{'s' if late != 1 else ''}",
+                    detail,
                 )
             )
         elif (stalled := _stalled_form(session, sub, now)) is not None:
@@ -259,7 +295,7 @@ def collect(
                         row.slug,
                         row.name,
                         "refused",
-                        "Refused",
+                        "Broker said no",
                         "You can appeal, or close it if their reason applies to you.",
                     ),
                 )
@@ -273,8 +309,9 @@ def collect(
                         row.slug,
                         row.name,
                         "need-info",
-                        "Action needed",
-                        "Do what their reply asks, then mark it done so the deadline restarts.",
+                        "Needs you",
+                        "Do what their reply asks, then click "
+                        '"I did what they asked" to start a new wait.',
                     ),
                 )
             )
@@ -298,19 +335,18 @@ def collect(
 
     dash.followups_due = len(followups_due(session, {b.slug: b for b in all_brokers()}, now))
     # Steps that lapse soonest first: a confirm link that expires tomorrow beats a refusal.
-    dash.attention.sort(key=lambda a: a.expires_in if a.expires_in is not None else 1e9)
+    for a in dash.attention:
+        a.urgent = is_urgent(a)
+    dash.attention.sort(
+        key=lambda a: (not a.urgent, a.expires_in if a.expires_in is not None else 1e9)
+    )
     for item in dash.attention:
         cov = coverage.get(item.slug)
         if cov is not None:
             item.coverage, item.coverage_note = cov.label(), cov.note
             item.coverage_groups = list(cov.audiences)
         if config is not None and config.contributor_tools and item.email:
-            from ..audiences import coverage_prompt
-            from ..engine.assist import redact
-
-            item.coverage_prompt = coverage_prompt(
-                item.slug, item.name, redact(item.email, config.profile)
-            )
+            item.coverage_prompt = True  # ~7 KB each: built by /coverage-prompt/<slug> on click
 
     if config is not None and any(a.kind in ("need-info", "refused") for a in dash.attention):
         from ..engine.assist import build_attention_prompt, describe_redactions
@@ -389,10 +425,15 @@ def _too_much_why(b) -> str:
     return "an ID or a photo of your face"
 
 
+_GMAIL = True  # set per page build: only Gmail can open a message by its Message-ID
+
+
 def gmail_url(message_id: str) -> str:
     """Opens this exact email in Gmail (a search by its Message-ID), or "" without one."""
     mid = message_id.strip().strip("<>")
-    return "https://mail.google.com/mail/u/0/#search/" + quote(f"rfc822msgid:{mid}") if mid else ""
+    if not mid or not _GMAIL:
+        return ""
+    return "https://mail.google.com/mail/u/0/#search/" + quote(f"rfc822msgid:{mid}")
 
 
 def _latest_reply_links(session: Session) -> dict[str, dict[str, str]]:
@@ -506,19 +547,34 @@ def _expires_in(text: str, received: datetime, now: datetime) -> float | None:
 _NOW: datetime | None = None
 
 
+_TIMED = re.compile(
+    r"\b\d+\s*hours?\b|link\s+(will\s+)?(expires?|is\s+valid)|expires?\s+in|"
+    r"start over and generate another link",
+    re.I,
+)
+
+
+def is_urgent(a: Attention) -> bool:
+    """Needs doing soon: their link or step has a clock on it, a confirm link is waiting to be
+    clicked, or a form's follow-up email never came (so the step has to be redone)."""
+    return bool(
+        a.expires_in is not None
+        or a.confirm
+        or a.kind == "stalled"
+        or (a.kind == "need-info" and _TIMED.search(a.email or ""))
+    )
+
+
 def _with_reply(session: Session, sub: Submission, a: Attention) -> Attention:
     """Attach the latest reply: the sentence that matters, the email, its first link."""
-    from ..db import InboxMessage
     from ..engine.inbox import deciding_sentence
 
     # The reply that caused this state, not just the newest one (an acknowledgement can
     # arrive alongside the "please confirm your email" message).
     wanted = {"need-info": ("need-info",), "refused": ("denied",)}.get(a.kind, ())
-    rows = session.exec(
-        select(InboxMessage)
-        .where(InboxMessage.submission_id == sub.id)
-        .order_by(InboxMessage.received_at.desc())  # type: ignore[union-attr]
-    ).all()
+    from ..db import replies_for
+
+    rows = replies_for(session, sub.id)
     row = next((r for r in rows if r.kind in wanted), rows[0] if rows else None)
     if row is None:
         return a
@@ -586,7 +642,7 @@ _PHONE_MAIL = re.compile(
 
 
 def action_label(text: str, *, has_link: bool, has_other_email: bool) -> str:
-    """A specific pill for a reply that wants something: 'Action needed: Form submission'.
+    """A specific pill for a reply that wants something: 'Needs you: Form submission'.
     Up to two things are named when the reply offers a choice."""
     flat = re.sub(r"\s+", " ", text)
     found: list[str] = []
@@ -601,9 +657,9 @@ def action_label(text: str, *, has_link: bool, has_other_email: bool) -> str:
     if _PHONE_MAIL.search(flat) and len(found) < 2:
         found.append("Phone or mail")
     if not found:
-        return "Action needed"
+        return "Needs you"
     first, second = found[0], (found[1].lower() if len(found) > 1 else "")
-    return f"Action needed: {first}" + (f" or {second}" if second else "")
+    return f"Needs you: {first}" + (f" or {second}" if second else "")
 
 
 def sent_to(sub: Submission, get_broker) -> str:

@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from optout import yaml_io
+
 
 @dataclass(frozen=True)
 class Statute:
@@ -134,10 +136,8 @@ def _load_verified() -> dict[str, Statute]:
     """State laws from data/statutes.yml: each quote checked against the official text."""
     from importlib.resources import files
 
-    import yaml
-
     out: dict[str, Statute] = {}
-    for e in yaml.safe_load(files("optout").joinpath("data/statutes.yml").read_text()) or []:
+    for e in yaml_io.safe_load(files("optout").joinpath("data/statutes.yml").read_text()) or []:
         if not e.get("verified"):
             continue
         days, ext = e.get("response_days"), e.get("extension_days")

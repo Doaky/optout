@@ -30,7 +30,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, unquote, urlsplit
 
 from .. import actions
-from ..brokers.registry import all_brokers, imported_dir, load_registry, set_enabled
+from ..brokers.registry import all_brokers, imported_dir, reload_if_changed, set_enabled
 from ..config import load_config, user_tz
 from ..db import (
     get_session,
@@ -51,14 +51,14 @@ MAX_BODY = 65_536
 FLASH = {
     "reply": "Reply recorded.",
     "toggle": "Saved.",
-    "sent": "Marked as sent.",
+    "sent": "Marked as sent. It leaves Needs you while you wait for their answer.",
     "drafts": "Checked. New drafts are listed under “Saved drafts”.",
-    "started": "Batch started.",
+    "started": "Sending started. This page updates as each email goes out.",
     "cancelling": "Stopping after the email in progress. Everything sent so far is recorded.",
     "backup_ok": "Backup written.",
     "finished": "Batch finished.",
     "imported": "Broker list loaded.",
-    "inboxerr": "Couldn't read replies from Gmail. Check your app password and connection.",
+    "inboxerr": "Couldn't read your replies. Check your app password and internet connection.",
     "reviewed": "Saved.",
     "conf_ok": "Confirmed. They'll carry on with your request; it's back to awaiting a reply.",
     "conf_unclear": "I opened the link, but the page didn't clearly say it worked. Check your "
@@ -86,6 +86,7 @@ class App:
         self.job_lock = threading.Lock()
         self.inbox_lock = threading.Lock()
         self._fetch_pending = False  # a reply check is already queued after a batch
+        self.report: tuple[str, bool, list[str]] | None = None  # (title, ok, lines), shown once
         self.last_error = ""  # shown once after a failed settings save (never from the URL)
         try:  # a send cut off by closing the app last time must not block that broker
             from ..db import get_session as _gs
@@ -94,7 +95,7 @@ class App:
             with _gs() as session:
                 recover_interrupted(session, datetime.now(UTC))
         except Exception:
-            pass
+            _log_error("recovering interrupted campaigns")
 
     def schedule_forever(self, every: float = 60, first: float = 20) -> None:
         """Daily sending and backups, whenever they're due. Checked shortly after start and
@@ -199,7 +200,20 @@ class App:
                         self.inbox_lock.release()
             except Exception:
                 pass  # recorded by run_sync; the dashboard shows the last attempt
-            time.sleep(every)
+            time.sleep(self._next_check_delay(every))
+
+    def _next_check_delay(self, every: float) -> float:
+        """Sooner while a web form is waiting on its confirmation email."""
+        try:
+            from ..db import get_session
+            from ..forms import waiting_for_email
+
+            with get_session() as session:
+                if waiting_for_email(session):
+                    return min(every, load_config().email.form_check_seconds)
+        except Exception:
+            pass
+        return every
 
     # -- campaign job ----------------------------------------------------
     def start_campaign(
@@ -239,7 +253,7 @@ class App:
         job = self.job
         try:
             config = load_config()
-            load_registry()
+            reload_if_changed()
             with get_session() as session:
                 items = followups.due(
                     session, {b.slug: b for b in all_brokers()}, datetime.now(UTC)
@@ -248,7 +262,9 @@ class App:
 
                 def progress(slug: str, state: str) -> None:
                     (job["sent"] if state == "sent" else job["failed"]).append(
-                        slug if state == "sent" else (slug, "see optout status")
+                        slug
+                        if state == "sent"
+                        else (slug, "couldn't send; see its row in Requests")
                     )
 
                 report = followups.send(
@@ -274,7 +290,7 @@ class App:
         job = self.job
         try:
             config = load_config()
-            load_registry()
+            reload_if_changed()
             broker = next(b for b in all_brokers() if b.slug == slug)
             with get_session() as session:
                 report = resend_to(session, config, broker, address)
@@ -300,7 +316,7 @@ class App:
         job = self.job
         try:
             config = load_config()
-            load_registry()
+            reload_if_changed()
             now = datetime.now(UTC)
             with get_session() as session:
                 sel = select_brokers(
@@ -321,7 +337,9 @@ class App:
 
                 def progress(slug: str, state: str) -> None:
                     (job["sent"] if state == "sent" else job["failed"]).append(
-                        slug if state == "sent" else (slug, "see optout status")
+                        slug
+                        if state == "sent"
+                        else (slug, "couldn't send; see its row in Requests")
                     )
 
                 report = run_campaign(
@@ -455,6 +473,10 @@ def _make_handler(app: App):
                     + (f", skipped {nums['s']}." if nums["s"] else "."),
                     ok=nums["a"] > 0,
                 )
+            elif code == "report" and app.report:
+                title, ok_, rep_lines = app.report
+                app.report = None
+                flash = render.report_box(title, rep_lines, ok_)
             elif code in ("forms_ok", "forms_bad"):
                 flash = render.message_box(
                     ("Applied: " if code == "forms_ok" else "Couldn't apply: ")
@@ -473,9 +495,16 @@ def _make_handler(app: App):
                 text = FLASH[code]
                 if code.startswith("conf_") and (said := query.get("n", [""])[0][:200]):
                     text += f" The page said: “{said}”"
+                bad = code in ("err", "busy", "nocfg", "inboxerr", "conf_unclear", "conf_failed")
+                if code == "finished":
+                    sent, failed = len(app.job.get("sent", [])), len(app.job.get("failed", []))
+                    text = f"Batch finished: {sent} sent" + (
+                        f", {failed} couldn't be sent. See below." if failed else "."
+                    )
+                    bad = failed > 0 and sent == 0
                 flash = render.message_box(
                     text,
-                    ok=code not in ("err", "busy", "nocfg", "conf_unclear", "conf_failed"),
+                    ok=not bad,
                     live=code == "started" and app.job.get("state") == "running",
                 )
 
@@ -492,7 +521,7 @@ def _make_handler(app: App):
 
         def _route_get(self, path: str, query: dict, flash: str) -> None:
             init_db()
-            load_registry()
+            reload_if_changed()
             now = datetime.now(UTC)
             if path == "/api/job":
                 job = dict(app.job)
@@ -626,6 +655,36 @@ def _make_handler(app: App):
             if path == "/drafts":
                 names = [p.name for p in actions.list_drafts()]
                 return self._send(200, render.drafts_page(names, app.csrf, flash))
+
+            if path.startswith("/coverage-prompt/"):
+                from sqlmodel import select
+
+                from ..audiences import coverage_prompt
+                from ..db import InboxMessage
+                from ..engine.assist import redact
+
+                config = load_config()
+                slug = unquote(path[len("/coverage-prompt/") :])
+                broker = next((b for b in all_brokers() if b.slug == slug), None)
+                if broker is None or not config.contributor_tools:
+                    return self._fail(404, "No such broker.")
+                with get_session() as session:
+                    rows = session.exec(
+                        select(InboxMessage)
+                        .where(InboxMessage.broker_slug == slug, InboxMessage.state != "ignored")
+                        .order_by(InboxMessage.received_at.desc())  # type: ignore[union-attr]
+                    ).all()
+                row = next((r for r in rows if r.kind in ("need-info", "denied")), None) or (
+                    rows[0] if rows else None
+                )
+                text = (
+                    coverage_prompt(slug, broker.name, redact(row.text, config.profile))
+                    if row
+                    else ""
+                )
+                return self._send_json(
+                    {"text": text, "count": 1, "msg": "Copied. Paste into Claude"}
+                )
 
             if path.startswith("/prompt/"):
                 from .. import forms
@@ -789,7 +848,7 @@ def _make_handler(app: App):
 
         def _route_post(self, path: str, form: dict[str, str]) -> None:
             init_db()
-            load_registry()
+            reload_if_changed()
             slug = form.get("slug", "")[:_BROKER_MAX]
             back = f"/broker/{quote(slug, safe='')}"
             try:
@@ -852,6 +911,8 @@ def _make_handler(app: App):
                     from ..engine.assist import parse_answer, resolve, review_items
 
                     applied = skipped = 0
+                    lines: list[str] = []
+                    names = {b.slug: b.name for b in all_brokers()}
                     with get_session() as session:
                         refs = {it.ref: it for it in review_items(session)}
                         slugs = {
@@ -862,19 +923,27 @@ def _make_handler(app: App):
                         verdicts, problems = parse_answer(form.get("answer", ""), set(refs), slugs)
                         skipped = len(problems)
                         for v in verdicts:
+                            row = refs[v.ref].row
+                            who = names.get(v.broker or row.broker_slug or "", v.ref)
                             try:
-                                resolve(
-                                    session,
-                                    refs[v.ref].row,
-                                    v.outcome,
-                                    v.note,
-                                    "claude",
-                                    broker=v.broker,
+                                msg = resolve(
+                                    session, row, v.outcome, v.note, "claude", broker=v.broker
                                 )
                                 applied += 1
-                            except ValueError:
+                                lines.append(f"✓ {who}: {msg}")
+                            except ValueError as exc:
                                 skipped += 1
-                    return self._redirect(f"/?m=claude&a={applied}&s={skipped}#replies")
+                                lines.append(f"✗ {who}: {exc}")
+                    lines += [f"✗ {p}" for p in problems]
+                    if not verdicts and not problems:
+                        lines.append("✗ Nothing in the pasted text looked like an answer.")
+                    title = (
+                        f"Applied {applied} of Claude's answers"
+                        + (f"; {skipped} couldn't be applied" if skipped else "")
+                        + ". Applied ones left the review list."
+                    )
+                    app.report = (title, applied > 0, lines)
+                    return self._redirect("/?m=report")
                 if path == "/act/settings":
                     from ..config import save_config
                     from ..wizard import _CELEBRITY_NAMES
@@ -1062,13 +1131,17 @@ def _make_handler(app: App):
                             raise ValueError("expected a list")
                     except ValueError:
                         app.last_error = "that isn't the JSON answer the prompt asks for"
-                        return self._redirect("/?m=forms_bad#plan")
+                        return self._redirect("/?m=forms_bad")
                     with get_session() as session:
                         lines = forms.apply_results(
                             session, load_config(), [r for r in results if isinstance(r, dict)]
                         )
-                    app.last_error = "; ".join(lines)[:400]
-                    return self._redirect("/?m=forms_ok#plan")
+                    done = sum(1 for ln in lines if ": left alone" not in ln and ": " in ln)
+                    title = (
+                        f"Browser agent's answer: {done} recorded, {len(lines) - done} left alone"
+                    )
+                    app.report = (title, done > 0, [f"• {ln}" for ln in lines])
+                    return self._redirect("/?m=report")
             except ValueError:
                 return self._redirect("/?m=err")
             self._fail(404, "Not found.")
@@ -1111,7 +1184,8 @@ def _fill_replies(ui, session, config) -> None:
         ui.inbox_status = (
             f"Replies checked {_ago(inbox.last_checked())}"
             + (" (last attempt failed)" if err else "")
-            + ". Checks every 15 minutes while this page's server runs."
+            + ". Checks by itself every 15 minutes while the terminal running `optout ui` "
+            "stays open."
         )
     names = {b.slug: b.name for b in all_brokers()}
     contacted = {
@@ -1219,6 +1293,7 @@ def _settings_values(config) -> dict[str, str]:
         "daily_limit": str(em.daily_limit),
         "resend_after_days": str(em.resend_after_days),
         "send_delay_seconds": str(em.send_delay_seconds),
+        "is_gmail": "1" if _uses_gmail(config) else "",
         "gmail_label": em.gmail_label or "",
         "reply_label": em.reply_label or "",
         "from_address": em.from_address or "",
@@ -1245,6 +1320,12 @@ def _int(text: str) -> int:
         return max(0, min(int(text), 100_000))
     except ValueError:
         return 0
+
+
+def _uses_gmail(config) -> bool:
+    from ..engine.inbox import uses_gmail
+
+    return uses_gmail(config)
 
 
 def _ago(when) -> str:

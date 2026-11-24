@@ -141,3 +141,61 @@ def test_mark_read_by_message_id_only_adds_the_read_flag():
     assert stores == [("STORE", "5,6", "+FLAGS", "(\\Seen)")]  # one message, flag added only
     searches = [c[2] for c in fake.calls if c[0] == "SEARCH"]
     assert searches == ['"rfc822msgid:abc.123@mail.gmail.com"']  # the odd id never searched
+
+
+def test_reply_labelling_batches_addresses_and_skips_mail_already_labelled():
+    fake = FakeIMAP()
+    addresses = [f"privacy{i}@broker{i}.com" for i in range(250)]
+    g = GmailLabeler(
+        "u@gmail.com", "pw", "OPTOUT", connect=lambda: fake, reply_label="OPTOUT Response"
+    )
+    with g:
+        g.label_replies(addresses, since=date(2026, 10, 27))
+    searches = [c[2] for c in fake.calls if c[0] == "SEARCH"]
+    assert len(searches) == 1 + 3  # the subject search, then 100 addresses per search
+    assert all("-label:OPTOUT-Response" in s for s in searches)
+    assert sum(s.count("from:privacy") for s in searches) == 250
+
+
+class HeaderIMAP(FakeIMAP):
+    """Answers a header FETCH with Message-ID and From for each requested UID."""
+
+    def __init__(self, heads):
+        super().__init__()
+        self.heads = heads  # uid -> (message id, from header)
+
+    def uid(self, cmd, *args):
+        if cmd == "SEARCH":
+            self.calls.append((cmd, *args))
+            return "OK", [b" ".join(self.heads)]
+        if cmd == "FETCH":
+            self.calls.append((cmd, *args))
+            out = []
+            for u in args[0].encode().split(b","):
+                mid, frm = self.heads[u]
+                out.append(
+                    (
+                        b"%s (UID %s BODY[...]" % (u, u),
+                        f"Message-ID: <{mid}>\r\nFrom: {frm}\r\n\r\n".encode(),
+                    )
+                )
+                out.append(b")")
+            return "OK", out
+        return super().uid(cmd, *args)
+
+
+def test_display_names_are_looked_up_in_one_search_and_one_fetch():
+    fake = HeaderIMAP(
+        {
+            b"7": ("a.1@x.com", '"Acme Privacy" <privacy@acme.com>'),
+            b"8": ("b.2@y.com", "privacy@bare.com"),
+            b"9": ("unrelated@z.com", '"Someone Else" <s@z.com>'),
+        }
+    )
+    with _labeler(fake) as g:
+        names = g.display_names(["<a.1@x.com>", "<b.2@y.com>", "bad id with spaces"])
+    assert names == {"<a.1@x.com>": "Acme Privacy", "<b.2@y.com>": ""}
+    verbs = [c[0] for c in fake.calls if c[0] in ("SEARCH", "FETCH")]
+    assert verbs == ["SEARCH", "FETCH"]
+    query = next(c[2] for c in fake.calls if c[0] == "SEARCH")
+    assert query == '"rfc822msgid:a.1@x.com OR rfc822msgid:b.2@y.com"'

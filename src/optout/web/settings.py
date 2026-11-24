@@ -59,6 +59,77 @@ def previous_text(cfg: UserConfig) -> str:
     )
 
 
+US_STATES = {
+    "AL": "Alabama",
+    "AK": "Alaska",
+    "AZ": "Arizona",
+    "AR": "Arkansas",
+    "CA": "California",
+    "CO": "Colorado",
+    "CT": "Connecticut",
+    "DE": "Delaware",
+    "DC": "District of Columbia",
+    "FL": "Florida",
+    "GA": "Georgia",
+    "HI": "Hawaii",
+    "ID": "Idaho",
+    "IL": "Illinois",
+    "IN": "Indiana",
+    "IA": "Iowa",
+    "KS": "Kansas",
+    "KY": "Kentucky",
+    "LA": "Louisiana",
+    "ME": "Maine",
+    "MD": "Maryland",
+    "MA": "Massachusetts",
+    "MI": "Michigan",
+    "MN": "Minnesota",
+    "MS": "Mississippi",
+    "MO": "Missouri",
+    "MT": "Montana",
+    "NE": "Nebraska",
+    "NV": "Nevada",
+    "NH": "New Hampshire",
+    "NJ": "New Jersey",
+    "NM": "New Mexico",
+    "NY": "New York",
+    "NC": "North Carolina",
+    "ND": "North Dakota",
+    "OH": "Ohio",
+    "OK": "Oklahoma",
+    "OR": "Oregon",
+    "PA": "Pennsylvania",
+    "RI": "Rhode Island",
+    "SC": "South Carolina",
+    "SD": "South Dakota",
+    "TN": "Tennessee",
+    "TX": "Texas",
+    "UT": "Utah",
+    "VT": "Vermont",
+    "VA": "Virginia",
+    "WA": "Washington",
+    "WV": "West Virginia",
+    "WI": "Wisconsin",
+    "WY": "Wyoming",
+    "AS": "American Samoa",
+    "GU": "Guam",
+    "MP": "Northern Mariana Islands",
+    "PR": "Puerto Rico",
+    "VI": "U.S. Virgin Islands",
+}
+_BY_NAME = {name.lower(): code for code, name in US_STATES.items()}
+_ZIP = re.compile(r"^\d{5}(-\d{4})?$")
+
+
+def state_code(raw: str) -> str:
+    """A two-letter state code from a code or a full name ("va", "Virginia"). Raises ValueError."""
+    text = " ".join(raw.split()).strip(".")
+    code = text.upper() if text.upper() in US_STATES else _BY_NAME.get(text.lower(), "")
+    if not code:
+        raise ValueError("state (pick your state, or use its 2-letter code, e.g. VA)")
+    return code
+
+
 def apply_form(cfg: UserConfig, form: dict[str, str]) -> UserConfig:
     """A new config with the form's values. Raises ValueError naming the bad field."""
 
@@ -90,7 +161,7 @@ def apply_form(cfg: UserConfig, form: dict[str, str]) -> UserConfig:
             street=form.get("street", "").strip(),
             street2=form.get("street2", "").strip(),
             city=form.get("city", "").strip(),
-            state=form.get("state", "").strip().upper(),
+            state=state_code(form.get("state", "")) if form.get("state", "").strip() else "",
             zip=form.get("zip", "").strip(),
         ).model_dump(),
         previous_addresses=[
@@ -102,7 +173,14 @@ def apply_form(cfg: UserConfig, form: dict[str, str]) -> UserConfig:
     data["profile"]["phones"]["current"] = _list(form.get("phones", ""))
     for key in ("street", "city", "state", "zip"):
         if not data["profile"]["current_address"][key]:
-            raise ValueError(key)
+            raise ValueError("ZIP code" if key == "zip" else key)
+    if not _ZIP.match(data["profile"]["current_address"]["zip"]):
+        raise ValueError("ZIP code (5 digits, e.g. 23219)")
+    pattern = form.get("alias_pattern", "").strip()
+    if pattern and "{slug}" not in pattern:
+        raise ValueError(
+            "reply address: it must include {slug} with the braces, e.g. you+{slug}@gmail.com"
+        )
     data["email"].update(
         daily_limit=nums["daily_limit"],
         send_delay_seconds=nums["send_delay_seconds"],

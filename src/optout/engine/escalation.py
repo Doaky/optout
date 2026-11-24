@@ -8,7 +8,7 @@ against Va. Code § 59.1-577 (B)(1)-(2) and (C) on 2026-10-28.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
 
 from ..brokers.schema import BrokerDef
 from ..config import Profile
@@ -61,13 +61,25 @@ def _is_virginia(profile: Profile) -> bool:
 
 
 def make_draft(
-    kind: str, sub: Submission, broker: BrokerDef, profile: Profile, *, contact_email: str
+    kind: str,
+    sub: Submission,
+    broker: BrokerDef,
+    profile: Profile,
+    *,
+    contact_email: str,
+    tz: tzinfo | None = None,
+    now: datetime | None = None,
 ) -> Draft:
     """Draft text. Citations only for laws checked against the state's official text
     (data/statutes.yml); elsewhere the wording stays general rather than cite a law that may
     not apply. Filing a complaint is Virginia-specific (its Attorney General's page)."""
-    sent = _aware(sub.submitted_at).strftime("%B %d, %Y") if sub.submitted_at else "(date)"
-    deadline = _aware(sub.deadline_at).strftime("%B %d, %Y") if sub.deadline_at else "(date)"
+
+    # Dates in the user's time zone, so they match the dashboard (UTC can be a day off).
+    def day(when: datetime | None) -> str:
+        return _aware(when).astimezone(tz or UTC).strftime("%B %d, %Y") if when else "(date)"
+
+    sent, deadline = day(sub.submitted_at), day(sub.deadline_at)
+    overdue = sub.deadline_at is None or (now or datetime.now(UTC)) > _aware(sub.deadline_at)
     va = _is_virginia(profile)
     st = for_state(profile.current_address.state)  # only laws checked against official text
     to = broker.opt_out_email or ""
@@ -90,9 +102,14 @@ def make_draft(
             )
         body = (
             f"Dear {broker.name} Privacy Team,\n\n"
-            f"On {sent} I sent you a request to delete my personal data. {rule} That date "
-            f"was {deadline}, and I have not received a response.\n\n"
-            "Please confirm in writing whether my data has been deleted. If you need "
+            f"On {sent} I sent you a request to delete my personal data. {rule} "
+            + (
+                f"That date was {deadline}, and I have not received a response.\n\n"
+                if overdue
+                else f"That date is {deadline}. I am writing to check that you received "
+                "my request and to ask how it is progressing.\n\n"
+            )
+            + "Please confirm in writing whether my data has been deleted. If you need "
             f"anything to verify my identity, reply to {contact_email}.\n\n"
             f"{_who(profile)}\n"
         )

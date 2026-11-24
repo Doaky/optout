@@ -25,7 +25,9 @@ import yaml
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from sqlmodel import Session
 
-from .config import Profile, UserConfig, config_dir
+from optout import yaml_io
+
+from .config import Profile, UserConfig, config_dir, write_private
 
 # What a step may fill in: a key from profile_fields(), never a literal value.
 FIELDS = (
@@ -113,12 +115,12 @@ class Recipe(BaseModel):
             kind = (
                 "captcha"
                 if "captcha" in low or "human" in low
+                else "phone_verify"
+                if "phone" in low or "sms" in low
                 else "email_verify"
                 if "email" in low or "verif" in low or "confirm" in low
                 else "id_upload"
                 if "id" in low.split() or "upload" in low
-                else "phone_verify"
-                if "phone" in low or "sms" in low
                 else ""
             )
             if kind and kind not in out:
@@ -205,14 +207,16 @@ def _parse(data: object) -> dict[str, Recipe]:
 
 def shared_recipes() -> dict[str, Recipe]:
     try:
-        return _parse(yaml.safe_load(files("optout").joinpath("data/form_recipes.yml").read_text()))
+        return _parse(
+            yaml_io.safe_load(files("optout").joinpath("data/form_recipes.yml").read_text())
+        )
     except (OSError, yaml.YAMLError):
         return {}
 
 
 def local_recipes() -> dict[str, Recipe]:
     try:
-        return _parse(yaml.safe_load(_local_path().read_text()))
+        return _parse(yaml_io.safe_load(_local_path().read_text()))
     except (OSError, yaml.YAMLError):
         return {}
 
@@ -246,14 +250,14 @@ def save_local(recipe: Recipe, config: UserConfig) -> Recipe:
     recipe = recipe.model_copy(update={"recorded": datetime.now(UTC).date().isoformat()})
     mine = {**local_recipes(), recipe.broker: recipe}
     path = _local_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
     _cache.pop("recipes", None)
-    path.write_text(
+    write_private(
+        path,
         yaml.safe_dump(
             [r.model_dump(exclude_defaults=False) for r in mine.values()],
             sort_keys=False,
             allow_unicode=True,
-        )
+        ),
     )
     return recipe
 
@@ -311,7 +315,7 @@ def todo(
         # form), unless it's a survey; else the recipe's form, else the broker's known form.
         reply_link = "" if _NOT_A_FORM.search(a.link or "") else a.link
         link = reply_link or (recipe.url if recipe else "") or (b.opt_out_url if b else "") or ""
-        if a.kind != "need-info" or not link:
+        if a.kind not in ("need-info", "stalled") or not link:
             continue
         out.append(
             {
@@ -324,6 +328,12 @@ def todo(
                 "email": redact(trim_for_prompt(a.email, 3000), config.profile),
                 "recipe": a.slug in recipes,
                 "covers_only": a.coverage,
+                "urgent": a.urgent,
+                "kind": a.kind,
+                "confirm": bool(a.confirm),
+                "restart_link": (recipe.url if recipe else "")
+                or (b.opt_out_url if b else "")
+                or "",
             }
         )
     seen_sites = {_site_of(i["link_host"]) for i in out} | {
@@ -371,7 +381,10 @@ def todo(
         if not (i["broker"] in brokers and tier_of(brokers[i["broker"]]) == "too-much")
     ]
     # Do-first sites, then other people-search sites: they show your address to anyone.
-    return sorted(out, key=lambda i: (i["priority"], i["category"] != "people_search"))
+    return sorted(
+        out,
+        key=lambda i: (not i.get("urgent", False), i["priority"], i["category"] != "people_search"),
+    )
 
 
 _NOT_A_FORM = re.compile(r"satisfaction|survey|feedback|/rate\b|unsubscribe", re.I)
@@ -523,6 +536,9 @@ Rules:
   form needs any of those, report "skipped" and say why.
 - If there is a CAPTCHA or "verify you are human" check, stop and ask me to solve it, then
   carry on.
+- If a page says it sent a code to my email or phone, stop there and ask me to type the code into
+  the page myself, then wait until I say it is done before you report. Never skip past a code
+  page. (I can read my own email and texts; you cannot.)
 - If the link is only a verify-your-email button rather than a form, report "skipped".
 - A task marked "needs: listing_url" wants the address of my own listing: open its search
   page first, find the result that is clearly me (my name with my city or state), open it,
@@ -541,13 +557,43 @@ When all tasks are done, answer with only a JSON array in one code block, one ob
 ```json
 {example}
 ```
-outcome is one of removed, submitted, skipped, blocked. Leave recipe out unless the form worked.
+In "broker" copy the ID exactly as given after "broker:" in the task (for example acme-data), not
+the company name. outcome is one of removed, submitted, skipped, blocked. Leave recipe out
+unless the form worked.
+For EVERY task, including skipped ones, add "requires": a list of anything beyond a plain
+form-and-submit that the process needed or would need, from: captcha, email_verify (they email
+a link or code to confirm), phone_verify (SMS or call code), id_upload, account (login or
+sign-up), payment, listing_url, device_id (only an advertising or cookie ID will do), other.
+Use [] for a plain form. If you use "other", say what in "note".
 If the page says an email will follow (verify your email, confirm your request, check your
 inbox), add "expects_email": true to that task's object.
 
 TASKS
 {tasks}
 """
+
+
+def _urgent_note(it: dict) -> str:
+    """What makes a task time-sensitive, and what to do if its link has already lapsed."""
+    if not it.get("urgent"):
+        return ""
+    restart = it.get("restart_link") or ""
+    again = f" If it has expired, start the request again from {restart}." if restart else ""
+    if it.get("confirm"):
+        return (
+            "\n  TIME-SENSITIVE: this link confirms my email for a request I already filed. Open "
+            'it and press its Confirm button; that is the whole task. Report "submitted" with '
+            f"what the page said.{again}"
+        )
+    if it.get("kind") == "stalled":
+        return (
+            "\n  RESTART: I submitted this form earlier but the email it promised never came. "
+            f"Fill the form in again from the start.{again}"
+        )
+    return (
+        "\n  TIME-SENSITIVE: this link or step may expire soon or already have. "
+        f"Do it first.{again}"
+    )
 
 
 def build_prompt(config: UserConfig, items: list[dict]) -> str:
@@ -564,6 +610,7 @@ def build_prompt(config: UserConfig, items: list[dict]) -> str:
             extra += f"\n  needs: {', '.join(it['needs'])}"
         if it.get("search_url"):
             extra += f"\n  search page: {it['search_url']}"
+        extra += _urgent_note(it)
         reply = (
             "\n  their reply:\n" + "\n".join("    " + ln for ln in it["email"].splitlines()[:40])
             if it.get("email")
@@ -583,6 +630,36 @@ _EMAIL_NEXT = re.compile(
     r"click (the )?(confirm|verif)",
     re.I,
 )
+
+
+_REQUIRES_TRAIT = {
+    "email_verify": "requires_email_verification",
+    "phone_verify": "requires_phone_verification",
+    "id_upload": "requires_id_upload",
+    "account": "requires_account",
+    "payment": "requires_payment",
+    "listing_url": "requires_listing_url",
+    "device_id": "requires_device_ids",
+}
+
+
+def _requires(r: dict) -> set[str]:
+    """What the agent said a task needed beyond a plain form, in our own terms."""
+    raw = r.get("requires")
+    got = {str(x).lower().strip() for x in raw} if isinstance(raw, list) else set()
+    got |= set(_needs(r.get("recipe")))
+    return got
+
+
+def _learn_requires(slug: str, r: dict) -> list[str]:
+    """Record the harder-than-a-form traits; returns the new ones, for the report."""
+    from .brokers.traits import note as learn
+
+    return sorted(
+        trait
+        for kind in _requires(r)
+        if (trait := _REQUIRES_TRAIT.get(kind)) and learn(slug, trait)
+    )
 
 
 def _needs(recipe: object) -> list[str]:
@@ -623,11 +700,17 @@ def apply_results(session: Session, config: UserConfig, results: list[dict]) -> 
                 from .brokers.traits import note as learn
 
                 learn(slug, "form_only")
-                needs = set(_needs(r.get("recipe")))
-                if "phone_verify" in needs:
-                    learn(slug, "requires_phone_verification")
+                found = _learn_requires(slug, r)
+                if found:
+                    msg += ", now marked: " + ", ".join(t.removeprefix("requires_") for t in found)
             else:
-                lines.append(f"{slug}: left alone ({outcome}) {note}".strip())
+                found = _learn_requires(slug, r)
+                extra = (
+                    " [now marked: " + ", ".join(t.removeprefix("requires_") for t in found) + "]"
+                    if found
+                    else ""
+                )
+                lines.append(f"{slug}: left alone ({outcome}) {note}{extra}".strip())
                 continue
             if r.get("recipe"):
                 try:
@@ -683,6 +766,16 @@ def note_followup(session: Session, sub, from_addr: str, kind: str, message_id: 
         {"from_domain": domain, "kind": kind, "message_id": message_id[:120]},
     )
     return True
+
+
+def is_followup_email(session: Session, sub, message_id: str) -> bool:
+    """Was this exact email recorded as the follow-up a submitted form promised?"""
+    from .db import list_events
+
+    return any(
+        e.event_type == "form_followup" and _payload(e).get("message_id") == message_id[:120]
+        for e in list_events(session, sub.id)
+    )
 
 
 def stats(session: Session) -> list[dict]:
@@ -889,3 +982,44 @@ def apply_recheck(session: Session, r: dict) -> str:
         return f"{slug}: still listed"
     record_verification(session, sub, "unverifiable", detail)
     return f"{slug}: couldn't tell ({note})"
+
+
+# --- recording runs, and waiting on the email that follows ----------------------------------
+
+
+def runs_dir():
+    return config_dir() / "form_runs"
+
+
+def save_run(slug: str, result) -> str:
+    """Keep what a replay did, so a stuck one can be fixed. Local only: the screenshot shows
+    the details that were typed in. Returns the file's name."""
+    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+    d = runs_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    d.chmod(0o700)
+    base = d / f"{stamp}-{slug}"
+    write_private(
+        base.with_suffix(".json"), json.dumps({"broker": slug, **result.record()}, indent=1)
+    )
+    if result.screenshot:
+        write_private(base.with_suffix(".png"), result.screenshot)
+    return base.name
+
+
+def waiting_for_email(session: Session, within_hours: int = 6) -> int:
+    """Requests whose form promised an email that hasn't come yet, submitted recently."""
+    from datetime import timedelta
+
+    from .db import list_submissions
+
+    now = datetime.now(UTC)
+    n = 0
+    for sub in list_submissions(session):
+        ev = pending_followup(session, sub, now)
+        if ev is None:
+            continue
+        made = ev.created_at if ev.created_at.tzinfo else ev.created_at.replace(tzinfo=UTC)
+        if now - made <= timedelta(hours=within_hours):
+            n += 1
+    return n

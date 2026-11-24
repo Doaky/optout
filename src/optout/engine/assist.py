@@ -15,6 +15,8 @@ from dataclasses import dataclass
 
 from sqlmodel import Session, select
 
+from optout import yaml_io
+
 from ..config import Profile
 from ..db import InboxMessage, Submission
 
@@ -131,17 +133,22 @@ def describe_redactions(counts: Counter[str]) -> str:
 
 @dataclass
 class ReviewItem:
-    ref: str  # R1, R2, ... (what Claude sees)
+    ref: str  # e.g. R7F3A: what Claude sees; stays the same for a reply while it waits
     row: InboxMessage
 
 
 def review_items(session: Session) -> list[ReviewItem]:
+    """Replies waiting for review. Each one's ID comes from the reply itself, not its place in
+    the list, so an answer pasted after another reply was sorted still lands on the right one."""
     rows = session.exec(
         select(InboxMessage)
         .where(InboxMessage.state == "review")
         .order_by(InboxMessage.received_at)  # type: ignore[arg-type]
     ).all()
-    return [ReviewItem(f"R{i}", r) for i, r in enumerate(rows, 1)]
+    width = 4
+    while width < 32 and len({r.id.hex[:width] for r in rows}) < len(rows):
+        width += 2
+    return [ReviewItem("R" + r.id.hex[:width].upper(), r) for r in rows]
 
 
 def build_prompt(items: list[ReviewItem], profile: Profile, contacted: dict[str, str]) -> str:
@@ -171,7 +178,7 @@ def build_prompt_report(
         )
         blocks.append(
             f'<reply id="{it.ref}">\n'
-            f"From: {r.from_addr}\n"
+            f"From: {f'{clean(r.from_name)} <{r.from_addr}>' if r.from_name else r.from_addr}\n"
             f"Subject: {clean(r.subject)}\n"
             f"Date: {when}\n"
             f"Broker: {broker}\n"
@@ -182,13 +189,16 @@ def build_prompt_report(
     unmatched = any(it.row.broker_slug is None for it in items)
     roster = ""
     if unmatched and contacted:
-        lines = [f"{slug}: {name}" for slug, name in sorted(contacted.items())][:400]
+        # Every broker: a cap would cut the list off alphabetically, and a reply from a broker
+        # past the cut could never be matched (a few hundred short lines is a small prompt).
+        lines = [f"{slug}: {name}" for slug, name in sorted(contacted.items())]
         roster = (
             "\n<brokers_i_contacted>\n(slug: name)\n"
             + "\n".join(lines)
             + "\n</brokers_i_contacted>\n"
         )
     example_broker = ', "broker": "acme-data"' if unmatched else ""
+    example_id = items[0].ref if items else "R1A2B"
     broker_rule = (
         '- Broker is UNKNOWN for some replies. Add a "broker" field with the slug from my list '
         "that the reply is about, judging by the sender and any company named in the text. "
@@ -225,8 +235,8 @@ to answer.
 
 Answer with only a JSON array in one code block, one object per reply, in this shape:
 ```json
-[{{"id": "R1", "outcome": "need-info"{example_broker}, "note": "Wants the request through \
-their web form."}}]
+[{{"id": "{example_id}", "outcome": "need-info"{example_broker}, \
+"note": "Wants the request through their web form."}}]
 ```
 (If you can run commands on my computer, you can pipe that JSON into: optout review --apply -)
 {roster}
@@ -316,7 +326,16 @@ def resolve(
         session.add(row)
         session.commit()
         return f"{sub.broker_slug}: closed"
-    apply_outcome(session, sub, outcome, note, source)
+    from ..forms import is_followup_email
+
+    # A confirmation email a form promised is never out of date, even if the form was only
+    # recorded after the email arrived.
+    when = (
+        None
+        if outcome == "need-info" and is_followup_email(session, sub, row.message_id)
+        else row.received_at
+    )
+    apply_outcome(session, sub, outcome, note, source, when)
     row.kind = {"deleted": "deleted"}.get(outcome, outcome)
     row.state = "resolved"
     session.add(row)
@@ -405,7 +424,7 @@ def learned_coverage() -> list[dict[str, object]]:
 
     try:
         shared = _parse(
-            yaml.safe_load(files("optout").joinpath("data/broker_audiences.yml").read_text())
+            yaml_io.safe_load(files("optout").joinpath("data/broker_audiences.yml").read_text())
         )
     except (OSError, yaml.YAMLError):
         shared = {}

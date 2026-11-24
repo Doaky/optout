@@ -252,7 +252,7 @@ def test_reply_and_draft_flow(ui):
 def test_main_page_has_everything_without_clicking_in(ui):
     r, body = ui.req("GET", "/")
     assert r.status == 200
-    assert "Send a batch" in body and "Preview all 1 emails" in body
+    assert "Send today's emails" in body and "Preview all 1 emails" in body
     assert "Send emails" in body  # one-click send lives on the main page
     assert "1 Main St, Richmond, VA 23219" in body  # the exact email text, inline
     send = body[body.index("id='send'") : body.index("</section>", body.index("id='send'"))]
@@ -279,7 +279,7 @@ def _sent_request(slug="evil"):
 def test_row_actions_work_from_the_main_page(ui):
     _sent_request()
     _, body = ui.req("GET", "/")
-    assert "/act/row" in body and "Write a follow-up email" in body
+    assert "/act/row" in body and "Write a reminder draft (not sent)" in body
 
     r, _ = ui.post("/act/row", {"slug": "evil", "action": "reply:auto-reply"})
     assert r.getheader("Location") == "/?m=reply"
@@ -347,7 +347,7 @@ def test_buttons_work_in_a_real_browser(ui, monkeypatch):
         assert "Forbidden" not in page.content()
 
         page.get_by_role("button", name="Send emails").click()
-        page.get_by_text("Batch started.").wait_for()
+        page.get_by_text("Sending started.").wait_for()
         assert started == [1]
         assert page.evaluate("window.__noReload") == 1  # updated in place, never reloaded
     finally:
@@ -544,6 +544,20 @@ def test_settings_edit_and_validate(ui):
         assert "Couldn&#x27;t save" in body
     assert load_config().email.daily_limit == 80  # nothing invalid was written
 
+    # A full state name is understood; a made-up state or ZIP is refused with a clear reason.
+    ui.post("/act/settings", {**form, "state": "Virginia"})
+    assert load_config().profile.current_address.state == "VA"
+    for bad, says in (
+        ({"state": "Vxx"}, "2-letter code"),
+        ({"zip": "ABC"}, "ZIP code"),
+        ({"alias_pattern": "you+slug@gmail.com"}, "{slug}"),
+    ):
+        ui.post("/act/settings", {**form, **bad})
+        _, body = ui.req("GET", "/?m=settings_err")
+        assert says in body, bad
+    _, body = ui.req("GET", "/")
+    assert "<select name='state'" in body and "<option value='VA' selected>Virginia" in body
+
 
 def test_password_is_tested_before_saving(ui, monkeypatch):
     from optout.config import load_config
@@ -583,7 +597,17 @@ def test_closed_connections_are_ignored_quietly(ui, capsys):
     assert "Traceback" not in err and "BrokenPipe" not in err
 
 
+def _use_gmail():
+    """The links to open an email in Gmail only exist for a Gmail account."""
+    from optout.config import load_config
+
+    cfg = load_config()
+    cfg.email.smtp.host = "smtp.gmail.com"
+    save_config(cfg)
+
+
 def test_attention_explains_what_to_do(ui):
+    _use_gmail()
     from optout.db import InboxMessage, list_submissions
 
     _sent_request()
@@ -611,9 +635,9 @@ def test_attention_explains_what_to_do(ui):
     assert "via our web form here" in attn  # the sentence that matters
     assert "Open their link" in attn and "forms.evil.example" in attn
     assert "rel='noreferrer noopener'" in attn  # never opened for you, no referrer
-    assert ">Done<" in attn and ">Close<" in attn
+    assert ">I did what they asked<" in attn and ">Doesn't apply to me<" in attn
     assert "mail.google.com/mail/u/0/#search/rfc822msgid%3Aw1" in attn  # the exact email
-    assert "then click <b>Done</b>" in attn  # the section says how it works
+    assert "then click <b>I did what they asked</b>" in attn  # the section says how it works
     assert "https://forms.evil.example" not in attn.split("class='quote'")[1].split("</p>")[0]
 
     r, _ = ui.post("/act/row", {"slug": "evil", "action": "status:closed"})
@@ -679,7 +703,7 @@ def test_groups_and_contributor_tools_in_settings(ui):
     }
     _, body = ui.req("GET", "/")
     assert "Groups you belong to" in body and "Not set yet" in body
-    assert "name='group_educators'" in body and "Contributor tools" in body
+    assert "name='group_educators'" in body and "Help improve optout" in body
     assert load_config().my_groups is None  # untouched until saved
 
     # an old page (no groups_present) can't wipe the setting
@@ -724,9 +748,9 @@ def test_coverage_panel_only_with_contributor_tools_and_is_strict(ui, tmp_path):
     save_config(cfg)
     _, body = ui.req("GET", "/")
     assert "class='mini coverage'" in body and "name='aud_educators'" in body
-    prompt = body[body.index("id='cov-evil'") :]
-    prompt = prompt[: prompt.index("</textarea>")]
-    assert "Jane" not in prompt and "[MY NAME]" in prompt  # redacted before copying
+    assert "data-copy-url='/coverage-prompt/evil'" in body and "id='cov-evil'" not in body
+    r, prompt = ui.req("GET", "/coverage-prompt/evil?format=json")  # built when you click
+    assert r.status == 200 and "Jane" not in prompt and "[MY NAME]" in prompt  # redacted
 
     r, _ = ui.post("/act/coverage", {"slug": "evil", "aud_educators": "on", "note": "Teachers."})
     assert r.getheader("Location") == "/?m=cov_ok"
@@ -754,10 +778,11 @@ def test_row_menu_is_small_and_picks_the_right_email(ui):
 
     _sent_request()
     _, body = ui.req("GET", "/")
-    menu = body[body.index("<details class='rowmenu'>") :]
-    menu = menu[: menu.index("</details>")]
+    assert body.count("name='action' value='send-again'") == 1  # one shared menu, not one per row
+    menu = body[body.index("<template id='rowmenu-tpl'>") :]
+    menu = menu[: menu.index("</template>")]
     assert len(_re.findall(r"name='action' value=", menu)) <= 9  # was 19
-    assert "Never contact this broker" in menu and "Set status" in menu
+    assert "Stop contacting this broker" in menu and "Set status" in menu
 
     for status, expected in (("awaiting_broker_confirmation", "followup"), ("rejected", "appeal")):
         with get_session() as s:
@@ -853,7 +878,7 @@ def test_attention_copy_prompt_and_honest_chart_label(ui):
         s.commit()
     _, body = ui.req("GET", "/")
     assert "Not sure what to do? Ask Claude" in body and "data-copy='attn-prompt'" in body
-    assert "SECRETTOKEN" not in body.split("id='attn-prompt'")[1].split("</textarea>")[0]
+    assert "SECRETTOKEN" not in body.split("id='attn-prompt'")[1].split("</pre>")[0]
     assert ">Says done<" in body or "Says done" in body  # chart legend, not "Removed"
     assert "Removed 0" not in body
 
@@ -898,7 +923,7 @@ def test_resend_to_button_and_route_are_guarded(ui, monkeypatch):
         )
         s.commit()
     _, body = ui.req("GET", "/")
-    assert "Send my request there" in body and "optout@evil.example" in body
+    assert "Email my request to that address" in body and "optout@evil.example" in body
     assert "value='privacy@thief.example'" not in body  # no button for another company
 
     r, _ = ui.post("/act/resend-to", {"slug": "evil", "address": "optout@evil.example"})
@@ -919,40 +944,40 @@ def test_resend_to_button_and_route_are_guarded(ui, monkeypatch):
             "confirm your email by clicking on the button below.",
             True,
             False,
-            "Action needed: Confirm your email",
+            "Needs you: Confirm your email",
         ),
         (
             "You can submit a privacy request via our interactive web form here.",
             True,
             False,
-            "Action needed: Form submission",
+            "Needs you: Form submission",
         ),
         (
             "Please email optout@x.example. To exercise all other privacy rights, visit our "
             "Privacy Rights Portal.",
             False,
             True,
-            "Action needed: Form submission or new email",
+            "Needs you: Form submission or new email",
         ),
         (
             "Please write to privacy@x.example with your full details.",
             False,
             True,
-            "Action needed: New email",
+            "Needs you: New email",
         ),
         (
             "The information provided is insufficient to verify a matching record.",
             False,
             False,
-            "Action needed: More information",
+            "Needs you: More information",
         ),
         (
             "Call us toll-free at 800-555-0100 or write to our P.O. Box.",
             False,
             False,
-            "Action needed: Phone or mail",
+            "Needs you: Phone or mail",
         ),
-        ("Thanks. We need something from you.", False, False, "Action needed"),
+        ("Thanks. We need something from you.", False, False, "Needs you"),
     ],
 )
 def test_action_label_says_what_to_do(text, link, other_email, expected):
@@ -986,7 +1011,7 @@ def test_show_email_toggles_to_hide_email(ui):
     assert (
         "<span class='on-closed'>Show email</span><span class='on-open'>Hide email</span>" in body
     )
-    assert "Action needed: Confirm your email" in body
+    assert "Needs you: Confirm your email" in body
     for label in ("Show as table",):
         assert f"<span class='on-closed'>{label}</span>" in body or label not in body
 
@@ -1126,7 +1151,7 @@ def test_resend_offer_compares_with_where_the_request_actually_went(ui, monkeypa
     # the shared list has since corrected this broker's contact to the very address they named
     save_local("evil", "privacy-new@evil.example", "corrected")
     _, body = ui.req("GET", "/")
-    assert "Send my request there" in body  # the old request still needs to go there
+    assert "Email my request to that address" in body  # the old request still needs to go there
     r, _ = ui.post("/act/resend-to", {"slug": "evil", "address": "privacy-new@evil.example"})
     assert started == [("evil", "privacy-new@evil.example")]
 
@@ -1187,12 +1212,13 @@ def test_sorting_the_table_in_a_real_browser(ui):
         click("Sent")
         assert order() == ["evil", "alpha-co", "zeta-co"]  # then oldest first
         assert page.locator("th[data-sortkey=name]").get_attribute("aria-sort") == "none"
-        # the arrow is a real character, not an escape that turned into a control character
-        css = page.evaluate(
-            "getComputedStyle(document.querySelector("
-            "'th[data-sortkey=days] button'), '::after').content"
+        # the arrow is a drawn chevron (borders), which points up for an ascending sort
+        arrow = page.evaluate(
+            "(() => { const s = getComputedStyle(document.querySelector("
+            "'th[data-sortkey=name] button'), '::after');"
+            " return [s.borderRightStyle, s.transform]; })()"
         )
-        assert css.strip('"') in ("↕", "▲", "▼") and "95" not in css
+        assert arrow[0] == "solid" and arrow[1] != "none"
         assert not errors, errors
     finally:
         browser.close()
@@ -1233,11 +1259,9 @@ def test_stats_separate_heard_back_from_silent_and_latest_reply_is_shown(ui):
     _, body = ui.req("GET", "/")
     stats = body[body.index("aria-label='Summary'") :]
     stats = stats[: stats.index("</section>")]
-    assert "Heard back" in stats and "No reply yet" in stats
-    assert "<div class='n'>3</div><div class='l'><span class='dot'" in stats  # 3 sent
-    heard = stats[stats.index("Heard back") - 220 : stats.index("Heard back")]
-    silent = stats[stats.index("No reply yet") - 220 : stats.index("No reply yet")]
-    assert ">1</div>" in heard and ">2</div>" in silent  # 1 replied, 2 silent
+    assert "<div class='n'>3</div><div class='l'>Requests sent" in stats  # 3 sent
+    assert "1 have replied" in stats and "2 haven&#x27;t yet" in stats  # 1 replied, 2 silent
+    assert "Verified removed" not in stats
     assert "Latest reply" in body and "Last check" not in body
     assert "acknowledged" in body  # what the broker's latest email was
 
@@ -1277,7 +1301,7 @@ def test_confirm_for_me_is_offered_for_known_senders_and_works(ui, monkeypatch):
 
     _pending_confirm()
     _, body = ui.req("GET", "/")
-    assert "Confirm for me" in body and "action='/act/confirm'" in body
+    assert "Click their confirm link for me" in body and "action='/act/confirm'" in body
     seen: list[str] = []
     monkeypatch.setattr(
         cf,
@@ -1313,7 +1337,7 @@ def test_an_unknown_sender_is_only_clicked_after_you_teach_it(ui, monkeypatch, t
         ),
     )
     _, body = ui.req("GET", "/")
-    assert "Confirm &amp; remember" in body and "Confirm for me" not in body
+    assert "Confirm &amp; remember" in body and "Click their confirm link for me" not in body
     r, _ = ui.post("/act/confirm", {"slug": "evil"})  # no 'remember': refused
     assert r.getheader("Location") == "/?m=err" and seen == []
     r, _ = ui.post("/act/confirm", {"slug": "evil", "remember": "1"})
@@ -1347,9 +1371,9 @@ def test_top_bar_has_a_fetch_emails_button_only_on_the_dashboard():
     from optout.web.render import page
 
     on = page("t", "<p>x</p>", nav=False, updated="now", fetch_csrf="tok")
-    assert "action='/act/inbox'" in on and "Fetch emails" in on and "tok" in on
-    assert "Fetch emails" not in page("t", "<p>x</p>", nav=True)
-    assert "Fetch emails" not in page("t", "<p>x</p>", nav=False, updated="now")
+    assert "action='/act/inbox'" in on and "Check for replies" in on and "tok" in on
+    assert "Check for replies" not in page("t", "<p>x</p>", nav=True)
+    assert "Check for replies" not in page("t", "<p>x</p>", nav=False, updated="now")
 
 
 def test_form_said_removed_marks_the_request_as_their_word(ui):
@@ -1482,6 +1506,7 @@ def test_copy_browser_prompt_puts_it_on_the_clipboard_in_one_click(ui):
 
 
 def test_reply_sender_links_to_their_latest_email_in_gmail(ui):
+    _use_gmail()
     from datetime import UTC, datetime, timedelta
 
     from optout.db import InboxMessage, list_submissions
@@ -1505,12 +1530,14 @@ def test_reply_sender_links_to_their_latest_email_in_gmail(ui):
             )
         s.commit()
     _, body = ui.req("GET", "/")
-    row = body[body.index("↩ ") : body.index("</div>", body.index("↩ "))]
+    at = body.index("class='muted small replyfrom'")
+    row = body[at : body.index("</div>", at)]
     assert "rfc822msgid%3Anew%40x" in row and ">privacy@evil.example</a>" in row
     assert "rel='noreferrer noopener'" in row
 
 
 def test_a_reply_to_review_links_to_the_email_in_gmail(ui):
+    _use_gmail()
     from optout.db import InboxMessage
 
     with get_session() as s:
@@ -1612,3 +1639,40 @@ def test_link_picking_handles_mangled_links_and_prefers_opt_out_over_account_pag
         )
         == "https://www.example.com/opt-out"
     )
+
+
+def test_pasting_claudes_answer_shows_what_happened_for_each_item(ui):
+    r, _ = ui.post("/act/claude-apply", {"answer": "this is not json"})
+    assert r.status == 303 and r.getheader("Location") == "/?m=report"  # top of page, no anchor
+    _, body = ui.req("GET", "/?m=report")
+    assert "Applied 0 of Claude" in body and "class='flash bad report'" in body
+    assert "✗" in body  # says why, instead of a bare count
+    _, again = ui.req("GET", "/?m=report")
+    assert "Applied 0 of Claude" not in again  # shown once
+
+
+def test_pasting_a_browser_agents_answer_lists_each_broker(ui):
+    answer = '[{"broker": "evil", "outcome": "skipped", "note": "page was blank"}]'
+    r, _ = ui.post("/act/forms-apply", {"answer": answer})
+    assert r.getheader("Location") == "/?m=report"
+    _, body = ui.req("GET", "/?m=report")
+    assert "0 recorded, 1 left alone" in body and "evil: left alone" in body
+
+
+def test_gmail_only_settings_are_replaced_by_a_note_for_other_providers(ui):
+    from optout.config import load_config
+
+    cfg = load_config()
+    cfg.email.gmail_label = "OPTOUT"
+    cfg.email.smtp.host = "smtp.example.com"
+    save_config(cfg)
+    _, body = ui.req("GET", "/")
+    assert "Gmail-only features are off" in body
+    assert "Label for sent requests" not in body and "Mark broker replies as read" not in body
+    assert "name='gmail_label' value='OPTOUT'" in body  # kept, so switching later loses nothing
+    assert "reading replies (over IMAP)" in body.replace("\n", " ") or "over IMAP" in body
+
+    cfg.email.smtp.host = "smtp.gmail.com"
+    save_config(cfg)
+    _, body = ui.req("GET", "/")
+    assert "Label for sent requests" in body and "Gmail-only features are off" not in body

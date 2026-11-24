@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "optout"
 version = "0.2.0"
-description = "Self-hosted CLI that automates CCPA/CPRA data-broker opt-out requests via Playwright"
+description = "Self-hosted tool that emails data brokers to delete your personal data, reads their replies, and tracks every request"
 readme = "README.md"
 license = "AGPL-3.0-only"
 requires-python = ">=3.12,<3.14"

@@ -19,3 +19,15 @@
 - broker: komodo-health
   audiences: [healthcare-providers]
   note: B2B only; identifiable data is business and professional details of healthcare professionals. Patient data is de-identified; no home addresses or personal phone numbers.
+- broker: asset-international
+  audiences: [financial-advisors]
+  note: ISS Market Intelligence (formerly Asset International) profiles institutional investors and investment professionals.
+- broker: captiv8
+  audiences: [influencers]
+  note: A database of influencers and creators for brand campaigns; their reply says they likely hold nothing on anyone else.
+- broker: healthlink-dimensions
+  audiences: [healthcare-providers]
+  note: A database of clinicians (doctors, nurses and other providers) used for provider directories and professional mailings.
+- broker: knowwho
+  audiences: [government-staff]
+  note: KnowWho (Quorum) is a directory of elected officials and government staff.

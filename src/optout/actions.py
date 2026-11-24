@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlmodel import Session
@@ -17,7 +18,7 @@ REPLY_OUTCOMES = {
 }
 _REPLY_MESSAGES = {
     "deleted": "Recorded as the broker's word. Shown as removed only after a re-search.",
-    "denied": "Recorded as refused. Run escalate for an appeal draft.",
+    "denied": "Recorded as: broker said no. Run escalate for an appeal draft.",
     "need-info": "Recorded. They want more information; reply to them directly.",
     "auto-reply": "Recorded as an automated reply. The deadline keeps running.",
 }
@@ -29,14 +30,62 @@ ESCALATION_KINDS = ("followup", "appeal", "complaint", "clarify")
 _SETTLED = frozenset({"confirmed", "removed"})
 
 
+# Your own steps on a request: a broker's email from before one of these is out of date.
+_YOUR_STEPS = ("form_submitted", "escalation_sent", "status_set")
+
+
+def _aware(dt: datetime) -> datetime:
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+
+
+def _stale(session: Session, sub: Submission, received: datetime) -> bool:
+    """Has something been done on this request since this email was received?"""
+    from .db import list_events
+
+    return any(
+        e.event_type in _YOUR_STEPS and _aware(e.created_at) > _aware(received)
+        for e in list_events(session, sub.id)
+    )
+
+
+def _answered_since(session: Session, sub: Submission, received: datetime) -> bool:
+    """Was this acknowledgement received after the broker's last "action needed" email?
+    ("Verify your email", then "we're processing it": the verification was done.)"""
+    from sqlmodel import select
+
+    from .db import InboxMessage
+
+    asks = session.exec(
+        select(InboxMessage.received_at).where(
+            InboxMessage.submission_id == sub.id, InboxMessage.kind == "need-info"
+        )
+    ).all()
+    return bool(asks) and all(a is not None and _aware(a) < _aware(received) for a in asks)
+
+
 def apply_outcome(
-    session: Session, sub: Submission, outcome: str, note: str | None, source: str
+    session: Session,
+    sub: Submission,
+    outcome: str,
+    note: str | None,
+    source: str,
+    received: datetime | None = None,
 ) -> None:
-    """Apply a broker's answer to one request. Never sets 'removed'."""
+    """Apply a broker's answer to one request. Never sets 'removed'. *received* is when
+    their email arrived: an "action needed" from before your latest step is out of date."""
     if outcome not in REPLY_OUTCOMES:
         raise ValueError("Outcome must be: deleted, denied, need-info, or auto-reply.")
     status, event = REPLY_OUTCOMES[outcome]
     note = (note or "").strip()[:200]
+    if received is not None and outcome == "need-info" and _stale(session, sub, received):
+        status = None
+    if (
+        received is not None
+        and outcome == "auto-reply"
+        and sub.status == "awaiting_user_input"
+        and _answered_since(session, sub, received)
+    ):
+        status = "awaiting_broker_confirmation"
     if status is not None and sub.status not in _SETTLED:
         update_status(
             session, sub, status, failure_reason=note or None if outcome != "deleted" else None
@@ -108,6 +157,7 @@ def _broker_or_stub(slug: str):
 def _write_draft(config, sub, broker, kind: str, now) -> Path:
     import os
 
+    from .config import user_tz
     from .engine.escalation import make_draft
     from .engine.methods.email import _contact_email
 
@@ -117,6 +167,8 @@ def _write_draft(config, sub, broker, kind: str, now) -> Path:
         broker,
         config.profile,
         contact_email=_contact_email(config, broker, config.profile),
+        tz=user_tz(config),
+        now=now,
     )
     d = drafts_dir()
     d.mkdir(parents=True, exist_ok=True)

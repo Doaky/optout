@@ -22,6 +22,10 @@ _DOMAIN_RE = re.compile(r"^[a-z0-9.-]+\.[a-z]{2,}$")
 _ADDR_RE = re.compile(r"^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$")
 IMAP_HOST = "imap.gmail.com"
 SUBJECT = "Data Deletion Request"
+_ADDRESSES_PER_SEARCH = 100
+_IDS_PER_SEARCH = 50
+_HDR_MSGID = re.compile(r"^Message-ID:\s*<([^>]+)>", re.IGNORECASE | re.MULTILINE)
+_HDR_FROM = re.compile(r"^From:(.*(?:\r?\n[ \t].*)*)", re.IGNORECASE | re.MULTILINE)
 
 
 def valid_label(name: str) -> bool:
@@ -62,12 +66,19 @@ class GmailLabeler:
         self._select_all_mail(imap)
         return self
 
+    @property
+    def _conn(self) -> imaplib.IMAP4:
+        """The open connection; a clear error (not an assert) when used outside `with`."""
+        if self._imap is None:
+            raise RuntimeError("not connected: use this inside a `with` block")
+        return self._imap
+
     def __exit__(self, *exc) -> None:
         if self._imap is not None:
             try:
                 self._imap.logout()
-            except Exception:
-                pass
+            except (imaplib.IMAP4.error, OSError):
+                pass  # already closed or dropped; nothing left to do
 
     def _select_all_mail(self, imap: imaplib.IMAP4) -> None:
         """Gmail's 'All Mail' holds both sent and received; find it by its \\All flag."""
@@ -86,20 +97,18 @@ class GmailLabeler:
 
     # -- operations -------------------------------------------------------
     def _search(self, raw_query: str) -> list[bytes]:
-        assert self._imap is not None
-        status, data = self._imap.uid("SEARCH", "X-GM-RAW", _q(raw_query))
+        status, data = self._conn.uid("SEARCH", "X-GM-RAW", _q(raw_query))
         if status != "OK" or not data or not data[0]:
             return []
         return data[0].split()
 
     def _label(self, uids: Iterable[bytes], name: str | None = None, *, read: bool = False) -> int:
-        assert self._imap is not None
         uids = list(uids)
         for i in range(0, len(uids), 200):
             chunk = b",".join(uids[i : i + 200]).decode()
-            self._imap.uid("STORE", chunk, "+X-GM-LABELS", f"({_q(name or self.label)})")
+            self._conn.uid("STORE", chunk, "+X-GM-LABELS", f"({_q(name or self.label)})")
             if read:
-                self._imap.uid("STORE", chunk, "+FLAGS", "(\\Seen)")
+                self._conn.uid("STORE", chunk, "+FLAGS", "(\\Seen)")
         return len(uids)
 
     def label_message_ids(
@@ -123,7 +132,6 @@ class GmailLabeler:
     def mark_read_message_ids(self, message_ids: list[str]) -> int:
         """Mark these messages (by Message-ID) as read. Adds the read flag only: nothing is
         moved, labelled or deleted, and ids with odd characters are ignored."""
-        assert self._imap is not None
         done = 0
         for mid in message_ids:
             token = mid.strip().strip("<>")
@@ -131,7 +139,7 @@ class GmailLabeler:
                 continue
             uids = self._search(f"rfc822msgid:{token}")
             if uids:
-                self._imap.uid("STORE", b",".join(uids).decode(), "+FLAGS", "(\\Seen)")
+                self._conn.uid("STORE", b",".join(uids).decode(), "+FLAGS", "(\\Seen)")
                 done += len(uids)
         return done
 
@@ -159,22 +167,33 @@ class GmailLabeler:
         """Sender display names for saved messages (looked up by Message-ID, headers only)."""
         from email.utils import parseaddr
 
-        assert self._imap is not None
-        out: dict[str, str] = {}
+        wanted: dict[str, str] = {}  # bare Message-ID -> the caller's spelling
         for mid in message_ids[:200]:
             token = mid.strip().strip("<>")
-            if not re.fullmatch(r"[A-Za-z0-9._%+@=-]+", token):
-                continue
-            uids = self._search(f"rfc822msgid:{token}")
-            if not uids:
-                continue
-            _s, data = self._imap.uid(
-                "FETCH", uids[0].decode(), "(BODY.PEEK[HEADER.FIELDS (FROM)])"
+            if re.fullmatch(r"[A-Za-z0-9._%+@=-]+", token):
+                wanted[token] = mid
+        tokens = list(wanted)
+        # One search per batch and one header fetch, not two round trips per message.
+        uids: list[bytes] = []
+        for i in range(0, len(tokens), _IDS_PER_SEARCH):
+            query = " OR ".join(f"rfc822msgid:{t}" for t in tokens[i : i + _IDS_PER_SEARCH])
+            uids.extend(u for u in self._search(query) if u not in uids)
+        out: dict[str, str] = {}
+        for i in range(0, len(uids), 100):
+            chunk = b",".join(uids[i : i + 100]).decode()
+            _s, data = self._conn.uid(
+                "FETCH", chunk, "(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID FROM)])"
             )
             for item in data or []:
-                if isinstance(item, tuple):
-                    raw = item[1].decode("utf-8", "replace")
-                    out[mid] = parseaddr(raw.split(":", 1)[-1].strip())[0][:200]
+                if not isinstance(item, tuple):
+                    continue
+                head = item[1].decode("utf-8", "replace")
+                mid_m = re.search(r"^Message-ID:\s*<([^>]+)>", head, re.IGNORECASE | re.MULTILINE)
+                from_m = re.search(
+                    r"^From:(.*(?:\r?\n[ \t].*)*)", head, re.IGNORECASE | re.MULTILINE
+                )
+                if mid_m and from_m and mid_m.group(1) in wanted:
+                    out[wanted[mid_m.group(1)]] = parseaddr(from_m.group(1).strip())[0][:200]
         return out
 
     def fetch_message(self, message_id: str) -> bytes | None:
@@ -186,11 +205,10 @@ class GmailLabeler:
         return self._fetch(uids[0]) if uids else None
 
     def _message_ids(self, uids: list[bytes]) -> dict[bytes, str]:
-        assert self._imap is not None
         out: dict[bytes, str] = {}
         for i in range(0, len(uids), 100):
             chunk = b",".join(uids[i : i + 100]).decode()
-            _status, data = self._imap.uid(
+            _status, data = self._conn.uid(
                 "FETCH", chunk, "(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])"
             )
             for item in data or []:
@@ -203,8 +221,7 @@ class GmailLabeler:
         return out
 
     def _fetch(self, uid: bytes) -> bytes | None:
-        assert self._imap is not None
-        _status, data = self._imap.uid("FETCH", uid.decode(), "(BODY.PEEK[]<0.300000>)")
+        _status, data = self._conn.uid("FETCH", uid.decode(), "(BODY.PEEK[]<0.300000>)")
         for item in data or []:
             if isinstance(item, tuple):
                 return bytes(item[1])
@@ -215,16 +232,17 @@ class GmailLabeler:
         address we expect a broker to answer from, or carrying our request's subject. A
         broker's other mail (newsletters, account notices) is never touched."""
         clean = sorted({a.lower() for a in addresses if _ADDR_RE.match(a.lower())})
-        after = f"after:{since:%Y/%m/%d}"
+        # Mail labelled on an earlier run is left out, so it isn't labelled again every time.
+        base = (
+            f"in:inbox -from:me after:{since:%Y/%m/%d} -label:{self.reply_label.replace(' ', '-')}"
+        )
         read = self.mark_read
         total = self._label(
-            self._search(f'in:inbox -from:me {after} subject:"{SUBJECT}"'),
-            self.reply_label,
-            read=read,
+            self._search(f'{base} subject:"{SUBJECT}"'), self.reply_label, read=read
         )
-        for i in range(0, len(clean), 20):
-            terms = " OR ".join(f"from:{a}" for a in clean[i : i + 20])
-            total += self._label(
-                self._search(f"in:inbox -from:me {after} ({terms})"), self.reply_label, read=read
-            )
+        # 100 addresses per search: Gmail returns the same mail as smaller batches, in a
+        # fraction of the round trips (about 1,000 addresses is 11 searches, not 53).
+        for i in range(0, len(clean), _ADDRESSES_PER_SEARCH):
+            terms = " OR ".join(f"from:{a}" for a in clean[i : i + _ADDRESSES_PER_SEARCH])
+            total += self._label(self._search(f"{base} ({terms})"), self.reply_label, read=read)
         return total

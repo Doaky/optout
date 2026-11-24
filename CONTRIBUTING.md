@@ -1,10 +1,36 @@
-# Contributing to OptOut
+# Contributing to optout
 
-The fastest way to contribute is to add a broker — it requires only a YAML file, no Python.
+Most of what makes optout work is data, not code: which address a broker really answers,
+what its replies mean, how its web form is filled in. You can contribute all of that without
+writing Python.
 
 ---
 
-## Adding a broker
+## Share what the tool learned from your replies (easiest)
+
+As you use optout, it learns from the replies you sort and the forms you fill. Print what it
+learned, with your personal details removed, and post it as a new GitHub issue:
+
+| What | How to get it |
+|---|---|
+| What broker replies mean, a broker's real contact address (from its own reply), what its process requires, who it covers | Dashboard: *Broker replies → Share what you've learned* (or `optout replies share` for reply patterns only) |
+| Web-form steps (field names and labels only) | `optout forms share` |
+
+Each block it prints says which file under `src/optout/data/` it belongs in. To judge who a
+broker covers (educators only, doctors only...), turn on Settings → *Help improve optout*.
+
+Read it before you post it. Each data file starts with a comment explaining its format, if
+you'd rather open a pull request.
+
+Where brokers come from: most are generated from California's data broker registry
+(`optout brokers import`), plus `extra_brokers.yml` and `people_search.yml`. Don't hand-edit
+the generated ones; corrections go in `contact_overrides.yml`, `broker_traits.yml` and the
+other data files. The broker YAML files described below are only for the few people-search
+sites with scripted web-form steps.
+
+---
+
+## Adding a scripted web-form broker
 
 ### 1. Verify the opt-out process manually first
 
@@ -245,14 +271,17 @@ These are not gaps to fill — they are the project's legal foundation.
 ### Dev setup
 
 ```bash
-git clone https://github.com/Blake104/OptOut.git
-cd OptOut
+git clone https://github.com/Doaky/optout.git
+cd optout
 uv sync --extra dev
-uv run playwright install chromium
+uv run playwright install chromium   # only for the few tests that drive a browser
 uv run pytest
 uv run ruff check src/ tests/
 uv run mypy src/optout/
 ```
+
+To run the app against throwaway data instead of your own, point it at empty folders:
+`XDG_CONFIG_HOME=/tmp/o/cfg XDG_DATA_HOME=/tmp/o/data uv run optout`.
 
 ### Running CI checks locally
 

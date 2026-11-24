@@ -67,10 +67,10 @@ Multi-profile support (running opt-outs for family members from one installation
 
 ---
 
-## Weekly broker drift detection in CI
+## Broker drift detection
 
 Broker opt-out pages change. A selector that worked in April might break in June because the site shipped a redesign. Without active checking, the tool silently stops working and the user doesn't find out until they try to use it.
 
-The `optout verify` command checks each broker's selectors against live pages and reports which ones no longer resolve. A GitHub Actions workflow (`broker_drift.yml`) runs this on a weekly schedule and opens an issue automatically if any selector fails.
+`optout drift-check` loads each scripted web-form broker's page and reports the ones whose steps no longer match (`optout brokers probe BROKER` checks one). It can send an alert to your webhook, and the dashboard marks a broker whose form may have changed. There is no scheduled workflow for this in the repository; run it yourself or from your own scheduler.
 
-The point isn't to guarantee the tool always works — it can't, since opt-out pages change on their own schedule. The point is to make breakage visible quickly so it can be fixed before a user runs `optout submit` and gets an error six steps into a flow.
+The point isn't to guarantee the tool always works — it can't, since opt-out pages change on their own schedule. The point is to make breakage visible quickly so it can be fixed before a user gets an error six steps into a form.

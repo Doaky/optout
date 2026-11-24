@@ -24,7 +24,7 @@ from .. import SubmissionFailed, SubmissionResult, UserInputRequired
 _TEMPLATES_DIR = Path(__file__).parent.parent.parent / "templates"
 _env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(_TEMPLATES_DIR),
-    autoescape=False,
+    autoescape=False,  # nosec B701: plain-text emails only; HTML escaping would corrupt them
     trim_blocks=True,
     lstrip_blocks=True,
     keep_trailing_newline=True,

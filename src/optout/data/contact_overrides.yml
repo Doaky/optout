@@ -16,3 +16,9 @@
 - broker: experian-marketing-solutions
   email: optout@experian.com
   note: The registry mailbox is not monitored; their reply says privacy opt-outs and limit requests go to this address.
+- broker: publicrecords360
+  email: custserv@publicrecords360.com
+  note: Their own reply named this address.
+- broker: ripple-effect-strategies
+  email: rivers@ripple-fx.com
+  note: Their own reply named this address (the contact emailed first has left).

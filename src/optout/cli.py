@@ -10,7 +10,11 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-app = typer.Typer(name="optout", invoke_without_command=True)
+app = typer.Typer(
+    name="optout",
+    invoke_without_command=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
 brokers_app = typer.Typer(help="Browse and inspect broker definitions.")
 app.add_typer(brokers_app, name="brokers")
 
@@ -19,7 +23,10 @@ console = Console()
 
 @app.callback()
 def _main(ctx: typer.Context) -> None:
-    """Self-hosted data broker opt-out tool. Run with no command to open the dashboard."""
+    """Self-hosted data broker opt-out tool.
+
+    Start with `optout plan` to see what to do next; run with no command to open the dashboard.
+    """
     if ctx.invoked_subcommand is not None:
         if ctx.invoked_subcommand == "forms":
             return  # its output is read by other programs: no banner
@@ -170,7 +177,9 @@ def brokers_list(
 
 @brokers_app.command("probe")
 def brokers_probe(
-    slug: str = typer.Argument(..., help="Broker slug (e.g. spokeo)."),
+    slug: str = typer.Argument(
+        ..., metavar="BROKER", help="Broker ID, as shown by `optout brokers list` (e.g. spokeo)."
+    ),
     channel: str = typer.Option(
         "config",
         "--channel",
@@ -183,7 +192,10 @@ def brokers_probe(
         8.0, "--settle", help="With --no-pause, seconds to let each page render."
     ),
 ) -> None:
-    """Check a broker's selectors against the live site. Never fills or submits."""
+    """Open a broker's opt-out page and check our form-filling steps still match it.
+
+    Never fills or submits.
+    """
     import json
     from dataclasses import asdict
     from datetime import UTC, datetime
@@ -191,7 +203,7 @@ def brokers_probe(
     from rich.markup import escape
 
     from .brokers.registry import get_broker
-    from .config import PlaywrightConfig, config_dir, load_config
+    from .config import PlaywrightConfig, config_dir, load_config, write_private
     from .db import get_session, init_db, record_health
     from .engine.browser import launch_browser
     from .engine.probe import blocked_reason, build_plan, run_checks, summarize
@@ -265,7 +277,7 @@ def brokers_probe(
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     out = out_dir / f"{broker.slug}-{stamp}.json"
-    out.write_text(json.dumps(asdict(plan), indent=2))
+    write_private(out, json.dumps(asdict(plan), indent=2))
     console.print(f"\nReport saved to {out}")
 
 
@@ -310,13 +322,21 @@ def _toggle(slug: str, enabled: bool) -> None:
 
 
 @brokers_app.command("disable")
-def brokers_disable(slug: str = typer.Argument(..., help="Broker slug to skip.")) -> None:
+def brokers_disable(
+    slug: str = typer.Argument(
+        ..., metavar="BROKER", help="Broker ID to skip (see `optout brokers list`)."
+    ),
+) -> None:
     """Never contact this broker (e.g. a site you want to stay listed on)."""
     _toggle(slug, False)
 
 
 @brokers_app.command("enable")
-def brokers_enable(slug: str = typer.Argument(..., help="Broker slug to include.")) -> None:
+def brokers_enable(
+    slug: str = typer.Argument(
+        ..., metavar="BROKER", help="Broker ID to include (see `optout brokers list`)."
+    ),
+) -> None:
     """Include this broker again (also overrides the FCRA/GLBA default-off)."""
     _toggle(slug, True)
 
@@ -327,7 +347,7 @@ def campaign(
     only: list[str] = typer.Option(None, "--only", help="Restrict to these broker slugs."),
     send: bool = typer.Option(False, "--send", help="Actually send. Default is preview only."),
     tier: str = typer.Option(
-        None, "--tier", help="Only one group from `optout plan`: email or email-confirm."
+        None, "--group", "--tier", help="Only one group from `optout plan`: email or email-confirm."
     ),
 ) -> None:
     """Email deletion requests to every eligible broker, within daily limits."""
@@ -432,7 +452,11 @@ def _read_replies_after_batch(config, sent: int) -> None:
 
 @brokers_app.command("info")
 def brokers_info(
-    slug: str = typer.Argument(..., help="Broker slug (e.g. whitepages)."),
+    slug: str = typer.Argument(
+        ...,
+        metavar="BROKER",
+        help="Broker ID, as shown by `optout brokers list` (e.g. whitepages).",
+    ),
 ) -> None:
     """Show a broker's definition and your submission status with it."""
     from .brokers.registry import get_broker
@@ -1267,8 +1291,19 @@ def replies_share() -> None:
     )
 
 
-forms_app = typer.Typer(help="Web forms: a queue to walk through in a browser, and recipes.")
-app.add_typer(forms_app, name="forms")
+forms_app = typer.Typer(
+    help="Web forms. Normal flow: `forms prompt` -> paste it into your AI browser helper "
+    "(Claude in "
+    "Chrome) -> paste its answer into `forms apply`. Once a form has saved steps, `forms run` "
+    "fills it for you and you only solve the CAPTCHA. `forms status` shows which are waiting on "
+    "a confirmation email."
+)
+app.add_typer(
+    forms_app,
+    name="forms",
+    help="Web forms: get a prompt for your AI browser helper, apply its answer, "
+    "fill them again from saved steps.",
+)
 
 
 def _forms_config():
@@ -1283,7 +1318,7 @@ def _forms_config():
 
 @forms_app.command("todo")
 def forms_todo() -> None:
-    """JSON list of requests waiting on a web form (broker, link, what they said)."""
+    """For agents: JSON of requests waiting on a web form. Includes broker email text."""
     import json
 
     from . import forms
@@ -1297,19 +1332,25 @@ def forms_todo() -> None:
 
 @forms_app.command("profile")
 def forms_profile() -> None:
-    """JSON of the values a form may ask for, for filling one in yourself or with Claude."""
+    """For agents: JSON of your name, address, phone and so on. Contains your own details."""
     import json
+    import sys
 
     from . import forms
+
+    if sys.stdout.isatty():
+        console.print(
+            "[yellow]This prints your own details; don't paste it anywhere public.[/yellow]"
+        )
 
     print(json.dumps(forms.profile_fields(_forms_config()), indent=2))
 
 
 @forms_app.command("save")
 def forms_save(
-    file: str = typer.Argument("-", help="Recipe as JSON, or - for stdin."),
+    file: str = typer.Argument("-", help="Saved steps as JSON, or - for stdin."),
 ) -> None:
-    """Save a recorded recipe (fields and labels only; refused if it holds your details)."""
+    """Save recorded form steps (field names and labels only; refused if they hold your details)."""
     import json
     import sys
 
@@ -1325,21 +1366,25 @@ def forms_save(
     except (ValueError, ValidationError) as exc:
         console.print(f"[red]Not saved:[/red] {exc}")
         raise typer.Exit(code=1)
-    console.print(f"Saved a recipe for [bold]{saved.broker}[/bold] ({len(saved.steps)} steps).")
+    console.print(f"Saved form steps for [bold]{saved.broker}[/bold] ({len(saved.steps)} steps).")
 
 
 @forms_app.command("prompt")
 def forms_prompt(
     limit: int = typer.Option(10, "--limit", "-n", help="How many forms per prompt."),
-    slugs: list[str] = typer.Argument(None, help="Only these brokers."),
+    slugs: list[str] = typer.Argument(None, metavar="[BROKER]...", help="Only these brokers."),
     recheck: bool = typer.Option(
         False, "--recheck", help="Instead: check whether listings are gone (or came back)."
     ),
     tier: str = typer.Option(
-        None, "--tier", help="Only one group from `optout plan`: people-search, form, form-plus."
+        None,
+        "--group",
+        "--tier",
+        help="Only one group from `optout plan` (people-search, form, form-plus), "
+        "or `urgent` for time-sensitive items.",
     ),
 ) -> None:
-    """Print one prompt to give a browser agent (Claude in Chrome, etc.) for the next forms."""
+    """Print one prompt to give an AI browser helper (Claude in Chrome, etc.) for the next forms."""
     from . import forms
     from .db import get_session, init_db
 
@@ -1354,7 +1399,10 @@ def forms_prompt(
         print(forms.build_recheck_prompt(config, due[:limit]))
         return
     with get_session() as session:
-        items = forms.todo(session, config, tier=tier)
+        if tier == "urgent":  # not a plan group: whatever has a clock on it
+            items = [i for i in forms.todo(session, config) if i.get("urgent")]
+        else:
+            items = forms.todo(session, config, tier=tier)
         items = [i for i in items if not slugs or i["broker"] in slugs]
     if not items:
         console.print("Nothing is waiting on a form.", style="dim")
@@ -1366,7 +1414,7 @@ def forms_prompt(
 def forms_apply(
     file: str = typer.Argument("-", help="The agent's JSON answer, or - for stdin."),
 ) -> None:
-    """Apply a browser agent's answer: record each outcome and save the recipes."""
+    """Apply your AI browser helper's answer: record each outcome and save the steps it used."""
     import json
     import re
     import sys
@@ -1392,9 +1440,117 @@ def forms_apply(
             console.print(line)
 
 
-@forms_app.command("stats")
-def forms_stats() -> None:
-    """Which forms were followed by an email, and which are still waiting on one."""
+@forms_app.command("run")
+def forms_run(
+    slugs: list[str] = typer.Argument(
+        None,
+        metavar="[BROKER]...",
+        help="Only these brokers (default: every one with saved steps).",
+    ),
+    limit: int = typer.Option(10, "--limit", "-n", help="How many forms in this run."),
+) -> None:
+    """Fill queued forms in a browser window, using steps saved earlier; you only solve CAPTCHAs."""
+    from . import forms
+    from .db import get_session, init_db
+    from .engine.browser import launch_browser
+    from .engine.form_replay import replay
+
+    config = _forms_config()
+    init_db()
+    recipes = forms.load_recipes()
+    with get_session() as session:
+        queue = [
+            i["broker"]
+            for i in forms.todo(session, config)
+            if i["broker"] in recipes and (not slugs or i["broker"] in slugs)
+        ][:limit]
+        if not queue:
+            console.print(
+                "No queued forms have saved steps yet. Run `optout forms prompt` first.",
+                style="dim",
+            )
+            raise typer.Exit(code=0)
+        console.print(f"Replaying {len(queue)}: {', '.join(queue)}")
+        values = forms.profile_fields(config)
+        pw = config.playwright.model_copy(update={"headless": False})  # a person must see it
+        with launch_browser(pw) as ctx:
+            for n, slug in enumerate(queue, 1):
+                recipe = recipes[slug]
+                console.print(f"[bold]{n}/{len(queue)} {slug}[/bold] {recipe.url}")
+                page = ctx.new_page()
+                result = replay(page, recipe, values, say=console.print, ask=input)
+                saved = forms.save_run(slug, result)
+                if result.status == "done":
+                    expects = "email_verify" in recipe.needs_human or recipe.then is not None
+                    done_note = result.detail or "Form submitted."
+                    lines = forms.apply_results(
+                        session,
+                        config,
+                        [
+                            {
+                                "broker": slug,
+                                "outcome": "submitted",
+                                "note": f"Replayed: {done_note}",
+                                "expects_email": expects,
+                            }
+                        ],
+                    )
+                    console.print("  " + lines[0])
+                else:
+                    console.print(
+                        f"  [yellow]{result.status}[/yellow]: {result.detail}"
+                        f"  (recorded as {saved})"
+                    )
+                try:
+                    page.close()
+                except Exception:
+                    pass
+        _watch_for_form_emails(config, session)
+
+
+def _watch_for_form_emails(config, session, minutes: int = 15) -> None:
+    """After a run: look for the confirmation emails the forms promised, every minute, until
+    they've all come or the time is up. They're clicked for you only if confirm_links is auto."""
+    import time
+
+    from . import forms
+    from .engine.inbox import gmail_ready, run_sync
+
+    if not forms.waiting_for_email(session) or gmail_ready(config) is not None:
+        return
+    mode = "and confirming them" if config.confirm_links == "auto" else "(confirm_links is 'ask')"
+    console.print(f"Watching your inbox for confirmation emails {mode}. Ctrl-C to stop.")
+    end = time.monotonic() + minutes * 60
+    try:
+        while time.monotonic() < end:
+            time.sleep(config.email.form_check_seconds)
+            try:
+                report = run_sync(config)
+            except ValueError as exc:
+                console.print(f"[yellow]{exc}[/yellow]")
+                return
+            session.expire_all()
+            left = forms.waiting_for_email(session)
+            console.print(
+                f"  checked: {left} still waiting"
+                + (f", confirmed {report.confirmed}" if report.confirmed else "")
+            )
+            if not left:
+                return
+    except KeyboardInterrupt:
+        pass
+
+
+@forms_app.command("status")
+def forms_status(
+    all_: bool = typer.Option(
+        False, "--all", help="Also list forms that never promised a confirmation email."
+    ),
+) -> None:
+    """Web forms you've submitted and whether their confirmation email arrived.
+
+    (`status` covers every request.)
+    """
     from . import forms
     from .db import get_session, init_db
 
@@ -1404,41 +1560,75 @@ def forms_stats() -> None:
     if not rows:
         console.print("No forms recorded yet.", style="dim")
         return
+    from .brokers.registry import all_brokers
+
+    names = {b.slug: b.name for b in all_brokers()}
+    submitted = sum(r["forms"] for r in rows)
+    promised = sum(r["expected_email"] for r in rows)
+    arrived = sum(r["followups"] for r in rows)
+    missing = [r for r in rows if r["waiting"]]
+    shown = [r for r in rows if all_ or r["expected_email"] or r["waiting"]]
+    console.print(
+        "[dim]Submitted = times the form was sent. Email promised = the form said a "
+        "confirmation email would follow. Email arrived = we matched it in your inbox.[/dim]"
+    )
     table = Table(box=box.SIMPLE)
-    for col in ("Broker", "Forms", "Expected email", "Came", "Waiting"):
+    for col in ("Broker", "Submitted", "Email promised", "Email arrived", "Next"):
         table.add_column(col)
-    for r in rows:
+    for r in shown:
         table.add_row(
-            r["broker"],
+            names.get(r["broker"], r["broker"]) + (f" [dim]({r['broker']})[/dim]" if all_ else ""),
             str(r["forms"]),
             str(r["expected_email"]),
             str(r["followups"]),
-            "yes" if r["waiting"] else "",
+            "check inbox" if r["waiting"] else "",
         )
     console.print(table)
+    console.print(
+        f"{submitted} forms submitted to {len(rows)} brokers; {promised} promised a "
+        f"confirmation email; {arrived} arrived; {len(missing)} still missing"
+        + (" (rows marked 'check inbox')." if missing else ".")
+    )
+    hidden = [r for r in rows if r not in shown]
+    if hidden:
+        console.print(
+            f"{len(hidden)} brokers ({sum(r['forms'] for r in hidden)} forms) that promised no "
+            "email are hidden; --all shows them.",
+            style="dim",
+        )
+
+
+@forms_app.command("stats", hidden=True)  # the old name
+def forms_stats() -> None:
+    """Old name for `forms status`."""
+    forms_status(all_=False)
 
 
 @forms_app.command("show")
-def forms_show(slug: str) -> None:
-    """Print the recipe for one broker."""
+def forms_show(
+    slug: str = typer.Argument(..., metavar="BROKER", help="Broker ID, e.g. spycloud."),
+) -> None:
+    """Print the saved form steps for one broker."""
     import yaml
 
     from . import forms
 
     recipe = forms.load_recipes().get(slug)
     if recipe is None:
-        console.print(f"No recipe for '{slug}'.")
+        console.print(f"No saved steps for '{slug}'.")
         raise typer.Exit(code=1)
     print(yaml.safe_dump(recipe.model_dump(), sort_keys=False, allow_unicode=True))
 
 
 @forms_app.command("done")
 def forms_done(
-    slug: str,
+    slug: str = typer.Argument(
+        ..., metavar="BROKER", help="Broker ID, e.g. spycloud (see `optout brokers list`)."
+    ),
     outcome: str = typer.Argument(..., help="removed (the page said so) or submitted"),
-    note: str = typer.Option("", "--note"),
+    note: str = typer.Option("", "--note", help="What the page said, for your records."),
 ) -> None:
-    """Record how a form went, so the request leaves Needs attention."""
+    """Record by hand how a form went, so the request leaves Needs you."""
     from . import forms
     from .db import get_session, init_db
 
@@ -1453,14 +1643,14 @@ def forms_done(
 
 @forms_app.command("share")
 def forms_share() -> None:
-    """Print your recipes the shared list doesn't have, ready to contribute."""
+    """Print your saved form steps that the shared list lacks, ready to contribute."""
     import yaml
 
     from . import forms
 
     entries = forms.learned_recipes()
     if not entries:
-        console.print("No new recipes to share.")
+        console.print("No new form steps to share.")
         return
     print(yaml.safe_dump(entries, sort_keys=False, allow_unicode=True))
     console.print("[dim]Add to src/optout/data/form_recipes.yml, or open an issue.[/dim]")
@@ -1748,15 +1938,16 @@ def plan() -> None:
     with get_session() as session:
         tiers = summarise(session, all_brokers())
     table = Table(box=box.SIMPLE)
-    for col in ("", "Group", "Done", "Waiting on them", "Needs you", "Not started", "How"):
-        table.add_column(col)
+    for col in ("", "Group", "Done", "Awaiting reply", "Needs you", "Not started", "How"):
+        table.add_column(col, overflow="fold" if col == "How" else "ellipsis")
     how = {
-        "people-search": "optout forms prompt --tier people-search",
-        "email": "optout campaign --tier email --send",
-        "email-confirm": "optout campaign --tier email-confirm --send",
-        "form": "optout forms prompt --tier form",
-        "form-plus": "optout forms prompt --tier form-plus",
-        "too-much": "skipped (see README)",
+        "people-search": "optout forms prompt --group people-search",
+        "email": "optout campaign --group email --send",
+        "email-confirm": "optout campaign --group email-confirm --send",
+        "follow-up": "optout review (answer what they asked)",
+        "form": "optout forms prompt --group form",
+        "form-plus": "optout forms prompt --group form-plus",
+        "too-much": "nothing to run: they ask for ID or device IDs",
     }
     for n, t in enumerate(tiers, 1):
         table.add_row(
@@ -1774,7 +1965,7 @@ def plan() -> None:
 def followups(
     send: bool = typer.Option(False, "--send", help="Actually send. Default is a preview."),
 ) -> None:
-    """Follow up with every broker past its deadline with no answer, in one batch."""
+    """Re-email every broker that is past its deadline with no answer, in one batch."""
     from datetime import UTC, datetime
 
     from .brokers.registry import all_brokers, load_registry
@@ -1811,9 +2002,11 @@ def followups(
 
 @app.command("drift-check")
 def drift_check(
-    notify: bool = typer.Option(True, "--notify/--no-notify", help="Send the webhook on drift."),
+    notify: bool = typer.Option(
+        True, "--notify/--no-notify", help="Send the alert webhook for broken pages."
+    ),
 ) -> None:
-    """Probe every web-form broker's selectors; flag and announce brokers that stopped working."""
+    """Check every web-form broker's page still matches our steps; report the ones that broke."""
     from .brokers.registry import all_brokers, load_registry
     from .config import PlaywrightConfig, load_config
     from .db import get_session, init_db, is_drifted, record_health
@@ -1860,14 +2053,17 @@ def drift_check(
                 drifted.append(b.slug)
 
     if drifted:
-        console.print(f"\n[red bold]Drifted (3 failures in a row):[/red bold] {', '.join(drifted)}")
+        console.print(
+            "\n[red bold]Pages that changed (failed 3 checks in a row):[/red bold] "
+            + ", ".join(drifted)
+        )
         if notify and hook:
             sent = send_webhook(
                 hook, "optout: broker drift", "Drifted brokers: " + ", ".join(drifted)
             )
             console.print("Webhook sent." if sent else "[yellow]Webhook failed.[/yellow]")
     else:
-        console.print("\nNo broker has drifted.")
+        console.print("\nNo broker page has changed.")
     if unknown:
         console.print(
             f"[dim]{len(unknown)} could not be read (challenge pages); not counted.[/dim]"
@@ -1937,7 +2133,7 @@ def escalate(
     for kind, name, path in written:
         console.print(f"  [yellow]{kind:<9}[/yellow] {name}  →  {path}")
     if not count:
-        console.print("[green]No request is overdue or refused right now.[/green]")
+        console.print("[green]No request is overdue or told no right now.[/green]")
     else:
         console.print(
             f"\n{count} draft(s) written. Review, send/file them yourself, then run "
@@ -2063,15 +2259,17 @@ def status(
             f"\n  [red bold]⚠[/red bold]  "
             f"{len(overdue_slugs)} submission(s) past their statutory deadline "
             f"({', '.join(overdue_slugs)}).\n"
-            f"     Consider filing a complaint at [link=https://cppa.ca.gov]cppa.ca.gov[/link] "
-            f"or contacting your state attorney general."
+            f"     Run [cyan]optout followups[/cyan] to email them again. If they still don't\n"
+            f"     answer, you can complain to your state attorney general (in California:\n"
+            f"     [link=https://cppa.ca.gov]cppa.ca.gov[/link])."
         )
     if needs_input_slugs:
         console.print(
             f"\n  [yellow bold]⚠[/yellow bold]  "
-            f"{len(needs_input_slugs)} submission(s) need your attention "
+            f"{len(needs_input_slugs)} submission(s) need you "
             f"({', '.join(needs_input_slugs)}).\n"
-            f"     Run [cyan]optout submit[/cyan] to retry."
+            "     Open [cyan]optout ui[/cyan] and look under Needs you to see what each one\n"
+            "     asked for."
         )
     if failure_rows:
         console.print("\n  [bold]Failure details:[/bold]")
@@ -2149,7 +2347,7 @@ def monitor() -> None:
 
 @app.command()
 def doctor() -> None:
-    """Run diagnostic checks and report any setup problems."""
+    """Check your setup and whether each broker site is reachable (uses the network, slow)."""
     import sys
     from dataclasses import dataclass
     from pathlib import Path
@@ -2412,6 +2610,55 @@ def doctor() -> None:
         console.print("[yellow]All critical checks passed (see warnings above).[/yellow]")
     else:
         console.print("[green bold]All checks passed.[/green bold]")
+
+
+_PANELS = {
+    "Start here": ["plan", "campaign", "inbox", "review", "followups", "status", "history", "ui"],
+    "Setup": ["init", "smtp-password", "doctor"],
+    "Advanced": [
+        "scan",
+        "verify",
+        "monitor",
+        "escalate",
+        "log",
+        "reply",
+        "report",
+        "label",
+        "daily",
+        "queue",
+        "submit",
+        "state",
+    ],
+    "Maintainers": ["drift-check", "statutes"],
+}
+_FORMS_ORDER = ["prompt", "apply", "run", "status", "done"]
+
+
+def _command_name(info) -> str:
+    return info.name or info.callback.__name__.replace("_", "-")
+
+
+def _organise() -> None:
+    """Group the top-level help, and list the forms commands in the order you'd use them."""
+    panel_of = {n: p for p, names in _PANELS.items() for n in names}
+    order = {n: i for i, n in enumerate(n for names in _PANELS.values() for n in names)}
+    for info in app.registered_commands:
+        info.rich_help_panel = panel_of.get(_command_name(info), "Advanced")
+    app.registered_commands.sort(key=lambda c: order.get(_command_name(c), 999))
+    for g in app.registered_groups:
+        g.rich_help_panel = "Start here" if g.name == "forms" else "Advanced"
+    for info in forms_app.registered_commands:
+        info.rich_help_panel = (
+            None if _command_name(info) in _FORMS_ORDER else "Plumbing (for agents and sharing)"
+        )
+    forms_app.registered_commands.sort(
+        key=lambda c: (
+            _FORMS_ORDER.index(_command_name(c)) if _command_name(c) in _FORMS_ORDER else 99
+        )
+    )
+
+
+_organise()
 
 
 if __name__ == "__main__":

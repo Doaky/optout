@@ -59,8 +59,17 @@ def test_real_config_values_not_in_tracked_files(monkeypatch):
     if not config_path().exists():
         pytest.skip("no local config to check against")
     cfg = load_config().profile
-    secrets = {cfg.legal_name, cfg.current_address.street, *cfg.emails.current, *cfg.phones.current}
+    emails = [*cfg.emails.current, *cfg.emails.previous]
+    secrets = {cfg.legal_name, cfg.current_address.street, *emails}
+    secrets |= {*cfg.phones.current, *cfg.phones.previous}
     secrets |= {a.street for a in cfg.previous_addresses}
+    # Forms the name and emails take elsewhere: "JaneExample", an email's local part, the
+    # surname on its own (only when long enough not to be an ordinary word), the birth date.
+    parts = cfg.legal_name.split()
+    if len(parts) >= 2:
+        secrets |= {parts[0] + parts[-1], parts[-1] if len(parts[-1]) >= 7 else ""}
+    secrets |= {m.split("@")[0].split("+")[0] for m in emails}
+    secrets |= {cfg.dob.isoformat(), cfg.dob.strftime("%m/%d/%Y")}
     secrets = {s for s in secrets if s and len(s) >= 6}
     example_values = {"Jane Q Example", "123 Example St"}  # placeholders ship in examples/
     leaks = [

@@ -20,6 +20,8 @@ from email.utils import getaddresses, parsedate_to_datetime
 
 from sqlmodel import Session, select
 
+from optout import yaml_io
+
 from ..actions import apply_outcome
 from ..brokers.schema import BrokerDef
 from ..db import InboxMessage, Submission, update_status
@@ -251,7 +253,7 @@ def load_known_replies() -> list[KnownReply]:
     out: list[KnownReply] = []
     for src in [*sources, local]:
         try:
-            data = yaml.safe_load(src.read_text()) or []
+            data = yaml_io.safe_load(src.read_text()) or []
         except (OSError, yaml.YAMLError):
             continue
         for item in data if isinstance(data, list) else []:
@@ -613,9 +615,14 @@ def process(
         ):
             from ..forms import note_followup
 
-            note_followup(session, sub, mail.from_addr, kind, mail.message_id)
+            followed = note_followup(session, sub, mail.from_addr, kind, mail.message_id)
+        else:
+            followed = False
         if auto and sub is not None:
-            apply_kind(session, sub, kind, rule)
+            # The email a submitted form promised ("click to confirm") always comes after the
+            # form, even when the form was only recorded later: never treat it as out of date.
+            when = None if (followed and kind == "need-info") else row.received_at
+            apply_kind(session, sub, kind, rule, when)
             report.applied.append((sub.broker_slug, kind))
         else:
             report.review += 1
@@ -647,7 +654,9 @@ def learn_from_replies(session: Session) -> int:
     return learned
 
 
-def apply_kind(session: Session, sub: Submission, kind: str, note: str) -> None:
+def apply_kind(
+    session: Session, sub: Submission, kind: str, note: str, received: datetime | None = None
+) -> None:
     if kind == "bounced":
         if sub.status not in ("confirmed", "removed"):
             update_status(
@@ -659,7 +668,7 @@ def apply_kind(session: Session, sub: Submission, kind: str, note: str) -> None:
 
         set_enabled(sub.broker_slug, False)
         return
-    apply_outcome(session, sub, KIND_TO_OUTCOME[kind], note, "inbox")
+    apply_outcome(session, sub, KIND_TO_OUTCOME[kind], note, "inbox", received)
 
 
 def disable_bounced(session: Session) -> int:
@@ -712,20 +721,49 @@ def last_error() -> str | None:
 # --- the whole round trip ----------------------------------------------------
 
 
-def gmail_ready(config) -> str | None:
-    """None if replies can be read for this config, else why not."""
+def uses_gmail(config) -> bool:
+    """True for Gmail and Google Workspace accounts (their SMTP host is smtp.gmail.com)."""
     smtp = config.email.smtp
-    if smtp is None or not smtp.host.endswith("gmail.com"):
-        return "reading replies needs a Gmail account"
+    return smtp is not None and smtp.host.endswith("gmail.com")
+
+
+def gmail_ready(config) -> str | None:
+    """None if replies can be read for this config (Gmail or any IMAP provider), else why
+    not. The name is historical: it used to mean Gmail only."""
+    if config.email.smtp is None:
+        return "reading replies needs an email account set up (run: optout init)"
     from .methods.email import read_smtp_password
 
-    if not read_smtp_password(smtp):
+    if not read_smtp_password(config.email.smtp):
         return "no app password saved (run: optout smtp-password)"
     return None
 
 
-def run_sync(config, *, dry_run: bool = False) -> SyncReport:
-    """Label new broker replies, read them, and apply what's clear. Raises ValueError."""
+def open_mailbox(config, *, label: str | None = None, mark_read: bool = False):
+    """The reader for this account: Gmail (labels, precise search) or plain IMAP for any other
+    provider. Use as a context manager."""
+    from .methods.email import read_smtp_password
+
+    smtp = config.email.smtp
+    if uses_gmail(config):
+        from ..gmail_label import GmailLabeler
+
+        return GmailLabeler(
+            smtp.username,
+            read_smtp_password(smtp),
+            label or config.email.gmail_label or "OPTOUT",
+            reply_label=config.email.reply_label,
+            mark_read=mark_read,
+        )
+    from ..imap_reader import ImapReader, imap_host_for
+
+    return ImapReader(
+        smtp.username,
+        read_smtp_password(smtp),
+        imap_host_for(smtp.host, config.email.imap_host),
+    )
+
+
 def _mark_recognised_read(session: Session, config, mails: list[ParsedMail]) -> int:
     """Mark the replies just read in that were matched to one of our requests as read in
     Gmail. Mail we couldn't place (left for you to review) stays unread. Best effort: a
@@ -757,15 +795,14 @@ def _mark_recognised_read(session: Session, config, mails: list[ParsedMail]) -> 
         return 0
 
 
+def run_sync(config, *, dry_run: bool = False) -> SyncReport:
+    """Label new broker replies, read them, and apply what's clear. Raises ValueError."""
     from ..brokers.registry import all_brokers, load_registry
     from ..db import get_session
-    from ..gmail_label import GmailLabeler
-    from .methods.email import read_smtp_password
 
     now = datetime.now(UTC)
     if problem := gmail_ready(config):
         raise ValueError(problem)
-    smtp = config.email.smtp
     load_registry()
     brokers = {b.slug: b for b in all_brokers()}
     try:
@@ -784,12 +821,8 @@ def _mark_recognised_read(session: Session, config, mails: list[ParsedMail]) -> 
             expected = expected_addresses(session, brokers, subs)
             seen = set(session.exec(select(InboxMessage.message_id)).all())
             label = config.email.gmail_label or "OPTOUT"
-            with GmailLabeler(
-                smtp.username,
-                read_smtp_password(smtp),
-                label,
-                reply_label=config.email.reply_label,
-                mark_read=config.email.mark_replies_read,
+            with open_mailbox(
+                config, label=label, mark_read=config.email.mark_replies_read
             ) as gmail:
                 gmail.label_replies(expected, since=since)
                 raws = gmail.fetch_replies(seen, since=since)
@@ -838,10 +871,10 @@ def _mark_recognised_read(session: Session, config, mails: list[ParsedMail]) -> 
                 recheck(session, idx)
                 mark_rules_version()
             report = process(session, mails, idx, dry_run=dry_run)
+            if not dry_run and config.email.mark_replies_read and uses_gmail(config):
+                report.marked_read = _mark_recognised_read(session, config, mails)
             if not dry_run:
                 report.closed = auto_close_out_of_scope(session, config)
-            if not dry_run and config.email.mark_replies_read:
-                report.marked_read = _mark_recognised_read(session, config, mails)
                 disable_bounced(session)
                 from ..forms import link_followups
 
@@ -962,7 +995,7 @@ def recheck(session: Session, idx: MatchIndex, known: list[KnownReply] | None = 
         session.add(row)
         session.commit()
         if auto and sub is not None:
-            apply_kind(session, sub, kind, rule)
+            apply_kind(session, sub, kind, rule, row.received_at)
         changed += 1
     session.commit()
     return changed

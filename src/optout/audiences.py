@@ -14,7 +14,9 @@ from importlib.resources import files
 
 import yaml
 
-from .config import config_dir
+from optout import yaml_io
+
+from .config import config_dir, write_private
 
 # The groups, as shown to the user: a short title, then one plain sentence starting "You".
 TITLES: dict[str, str] = {
@@ -26,6 +28,8 @@ TITLES: dict[str, str] = {
     "students": "Student",
     "financial-account-holders": "Bank or brokerage customer",
     "job-applicants": "Applied through hiring software",
+    "government-staff": "Government official or staff",
+    "influencers": "Influencer or creator",
 }
 GROUPS: dict[str, str] = {
     "business-professionals": "You have a work email or job title that appears in business "
@@ -39,6 +43,8 @@ GROUPS: dict[str, str] = {
     "stay with the institution, so ask it directly",
     "job-applicants": "You've applied for a job through an applicant-tracking system like "
     "Greenhouse. Those records belong to the employer, so ask it directly",
+    "government-staff": "You're an elected official or work for a government office",
+    "influencers": "You're a social media influencer or content creator with a public audience",
 }
 # How the picker is laid out.
 SECTIONS: list[tuple[str, list[str]]] = [
@@ -50,9 +56,10 @@ SECTIONS: list[tuple[str, list[str]]] = [
             "financial-advisors",
             "healthcare-providers",
             "real-estate-professionals",
+            "government-staff",
         ],
     ),
-    ("Other", ["students", "financial-account-holders", "job-applicants"]),
+    ("Other", ["students", "influencers", "financial-account-holders", "job-applicants"]),
 ]
 # Belonging to a group usually means belonging to a broader one too: an educator or a
 # financial advisor is also listed in business contact databases. Ticking the narrow group
@@ -62,6 +69,7 @@ IMPLIES: dict[str, tuple[str, ...]] = {
     "financial-advisors": ("business-professionals",),
     "healthcare-providers": ("business-professionals",),
     "real-estate-professionals": ("business-professionals",),
+    "government-staff": ("business-professionals",),
 }
 
 
@@ -120,7 +128,7 @@ def load_coverage() -> dict[str, Coverage]:
     merged: dict[str, Coverage] = {}
     for src in (files("optout").joinpath("data/broker_audiences.yml"), _local_path()):
         try:
-            merged.update(_parse(yaml.safe_load(src.read_text()) or []))
+            merged.update(_parse(yaml_io.safe_load(src.read_text()) or []))
         except (OSError, yaml.YAMLError):
             continue
     return merged
@@ -128,7 +136,7 @@ def load_coverage() -> dict[str, Coverage]:
 
 def local_entries() -> list[dict[str, object]]:
     try:
-        data = yaml.safe_load(_local_path().read_text()) or []
+        data = yaml_io.safe_load(_local_path().read_text()) or []
     except (OSError, yaml.YAMLError):
         return []
     return [
@@ -149,8 +157,7 @@ def save_local(broker: str, audiences: list[str], note: str) -> Coverage:
     entries = [e for e in local_entries() if e["broker"] != broker]
     entries.append({"broker": broker, "audiences": groups, "note": note.strip()[:240]})
     path = _local_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(yaml.safe_dump(entries, sort_keys=False, allow_unicode=True))
+    write_private(path, yaml.safe_dump(entries, sort_keys=False, allow_unicode=True))
     return Coverage(broker, tuple(groups), note.strip()[:240])
 
 
@@ -197,7 +204,7 @@ def parse_coverage_answer(text: str, broker: str) -> tuple[list[str], str]:
     """Strictly read Claude's YAML for the one broker asked about. Raises ValueError."""
     m = re.search(r"```(?:ya?ml)?\s*(.*?)```", text, re.DOTALL)
     try:
-        data = yaml.safe_load(m.group(1) if m else text)
+        data = yaml_io.safe_load(m.group(1) if m else text)
     except yaml.YAMLError:
         raise ValueError("couldn't read the YAML; paste Claude's code block exactly") from None
     items = data if isinstance(data, list) else [data]

@@ -335,3 +335,18 @@ def test_a_bare_link_under_a_confirm_sentence_is_found():
     )
     # an ordinary bare link with no confirm wording before it is still not offered
     assert propose_flow("a@b.example", "Details:\nhttps://b.example/page\n") is None
+
+
+def test_an_html_only_email_can_be_taught():
+    # Grin: the text is raw HTML, the link sits in "( url )" and its query has "&amp;".
+    text = (
+        '<p style="text-align: center;">Jane,</p> <h1><strong>Please verify your identity'
+        '</strong></h1> <p style="text-align: center;"> By clicking on the link below you '
+        "confirm the verification of your identity and Grin will start processing your "
+        "request.</p>\n\nConfirm my Privacy Request ( https://grin.privacy.saymine.io/Grin/"
+        "verifyUser?jwToken=abc&amp;locale=en-US )"
+    )
+    phrase = cf.teach_phrase(text)
+    assert phrase.startswith("by clicking on the link below you confirm")
+    sender, host, url = propose_flow("privacy@grin.co", text)
+    assert url == "https://grin.privacy.saymine.io/Grin/verifyUser?jwToken=abc&locale=en-US"

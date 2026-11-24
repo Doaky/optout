@@ -16,7 +16,9 @@ from importlib.resources import files
 
 import yaml
 
-from ..config import config_dir
+from optout import yaml_io
+
+from ..config import config_dir, write_private
 from .schema import BrokerDef
 
 _EMAIL_OK = re.compile(r"^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$")
@@ -44,14 +46,14 @@ def _local_path():
 def shared_contacts() -> dict[str, dict[str, str]]:
     try:
         src = files("optout").joinpath("data/contact_overrides.yml")
-        return _parse(yaml.safe_load(src.read_text()) or [])
+        return _parse(yaml_io.safe_load(src.read_text()) or [])
     except (OSError, yaml.YAMLError):
         return {}
 
 
 def local_contacts() -> dict[str, dict[str, str]]:
     try:
-        return _parse(yaml.safe_load(_local_path().read_text()) or [])
+        return _parse(yaml_io.safe_load(_local_path().read_text()) or [])
     except (OSError, yaml.YAMLError):
         return {}
 
@@ -70,8 +72,7 @@ def save_local(slug: str, email: str, note: str = "") -> None:
         {"broker": slug, "email": email, "note": note.strip()[:240]}
     ]
     path = _local_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(yaml.safe_dump(entries, sort_keys=False, allow_unicode=True))
+    write_private(path, yaml.safe_dump(entries, sort_keys=False, allow_unicode=True))
 
 
 def apply_contact_overrides(brokers: dict[str, BrokerDef]) -> dict[str, BrokerDef]:

@@ -18,6 +18,8 @@ from pathlib import Path
 
 import yaml
 
+from optout import yaml_io
+
 from ..config import config_dir
 from ..db import db_path
 from .loader import load_all_brokers, load_broker
@@ -56,7 +58,7 @@ def overrides_path() -> Path:
 
 def load_overrides() -> dict[str, list[str]]:
     path = overrides_path()
-    data = yaml.safe_load(path.read_text()) if path.exists() else None
+    data = yaml_io.safe_load(path.read_text()) if path.exists() else None
     data = data if isinstance(data, dict) else {}
     return {k: sorted({str(x) for x in data.get(k) or []}) for k in ("enabled", "disabled")}
 
@@ -111,7 +113,7 @@ def _keep_automation(bundled: BrokerDef, imported: BrokerDef) -> BrokerDef:
 
 def _shared_list(name: str) -> list:
     try:
-        data = yaml.safe_load(files("optout").joinpath(f"data/{name}").read_text())
+        data = yaml_io.safe_load(files("optout").joinpath(f"data/{name}").read_text())
     except (OSError, yaml.YAMLError):
         return []
     return data if isinstance(data, list) else []
@@ -289,6 +291,39 @@ def load_registry(brokers_dir: Path | None = None) -> None:
             merged[slug] = broker.model_copy(update={"enabled": True})
     _registry = merged
     _loaded = True
+
+
+_signature: tuple | None = None
+
+
+def _sources_signature() -> tuple:
+    """Name, size and modification time of every file the registry is built from, so a page
+    refresh only re-reads ~600 YAML files (about a second) when one of them changed."""
+    dirs = [_brokers_dir(), imported_dir(), user_dir(), config_dir()]
+    try:
+        dirs.append(Path(str(files("optout").joinpath("data"))))
+    except (OSError, TypeError):
+        pass
+    sig = []
+    for d in dirs:
+        try:
+            for f in sorted(d.iterdir()):
+                if f.suffix in (".yml", ".yaml"):
+                    st = f.stat()
+                    sig.append((str(f), st.st_mtime_ns, st.st_size))
+        except OSError:
+            sig.append((str(d), 0, 0))
+    return (os.environ.get("OPTOUT_BROKERS_DIR"), tuple(sig))
+
+
+def reload_if_changed() -> None:
+    """load_registry(), but only when the files behind it changed since the last load."""
+    global _signature
+    sig = _sources_signature()
+    if _loaded and sig == _signature:
+        return
+    load_registry()
+    _signature = sig
 
 
 def _ensure_loaded() -> None:

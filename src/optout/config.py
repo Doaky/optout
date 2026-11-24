@@ -10,6 +10,8 @@ from typing import Literal
 import yaml
 from pydantic import BaseModel, Field, model_validator
 
+from optout import yaml_io
+
 # ---------------------------------------------------------------------------
 # Address
 # ---------------------------------------------------------------------------
@@ -96,6 +98,9 @@ class EmailConfig(BaseModel):
     # "minimal": name + address + contact email only (for bulk-imported brokers).
     # "full" adds date of birth, phones, and previous addresses.
     identifiers: Literal["minimal", "full"] = "minimal"
+    # IMAP server for reading replies when you aren't on Gmail. Blank = worked out from your
+    # SMTP server (smtp.example.com -> imap.example.com; iCloud, Outlook and Yahoo are known).
+    imap_host: str | None = None
     # Gmail only: label to add to sent opt-out emails (created if missing), e.g. "OPTOUT".
     gmail_label: str | None = None
     # Gmail only: label for broker replies (defaults to gmail_label). Anything you file
@@ -116,6 +121,8 @@ class EmailConfig(BaseModel):
     # Read broker replies in shortly after a batch finishes sending (auto-replies and
     # "use our form" answers arrive within minutes), so they're sorted without a click.
     fetch_after_batch: bool = True
+    # While a web form has promised a confirmation email, look for it this often (seconds).
+    form_check_seconds: int = Field(60, ge=20, le=900)
 
     @model_validator(mode="after")
     def _label_is_plain(self) -> EmailConfig:
@@ -243,7 +250,7 @@ def load_config() -> UserConfig:
     path = config_path()
     if not path.exists():
         raise FileNotFoundError(f"Config file not found at {path}. Run `optout init` first.")
-    data = yaml.safe_load(path.read_text())
+    data = yaml_io.safe_load(path.read_text())
     return UserConfig.model_validate(data)
 
 
@@ -256,3 +263,18 @@ def save_config(cfg: UserConfig) -> None:
     with os.fdopen(fd, "w") as fh:
         fh.write(text)
     path.chmod(0o600)  # also tighten a pre-existing file
+
+
+def write_private(path: Path, data: str | bytes) -> None:
+    """Write a file only the owner can read, all at once.
+
+    Goes to a temp file in the same folder, then replaces the target, so a crash can't leave a
+    half-written file. Text is UTF-8 whatever the locale.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    raw = data.encode("utf-8") if isinstance(data, str) else data
+    tmp = path.with_name(f".{path.name}.tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(raw)
+    os.replace(tmp, path)

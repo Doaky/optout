@@ -14,7 +14,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from importlib.resources import files
 
-import yaml
+from optout import yaml_io
 
 _QUOTES = {"\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"', "\u00a0": " "}
 
@@ -49,7 +49,7 @@ class Result:
 
 
 def entries() -> list[dict]:
-    data = yaml.safe_load(files("optout").joinpath("data/statutes.yml").read_text())
+    data = yaml_io.safe_load(files("optout").joinpath("data/statutes.yml").read_text())
     return [e for e in data or [] if isinstance(e, dict)]
 
 

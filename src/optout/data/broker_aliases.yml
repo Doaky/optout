@@ -10,3 +10,6 @@
 - broker: dr-decision-resources
   names: [Clarivate Plc]
   note: Part of Clarivate; its OneTrust emails are signed Clarivate Plc.
+- broker: autodata-solutions
+  names: [JD Power]
+  note: Autodata's privacy portal is JD Power's; its OneTrust emails are sent "on behalf of JD Power".

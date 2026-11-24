@@ -14,42 +14,192 @@
 - {broker: openx-technologies, traits: [requires_device_ids]}
 - {broker: outlogic, traits: [requires_device_ids]}
 - {broker: kargo-global, traits: [requires_device_ids]}
+- {broker: quadrant-global-pte, traits: [requires_device_ids]}
+- {broker: placeiq, traits: [requires_device_ids]}
 
 # Face search: removal means uploading a photo of your face.
 - {broker: clearview-ai, traits: [requires_id_upload]}
 
 # Their own reply: requests by email aren't accepted, use the web form.
+- {broker: accurate-append, traits: [form_only]}
 - {broker: adeptid, traits: [form_only]}
+- {broker: adstra, traits: [form_only]}
+- {broker: affinity-solutions, traits: [form_only]}
 - {broker: asset-international, traits: [form_only]}
 - {broker: austin-consolidated-holdings, traits: [form_only]}
 - {broker: automotive-mastermind, traits: [form_only]}
+- {broker: babel-street, traits: [form_only]}
 - {broker: bdo-gci, traits: [form_only]}
+- {broker: belardi-ostroy-alc, traits: [form_only]}
 - {broker: cadent, traits: [form_only]}
+- {broker: captiv8, traits: [form_only]}
+- {broker: carry-technologies, traits: [form_only]}
 - {broker: choreograph, traits: [form_only]}
 - {broker: circana, traits: [form_only]}
 - {broker: civis-analytics, traits: [form_only]}
 - {broker: claritas, traits: [form_only]}
+- {broker: commercial-real-estate-exchange, traits: [form_only]}
 - {broker: complete-medical-lists, traits: [form_only]}
+- {broker: connected-investors, traits: [form_only]}
 - {broker: converge-marketing, traits: [form_only]}
 - {broker: corelogic, traits: [form_only]}
 - {broker: costar-realty-information, traits: [form_only]}
+- {broker: cyberbackgroundchecks, traits: [form_only]}
 - {broker: data-decisions-group, traits: [form_only]}
-- {broker: datasys-group, traits: [form_only]}
+- {broker: datasys-group, traits: [form_only, requires_email_verification]}
 - {broker: disqus, traits: [form_only]}
 - {broker: dr-decision-resources, traits: [form_only]}
+- {broker: driveniq, traits: [form_only]}
 - {broker: eab-global, traits: [form_only]}
 - {broker: el-toro-com, traits: [form_only]}
 - {broker: epsilon-data-management, traits: [form_only]}
 - {broker: exact-match-marketing, traits: [form_only]}
 - {broker: family-tree-now, traits: [form_only]}
+- {broker: fastpeoplesearch, traits: [form_only]}
 - {broker: forager-ai, traits: [form_only]}
 - {broker: free-data-services, traits: [form_only]}
-- {broker: freshaddress, traits: [form_only]}
-- {broker: inmar-brand-solutions, traits: [form_only]}
+- {broker: freshaddress, traits: [form_only, requires_email_verification]}
+- {broker: grin-technologies, traits: [form_only]}
+- {broker: inmar-brand-solutions, traits: [form_only, requires_email_verification]}
 - {broker: institutional-shareholder-services, traits: [form_only]}
 - {broker: jmr-media-consulting, traits: [form_only]}
 - {broker: kargo-global, traits: [form_only]}
+- {broker: killi, traits: [form_only]}
+- {broker: koddi, traits: [form_only]}
 - {broker: komodo-health, traits: [form_only]}
+- {broker: lead-me-media, traits: [form_only]}
+- {broker: leadcrunch, traits: [form_only]}
 - {broker: leidos-digital-solutions, traits: [form_only]}
 - {broker: lightcast, traits: [form_only]}
 - {broker: lotame, traits: [form_only]}
+- {broker: madison-logic, traits: [form_only, requires_email_verification]}
+- {broker: minerva-bi, traits: [form_only]}
+- {broker: nexxa-group, traits: [form_only]}
+- {broker: owmn, traits: [form_only]}
+- {broker: pension-benefit-information, traits: [form_only]}
+- {broker: people-data-labs, traits: [form_only]}
+- {broker: peoplefinders, traits: [form_only, requires_email_verification]}
+- {broker: placeiq, traits: [form_only]}
+- {broker: pmg-worldwide, traits: [form_only]}
+- {broker: pop-acta-media, traits: [form_only]}
+- {broker: predictive-pop, traits: [form_only]}
+- {broker: property-reach-l-p, traits: [form_only]}
+- {broker: propertyradar, traits: [form_only]}
+- {broker: qualfon, traits: [form_only]}
+- {broker: smartbackgroundchecks, traits: [form_only]}
+- {broker: spy-labs-adco, traits: [form_only]}
+- {broker: spycloud, traits: [form_only]}
+- {broker: usphonebook, traits: [form_only]}
+- {broker: accudata-integrated-marketing, traits: [form_only]}
+- {broker: collateral-analytics, traits: [form_only, requires_email_verification]}
+- {broker: datamentors, traits: [form_only]}
+- {broker: health-union, traits: [form_only, requires_email_verification]}
+- {broker: ileads-com, traits: [form_only]}
+- {broker: iwave-information-systems, traits: [form_only]}
+- {broker: lookify-io, traits: [form_only]}
+- {broker: mississippi-tornado-alley, traits: [form_only]}
+- {broker: nexxen, traits: [form_only]}
+- {broker: s-p-global, traits: [form_only]}
+- {broker: semasio-gmbh, traits: [form_only]}
+- {broker: semcasting, traits: [form_only, requires_account]}
+- {broker: steppingblocks, traits: [form_only]}
+- {broker: summit-resources, traits: [form_only, requires_email_verification]}
+- {broker: t-mobile-usa, traits: [form_only, requires_account]}
+- {broker: tapad, traits: [form_only, requires_email_verification]}
+- {broker: teads, traits: [form_only, requires_device_ids]}
+- {broker: teads-holding, traits: [form_only, requires_device_ids]}
+- {broker: the-data-group, traits: [form_only]}
+- {broker: the-segerdahl, traits: [form_only]}
+- {broker: unearth-campaigns, traits: [form_only]}
+- {broker: videoamp, traits: [form_only]}
+- {broker: vizio-services, traits: [form_only, requires_email_verification]}
+- {broker: dealmachine-operations, traits: [form_only]}
+- {broker: r-l-polk, traits: [form_only]}
+
+# A confirm link in their email had to be clicked before they'd act.
+- {broker: activimpact, traits: [requires_email_verification]}
+- {broker: adstra, traits: [requires_email_verification]}
+- {broker: affinity-solutions, traits: [requires_email_verification]}
+- {broker: business-com, traits: [requires_email_verification]}
+- {broker: carry-technologies, traits: [requires_email_verification]}
+- {broker: commercial-real-estate-exchange, traits: [requires_email_verification]}
+- {broker: connatix-native-exchange, traits: [requires_email_verification]}
+- {broker: converge-marketing, traits: [requires_email_verification]}
+- {broker: disqus, traits: [requires_email_verification]}
+- {broker: dr-decision-resources, traits: [requires_email_verification]}
+- {broker: epsilon-data-management, traits: [requires_email_verification]}
+- {broker: exact-match-marketing, traits: [requires_email_verification]}
+- {broker: fraiser, traits: [requires_email_verification]}
+- {broker: here-north-america, traits: [requires_email_verification]}
+- {broker: informa-group, traits: [requires_email_verification]}
+- {broker: innovation-brands, traits: [requires_email_verification]}
+- {broker: koddi, traits: [requires_email_verification]}
+- {broker: minerva-bi, traits: [requires_email_verification]}
+- {broker: source-path-digital, traits: [requires_email_verification]}
+
+- {broker: randall-reilly, traits: [requires_email_verification]}
+# Their form wanted a code sent by text message.
+- {broker: adstra, traits: [requires_phone_verification]}
+- {broker: affinity-solutions, traits: [requires_phone_verification]}
+- {broker: belardi-ostroy-alc, traits: [requires_phone_verification]}
+- {broker: cadent, traits: [requires_email_verification]}
+- {broker: claritas, traits: [requires_id_upload]}
+- {broker: dealmachine-operations, traits: [requires_email_verification]}
+- {broker: hireteammate, traits: [requires_email_verification, form_only]}
+- {broker: inmarket-media, traits: [form_only, requires_email_verification]}
+- {broker: j2-martech, traits: [requires_email_verification]}
+- {broker: magnite, traits: [requires_device_ids]}
+- {broker: merkle, traits: [form_only, requires_email_verification]}
+- {broker: nexxa-group, traits: [requires_email_verification]}
+- {broker: populi, traits: [form_only, requires_email_verification]}
+- {broker: propertyradar, traits: [requires_email_verification]}
+- {broker: purecars-technologies, traits: [form_only]}
+- {broker: r-l-polk, traits: [requires_email_verification]}
+- {broker: recruitbot, traits: [requires_email_verification]}
+- {broker: spycloud, traits: [requires_email_verification]}
+- {broker: summit-resources, traits: [requires_phone_verification]}
+- {broker: the-nielsen, traits: [form_only, requires_email_verification]}
+- {broker: viant-us, traits: [form_only, requires_email_verification]}
+- {broker: wiland, traits: [form_only, requires_email_verification]}
+- {broker: yieldmo, traits: [requires_device_ids]}
+
+# Learned from web-form runs
+- {broker: applovin, traits: [form_only, requires_email_verification]}
+- {broker: automotive-mastermind, traits: [requires_email_verification]}
+- {broker: babel-street, traits: [requires_email_verification, requires_phone_verification]}
+- {broker: belardi-ostroy-alc, traits: [requires_email_verification]}
+- {broker: complete-mailing-lists, traits: [form_only]}
+- {broker: definitive-healthcare, traits: [requires_email_verification]}
+- {broker: hubspot, traits: [form_only, requires_email_verification]}
+- {broker: intent-iq, traits: [requires_device_ids]}
+- {broker: leadcrunch, traits: [requires_email_verification]}
+- {broker: nexxen, traits: [requires_email_verification]}
+- {broker: path2response, traits: [form_only]}
+- {broker: peoplesearchnow, traits: [form_only, requires_email_verification]}
+- {broker: pmg-worldwide, traits: [requires_email_verification]}
+- {broker: private-records, traits: [form_only, requires_email_verification]}
+- {broker: property-reach-l-p, traits: [requires_email_verification]}
+- {broker: propertyrecs, traits: [requires_listing_url]}
+- {broker: seamless-contacts, traits: [form_only, requires_email_verification]}
+- {broker: searchpeoplefree, traits: [form_only, requires_email_verification]}
+- {broker: spy-labs-adco, traits: [requires_email_verification]}
+- {broker: thatsthem, traits: [form_only]}
+- {broker: triplelift, traits: [requires_device_ids]}
+- {broker: unitedstatesphonebook, traits: [requires_listing_url]}
+- {broker: usa-people-search, traits: [form_only, requires_email_verification]}
+- {broker: zabasearch, traits: [requires_account]}
+- {broker: zipstorm, traits: [requires_listing_url]}  # SeekOut: matches records by your LinkedIn URL; email requests need it (reply of Nov 2)
+- {broker: adswizz, traits: [requires_email_verification]}
+- {broker: azira, traits: [requires_device_ids]}
+- {broker: cengage-learning, traits: [form_only, requires_email_verification]}
+- {broker: dealerdirect, traits: [form_only]}
+- {broker: hybrid-theory, traits: [requires_device_ids]}
+- {broker: leadpost, traits: [form_only, requires_email_verification]}
+- {broker: neighborwho, traits: [requires_email_verification, requires_listing_url]}
+- {broker: oracle-america, traits: [requires_account]}
+- {broker: possiblenow, traits: [form_only]}
+- {broker: revcontent, traits: [requires_device_ids]}
+- {broker: service-1st-information-solutions, traits: [requires_email_verification]}
+- {broker: ups-capital, traits: [requires_email_verification]}
+- {broker: vistar-media, traits: [requires_device_ids]}
+- {broker: winr-data-pty, traits: [requires_email_verification]}

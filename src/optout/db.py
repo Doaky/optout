@@ -350,7 +350,61 @@ def list_submissions(
     return list(session.exec(stmt))
 
 
+@contextmanager
+def read_cache(session: Session) -> Generator[None, None, None]:
+    """For read-only passes over every broker (the dashboard): load events, verifications,
+    health and replies in four queries instead of one or two per broker. list_events,
+    latest_verification, is_drifted and replies_for use it while it is open."""
+    events: dict[uuid.UUID, list[SubmissionEvent]] = {}
+    for ev in session.exec(select(SubmissionEvent)):
+        events.setdefault(ev.submission_id, []).append(ev)
+    verifs: dict[uuid.UUID, VerificationCheck] = {}
+    for v in session.exec(select(VerificationCheck)):
+        cur = verifs.get(v.submission_id)
+        if cur is None or v.checked_at >= cur.checked_at:
+            verifs[v.submission_id] = v
+    health: dict[str, list[BrokerHealth]] = {}
+    for h in session.exec(select(BrokerHealth)):
+        health.setdefault(h.broker_slug, []).append(h)
+    for rows in health.values():
+        rows.sort(key=lambda r: r.observed_at, reverse=True)
+    replies: dict[uuid.UUID, list[InboxMessage]] = {}
+    for m in session.exec(select(InboxMessage).where(InboxMessage.submission_id != None)):  # noqa: E711
+        replies.setdefault(m.submission_id, []).append(m)  # type: ignore[arg-type]
+    for rows in replies.values():  # newest first; a missing date sorts last
+        rows.sort(
+            key=lambda r: (r.received_at is not None, r.received_at or datetime.min), reverse=True
+        )
+    session.info["read_cache"] = {
+        "events": events,
+        "verifs": verifs,
+        "health": health,
+        "replies": replies,
+    }
+    try:
+        yield
+    finally:
+        session.info.pop("read_cache", None)
+
+
+def replies_for(session: Session, submission_id: uuid.UUID) -> list[InboxMessage]:
+    """Every saved email for a request, newest first."""
+    cache = session.info.get("read_cache")
+    if cache is not None:
+        return list(cache["replies"].get(submission_id, []))
+    return list(
+        session.exec(
+            select(InboxMessage)
+            .where(InboxMessage.submission_id == submission_id)
+            .order_by(InboxMessage.received_at.desc())  # type: ignore[union-attr]
+        )
+    )
+
+
 def list_events(session: Session, submission_id: uuid.UUID) -> list[SubmissionEvent]:
+    cache = session.info.get("read_cache")
+    if cache is not None:
+        return list(cache["events"].get(submission_id, []))
     stmt = select(SubmissionEvent).where(SubmissionEvent.submission_id == submission_id)
     return list(session.exec(stmt))
 
@@ -439,6 +493,9 @@ def mark_removed(session: Session, submission: Submission, check: VerificationCh
 
 
 def latest_verification(session: Session, submission_id: uuid.UUID) -> VerificationCheck | None:
+    cache = session.info.get("read_cache")
+    if cache is not None:
+        return cache["verifs"].get(submission_id)
     stmt = (
         select(VerificationCheck)
         .where(VerificationCheck.submission_id == submission_id)
@@ -459,6 +516,10 @@ DRIFT_THRESHOLD = 3
 
 def is_drifted(session: Session, broker_slug: str, threshold: int = DRIFT_THRESHOLD) -> bool:
     """True when the last *threshold* observations for a broker were all failures."""
+    cache = session.info.get("read_cache")
+    if cache is not None:
+        recent = cache["health"].get(broker_slug, [])[:threshold]
+        return len(recent) == threshold and not any(r.ok for r in recent)
     stmt = (
         select(BrokerHealth)
         .where(BrokerHealth.broker_slug == broker_slug)

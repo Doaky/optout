@@ -13,6 +13,7 @@ and reads whether the page says it worked. Anything it can't tell is left for yo
 
 from __future__ import annotations
 
+import html
 import ipaddress
 import re
 import urllib.error
@@ -25,6 +26,8 @@ from urllib.parse import urlsplit
 
 import yaml
 from sqlmodel import Session, select
+
+from optout import yaml_io
 
 from ..config import config_dir
 from ..db import InboxMessage, Submission, list_events, record_event, update_status
@@ -47,10 +50,10 @@ class Flow:
     link_hosts: tuple[str, ...]  # the link must be on one of these (or a subdomain)
     anchor: re.Pattern[str]  # the link's label, e.g. "Confirm email"
     note: str = ""
-
     # Some portals open a page with a "Verify Email" button instead of confirming on arrival.
     # This names the button to press there (only ever on the flow's own hosts).
     press: re.Pattern[str] | None = None
+
 
 # --- the mapping --------------------------------------------------------------
 
@@ -71,13 +74,13 @@ def _parse(data: object) -> list[Flow]:
             anchor = re.compile(str(item.get("anchor") or _DEFAULT_ANCHOR), re.IGNORECASE)
         except re.error:
             continue
-        if sender and len(phrase) >= 12 and hosts:
         press = None
         if item.get("press"):
             try:
                 press = re.compile(str(item["press"]), re.IGNORECASE)
             except re.error:
                 continue
+        if sender and len(phrase) >= 12 and hosts:
             out.append(Flow(sender, phrase, hosts, anchor, str(item.get("note", ""))[:240], press))
     return out
 
@@ -106,7 +109,7 @@ def _load_flows() -> list[Flow]:
     flows: list[Flow] = []
     for src in (files("optout").joinpath("data/confirm_flows.yml"), _local_path()):
         try:
-            flows += _parse(yaml.safe_load(src.read_text()) or [])
+            flows += _parse(yaml_io.safe_load(src.read_text()) or [])
         except (OSError, yaml.YAMLError):
             continue
     from ..forms import recipe_flows
@@ -116,7 +119,7 @@ def _load_flows() -> list[Flow]:
 
 def local_flow_entries() -> list[dict[str, object]]:
     try:
-        data = yaml.safe_load(_local_path().read_text()) or []
+        data = yaml_io.safe_load(_local_path().read_text()) or []
     except (OSError, yaml.YAMLError):
         return []
     return [d for d in data if isinstance(d, dict)] if isinstance(data, list) else []
@@ -134,7 +137,7 @@ def learned_flows() -> list[dict[str, object]]:
 
 def _shared_raw() -> object:
     try:
-        return yaml.safe_load(files("optout").joinpath("data/confirm_flows.yml").read_text())
+        return yaml_io.safe_load(files("optout").joinpath("data/confirm_flows.yml").read_text())
     except (OSError, yaml.YAMLError):
         return []
 
@@ -187,6 +190,7 @@ def teach_phrase(text: str) -> str:
     """A sentence from the email that says to confirm/verify/click, to recognise it by next
     time (the most specific one). Empty if there isn't one."""
     found = []
+    text = re.sub(r"<[^>]+>", "\n", text)  # an HTML-only email: tags aren't part of a sentence
     for sent in re.split(r"(?<=[.!?])\s+|\n", text):
         flat = re.sub(r"\s+", " ", sent).strip()
         if 12 <= len(flat) <= 200 and _CUE.search(flat) and "http" not in flat:
@@ -234,13 +238,13 @@ def _links(text: str) -> Iterator[tuple[str, str]]:
     """(label, url) for each link. A bare link's label is the text just before it on its
     line, or the line above when it stands alone."""
     for m in _LABELLED_LINK.finditer(text):
-        yield m.group(1), m.group(2).rstrip(".,;")
+        yield m.group(1), html.unescape(m.group(2).rstrip(".,;"))
     for m in _BARE_LINK.finditer(text):
         lines = text[: m.start()].split("\n")
         label = lines[-1].strip()
         if not label:
             label = next((ln.strip() for ln in reversed(lines[:-1]) if ln.strip()), "")
-        yield label[-120:], m.group(1).rstrip(".,;")
+        yield label[-120:], html.unescape(m.group(1).rstrip(".,;"))  # "&amp;" in HTML mail
 
 
 def find_link(text: str, flow: Flow) -> str | None:
@@ -317,8 +321,6 @@ def fetch_browser(
             host = urlsplit(page.url).hostname or ""
             if not redirect_ok(page.url, hosts):
                 return Fetched(error="left the allowed site", final_host=host)
-            return Fetched(resp.status if resp else 0, page.inner_text("body"), host)
-        finally:
             if press is not None:
                 button = page.get_by_role("button", name=press).first
                 if button.count():
@@ -328,6 +330,8 @@ def fetch_browser(
                     host = urlsplit(page.url).hostname or ""
                     if not redirect_ok(page.url, hosts):
                         return Fetched(error="left the allowed site", final_host=host)
+            return Fetched(resp.status if resp else 0, page.inner_text("body"), host)
+        finally:
             browser.close()
 
 
@@ -396,9 +400,9 @@ def confirm_reply(
     flows: list[Flow],
     fetch: Fetch = default_fetch,
     said: list[str] | None = None,
+    retry: bool = False,
 ) -> tuple[str, str]:
     """Click the confirm link in one stored reply, if a known flow allows it.
-    retry: bool = False,
     Returns (result, host): confirmed | unclear | failed | already | no-flow | no-link."""
     sub = session.get(Submission, row.submission_id) if row.submission_id else None
     if sub is None:

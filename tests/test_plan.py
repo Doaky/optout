@@ -64,3 +64,26 @@ def test_form_only_and_too_much_brokers_are_not_emailed(session):
     assert [b.slug for b in sel.eligible] == ["p"]
     reasons = dict(sel.skipped)
     assert "web form" in reasons["f"] and "asks too much" in reasons["g"]
+
+
+def test_an_email_broker_that_asked_for_more_leaves_email_only(session):
+    from optout.db import Submission
+    from optout.plan import summarise
+
+    a, b = _b(slug="a"), _b(slug="b")
+    session.add(Submission(broker_slug="a", status="awaiting_user_input", method_used="email"))
+    session.add(Submission(broker_slug="b", status="submitted", method_used="email"))
+    session.commit()
+    by = {t.key: t for t in summarise(session, [a, b])}
+    assert (by["email"].total, by["email"].needs_you, by["email"].under_way) == (1, 0, 1)
+    assert (by["follow-up"].total, by["follow-up"].needs_you) == (1, 1)
+
+
+def test_a_refused_email_broker_is_not_counted_as_not_started(session):
+    from optout.db import Submission
+    from optout.plan import summarise
+
+    session.add(Submission(broker_slug="r", status="rejected", method_used="email"))
+    session.commit()
+    t = {x.key: x for x in summarise(session, [_b(slug="r")])}["email"]
+    assert (t.refused, t.todo, t.needs_you) == (1, [], 0)
