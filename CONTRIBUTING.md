@@ -289,8 +289,35 @@ To run the app against throwaway data instead of your own, point it at empty fol
 uv run ruff check src/ tests/            # lint
 uv run ruff format --check src/ tests/   # format
 uv run mypy src/optout/                  # types
-uv run pytest                            # tests
+uv run pytest --cov=optout               # tests, with coverage
 ```
+
+### How changes land
+
+`main` is protected: every change goes in through a pull request, and it merges only when
+all CI checks pass. Those checks are lint, format, mypy, the test suite on Python 3.12 and
+3.13, broker YAML validation, and a dependency audit.
+
+1. Branch from `main` (`git switch -c fix-something`), commit, push, open a PR.
+2. CI also checks test coverage: the whole suite must stay above the floor set in
+   `.github/workflows/ci.yml`, and at least 80% of the lines your PR adds or changes must be
+   run by a test (`uv run diff-cover coverage.xml` after a `--cov-report=xml` run shows which
+   ones aren't).
+3. Squash-merge once it's green.
+
+Dependabot opens grouped update PRs every Monday. Patch and minor updates merge on their own
+once CI passes; major versions wait for a maintainer.
+
+### Releases
+
+1. In a PR, bump `version` in `pyproject.toml` (for example `0.2.0` → `0.3.0`) and merge it.
+2. Tag the merge commit and push the tag:
+   ```bash
+   git switch main && git pull
+   git tag v0.3.0 && git push origin v0.3.0
+   ```
+3. `release.yml` checks the tag matches `pyproject.toml`, builds, publishes to PyPI, and
+   creates a GitHub Release with generated notes.
 
 ---
 

@@ -23,6 +23,14 @@ jobs:
         with:
           enable-cache: true
 
+      - name: Check the tag matches the version in pyproject.toml
+        run: |
+          want="v$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)"
+          if [ "$want" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match pyproject.toml ($want)" >&2
+            exit 1
+          fi
+
       - name: Build sdist and wheel
         run: uv build
 
@@ -54,7 +62,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         # Uses OIDC trusted publishing — no API token needed.
         # Configure trusted publishing at: https://pypi.org/manage/project/optout/settings/publishing/
-        # Set: owner=Blake104, repo=OptOut, workflow=release.yml
+        # Set: owner=Doaky, repo=optout, workflow=release.yml
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
