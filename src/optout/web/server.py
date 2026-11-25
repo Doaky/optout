@@ -71,6 +71,7 @@ FLASH = {
     "backup_ok": "Backup written.",
     "finished": "Batch finished.",
     "imported": "Broker list loaded.",
+    "inbox_started": "Checking for replies. Carry on: this page updates when it's done.",
     "inboxerr": "Couldn't read your replies. Check your app password and internet connection.",
     "reviewed": "Saved. That reply left the list and its request was updated.",
     "conf_ok": "Confirmed. They'll carry on with your request; it's back to awaiting a reply.",
@@ -99,6 +100,9 @@ class App:
         self.job_lock = threading.Lock()
         self.inbox_lock = threading.Lock()
         self._fetch_pending = False  # a reply check is already queued after a batch
+        # The "Check for replies" button's check, run in the background so the page stays
+        # usable: state is idle, running, done or error; applied/review count what it found.
+        self.inbox_job: dict = {"state": "idle"}
         self.report: tuple[str, bool, list[str]] | None = None  # (title, ok, lines), shown once
         self.last_error = ""  # shown once after a failed settings save (never from the URL)
         self.settings_draft: dict[str, str] | None = None  # the form as typed, after an error
@@ -174,6 +178,29 @@ class App:
             _log_error("reading replies after a batch")
         finally:
             self._fetch_pending = False
+
+    def start_inbox_check(self) -> str:
+        """Check for replies in the background. If a scheduled check is already reading the
+        mailbox, this one waits for it, then reads anything newer."""
+        with self.job_lock:
+            if self.inbox_job.get("state") == "running":
+                return "busy"
+            self.inbox_job = {"state": "running"}
+        threading.Thread(target=self._run_inbox_check, daemon=True).start()
+        return "started"
+
+    def _run_inbox_check(self) -> None:
+        from ..engine.inbox import run_sync
+
+        try:
+            with self.inbox_lock:
+                rep = run_sync(load_config())
+            self.inbox_job = {"state": "done", "applied": len(rep.applied), "review": rep.review}
+        except ValueError:
+            self.inbox_job = {"state": "error"}
+        except Exception:
+            _log_error("checking for replies")
+            self.inbox_job = {"state": "error"}
 
     def start_daily(self, count: int) -> str:
         """The day's batch, then any follow-ups that are due, as one background job."""
@@ -547,12 +574,16 @@ def _make_handler(app: App):
             now = datetime.now(UTC)
             if path == "/api/job":
                 job = dict(app.job)
+                inbox = dict(app.inbox_job)
                 return self._send_json(
                     {
                         "state": job.get("state", "idle"),
                         "sent": len(job.get("sent", [])),
                         "failed": len(job.get("failed", [])),
                         "total": job.get("total", 0),
+                        "inbox": inbox.get("state", "idle"),
+                        "applied": inbox.get("applied", 0),
+                        "review": inbox.get("review", 0),
                     }
                 )
 
@@ -568,6 +599,7 @@ def _make_handler(app: App):
                     csrf=app.csrf,
                     drafts=[p.name for p in draft_files],
                     job=dict(app.job),
+                    inbox_checking=app.inbox_job.get("state") == "running",
                     flash=flash,
                     query=query.get("q", [""])[0][:80],
                     configured=config is not None,
@@ -910,16 +942,10 @@ def _make_handler(app: App):
                     )
                     return self._redirect(f"/draft/{quote(out.name, safe='')}")
                 if path == "/act/inbox":
-                    from ..engine.inbox import run_sync
-
-                    try:
-                        with app.inbox_lock:
-                            rep_ = run_sync(load_config())
-                    except ValueError:
-                        return self._redirect("/?m=inboxerr#replies")
-                    return self._redirect(
-                        f"/?m=inbox&a={len(rep_.applied)}&r={rep_.review}#replies"
-                    )
+                    # Returns at once; the page shows the button busy and updates when the
+                    # check is done (or a refresh shows the result).
+                    app.start_inbox_check()
+                    return self._redirect("/?m=inbox_started")
                 if path == "/act/review":
                     import uuid as _uuid
 

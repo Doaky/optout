@@ -256,3 +256,15 @@ def test_marking_read_reuses_what_was_just_read_and_batches_the_rest():
     stores = [c for c in fake.calls if c[0] == "STORE"]
     assert len(stores) == 1 and stores[0][2:] == ("+FLAGS", "(\\Seen)")
     assert set(stores[0][1].split(",")) == {"7", "9", "8"} and n == 3
+
+
+def test_saved_replies_are_read_again_in_one_search_and_one_download():
+    fake = BodyIMAP()
+    with _labeler(fake) as g:
+        got = g.fetch_messages(["<m7@x>", "m9@x", '<bad" OR ALL>'])
+        assert g.fetch_message("<m8@x>") == b"RAW-8"
+    assert got == {"<m7@x>": b"RAW-7", "m9@x": b"RAW-9"}  # keyed as the caller spelled them
+    searches = [c for c in fake.calls if c[0] == "SEARCH"]
+    assert searches[0][2] == '"rfc822msgid:m7@x OR rfc822msgid:m9@x"'  # odd id never searched
+    bodies = [c for c in fake.calls if c[0] == "FETCH" and "BODY.PEEK[]" in c[2]]
+    assert bodies[0][1] == "7,9"  # only the ones asked for (8 also matched the fake search)
