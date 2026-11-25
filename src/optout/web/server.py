@@ -190,12 +190,14 @@ class App:
         return "started"
 
     def _run_inbox_check(self) -> None:
-        from ..engine.inbox import run_sync
+        from ..engine.inbox import NothingSent, run_sync
 
         try:
             with self.inbox_lock:
                 rep = run_sync(load_config())
             self.inbox_job = {"state": "done", "applied": len(rep.applied), "review": rep.review}
+        except NothingSent:  # nothing to look for yet: not a mailbox problem
+            self.inbox_job = {"state": "done", "applied": 0, "review": 0}
         except ValueError:
             self.inbox_job = {"state": "error"}
         except Exception:

@@ -1072,9 +1072,12 @@ def label(
     ),
 ) -> None:
     """Catch up: add your Gmail label to opt-out emails already sent, and to broker replies."""
-    from .brokers.registry import get_broker, load_registry
+    from datetime import UTC, timedelta
+
+    from .brokers.registry import all_brokers, load_registry
     from .config import load_config
     from .db import get_session, init_db, list_submissions
+    from .engine.inbox import expected_addresses, first_send_time
     from .engine.methods.email import read_smtp_password
     from .gmail_label import GmailLabeler
 
@@ -1092,22 +1095,20 @@ def label(
         raise typer.Exit(code=1)
     load_registry()
     init_db()
-    domains: set[str] = set()
+    # The same addresses and date range a reply check uses.
     with get_session() as session:
-        for sub in list_submissions(session):
-            try:
-                b = get_broker(sub.broker_slug)
-            except KeyError:
-                continue
-            domains.add(b.domain)
-            if b.opt_out_email:
-                domains.add(b.opt_out_email.rsplit("@", 1)[1])
+        subs = list_submissions(session)
+        expected = expected_addresses(session, {b.slug: b for b in all_brokers()}, subs)
+    first = first_send_time(subs)
     try:
         with GmailLabeler(
             smtp.username, read_smtp_password(smtp), name, reply_label=config.email.reply_label
         ) as gmail:
             sent = gmail.label_all_sent()
-            got = gmail.label_replies(domains) if replies else 0
+            got = 0
+            if replies and first is not None:
+                since = first.astimezone(UTC).date() - timedelta(days=1)
+                got = gmail.label_replies(expected, since=since)
     except Exception as exc:
         console.print(f"[red]Could not reach Gmail over IMAP: {type(exc).__name__}[/red]")
         raise typer.Exit(code=1)
