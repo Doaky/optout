@@ -1744,8 +1744,21 @@ def test_check_for_replies_runs_in_the_background_and_reports_when_done(ui, monk
     _, body = ui.req("GET", "/")
     assert "id='check-replies' class='hdr' title" in body  # usable again
 
+    from optout.engine.inbox import NothingSent
+
+    def nothing_yet(config, **k):
+        raise NothingSent("nothing has been sent yet")
+
+    monkeypatch.setattr("optout.engine.inbox.run_sync", nothing_yet)
+    ui.post("/act/inbox", {})
+    for _ in range(100):
+        if ui.app_.inbox_job["state"] != "running":
+            break
+        _time.sleep(0.05)
+    assert ui.app_.inbox_job == {"state": "done", "applied": 0, "review": 0}  # not an error
+
     def broken(config, **k):
-        raise ValueError("nothing sent yet")
+        raise ValueError("Couldn't read replies from Gmail (OSError)")
 
     monkeypatch.setattr("optout.engine.inbox.run_sync", broken)
     ui.post("/act/inbox", {})
@@ -1762,3 +1775,104 @@ def test_plan_leaves_out_groups_with_no_brokers(ui):
     assert "of 1 done" in plan  # the one email broker's group is shown
     assert "of 0 done" not in plan  # empty groups are not
     assert "<td class='num'>1</td>" in plan and "<td class='num'>3</td>" not in plan
+
+
+def _job_with(app, total=0):
+    app.job = {"state": "running", "sent": [], "failed": [], "total": total}
+    return app.job
+
+
+def test_a_batch_job_records_progress_then_finishes(ui, monkeypatch):
+    from optout.engine.campaign import CampaignReport
+    from optout.web import server
+
+    def fake_send(session, config, batch, limit, on_progress, should_stop):
+        for b in batch:
+            on_progress(b.slug, "sent")
+        on_progress("other", "failed")
+        return CampaignReport(sent=[b.slug for b in batch], failed=[("other", "x")])
+
+    monkeypatch.setattr(server, "run_campaign", fake_send)
+    app = ui.app_
+    job = _job_with(app)
+    app._run_campaign(5, fetch=False)
+    assert job["state"] == "done" and job["total"] == 1 and job["sent"] == ["evil"]
+    assert job["failed"] == [("other", "x")] and job["stopped"] is None
+
+    # Limited to one group from the plan: a group the broker isn't in sends nothing.
+    job = _job_with(app)
+    app._run_campaign(5, tier="people-search", fetch=False)
+    assert job["total"] == 0 and job["sent"] == []
+
+
+def test_a_job_that_fails_says_why_without_a_traceback(ui, monkeypatch):
+    from optout.web import server
+
+    def boom(*a, **k):
+        raise RuntimeError("smtp exploded with secrets")
+
+    monkeypatch.setattr(server, "run_campaign", boom)
+    app = ui.app_
+    job = _job_with(app)
+    app._run_campaign(5, fetch=False)
+    assert job["state"] == "done" and job["stopped"] == "RuntimeError"
+
+
+def test_follow_ups_and_resends_run_as_jobs(ui, monkeypatch):
+    from optout.engine import campaign, followups
+
+    sent_followups = []
+
+    def fake_followups(session, config, items, limit, on_progress, should_stop):
+        for it in items:
+            on_progress(it, "sent")
+        sent_followups.extend(items)
+        return followups.FollowupReport(sent=list(items))
+
+    monkeypatch.setattr(followups, "due", lambda session, brokers, now: ["evil"])
+    monkeypatch.setattr(followups, "send", fake_followups)
+    monkeypatch.setattr(ui.app_, "fetch_after_batch", lambda *a, **k: None)
+    app = ui.app_
+    job = _job_with(app)
+    app._run_followups()
+    assert sent_followups == ["evil"] and job["sent"] == ["evil"] and job["state"] == "done"
+
+    monkeypatch.setattr(
+        campaign,
+        "resend_to",
+        lambda session, config, broker, address: campaign.CampaignReport(sent=[broker.slug]),
+    )
+    job = _job_with(app, 1)
+    app._run_resend("evil", "other@evil.example")
+    assert job["sent"] == ["evil"] and job["state"] == "done"
+
+    job = _job_with(app, 1)
+    app._run_resend("no-such-broker", "x@y.example")
+    assert job["stopped"] == "StopIteration"  # unknown broker: reported, not raised
+
+
+def test_only_one_job_runs_at_a_time(ui, monkeypatch):
+    from optout.web import server
+
+    release = threading.Event()
+
+    def slow(*a, **k):
+        release.wait(5)
+        from optout.engine.campaign import CampaignReport
+
+        return CampaignReport()
+
+    monkeypatch.setattr(server, "run_campaign", slow)
+    monkeypatch.setattr(ui.app_, "fetch_after_batch", lambda *a, **k: None)
+    app = ui.app_
+    assert app.start_campaign(3) == "started"
+    assert app.start_campaign(3) == "busy"
+    assert app.start_resend("evil", "a@b.example") == "busy"
+    assert app.start_followups() == "busy"
+    assert app.start_daily(3) == "busy"
+    release.set()
+    for _ in range(100):
+        if app.job["state"] == "done":
+            break
+        threading.Event().wait(0.05)
+    assert app.job["state"] == "done"

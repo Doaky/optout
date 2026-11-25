@@ -801,6 +801,10 @@ def _mark_recognised_read(session: Session, config, mails: list[ParsedMail], mai
         return 0
 
 
+class NothingSent(ValueError):
+    """A reply check before any request went out: there is nothing to look for."""
+
+
 def run_sync(config, *, dry_run: bool = False) -> SyncReport:
     """Label new broker replies, read them, and apply what's clear. Raises ValueError."""
     from ..brokers.registry import all_brokers, load_registry
@@ -822,7 +826,7 @@ def run_sync(config, *, dry_run: bool = False) -> SyncReport:
             }
             first_sent = first_send_time(subs)
             if first_sent is None:
-                raise ValueError("nothing has been sent yet, so there are no replies to read")
+                raise NothingSent("nothing has been sent yet, so there are no replies to read")
             since = first_sent.astimezone(UTC).date() - timedelta(days=1)
             expected = expected_addresses(session, brokers, subs)
             seen = set(session.exec(select(InboxMessage.message_id)).all())
@@ -881,6 +885,8 @@ def run_sync(config, *, dry_run: bool = False) -> SyncReport:
                     from .confirm import auto_confirm, load_flows
 
                     report.confirmed, _unclear = auto_confirm(session, load_flows())
+    except NothingSent:
+        raise  # not a mailbox problem: say so as it is
     except Exception as exc:
         if not dry_run:
             mark_checked(now, error=type(exc).__name__)
