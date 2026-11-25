@@ -638,7 +638,7 @@ def test_attention_explains_what_to_do(ui):
         )
         s.commit()
     _, body = ui.req("GET", "/")
-    start = body.index("id='attention-h'")
+    start = body.index("id='attention'")
     attn = body[start : body.index("class='card", start)]  # up to the next card
     assert "via our web form here" in attn  # the sentence that matters
     assert "Open their link" in attn and "forms.evil.example" in attn
@@ -1704,3 +1704,61 @@ def test_gmail_only_settings_are_replaced_by_a_note_for_other_providers(ui):
     save_config(cfg)
     _, body = ui.req("GET", "/")
     assert "Label for sent requests" in body and "Gmail-only features are off" not in body
+
+
+def test_check_for_replies_runs_in_the_background_and_reports_when_done(ui, monkeypatch):
+    import json as _json
+    import time as _time
+
+    release = threading.Event()
+    calls = []
+
+    class Rep:
+        applied = ["a", "b"]
+        review = 1
+
+    def slow_sync(config, **k):
+        calls.append(1)
+        release.wait(5)
+        return Rep()
+
+    monkeypatch.setattr("optout.engine.inbox.gmail_ready", lambda c: None)  # Gmail is set up
+    monkeypatch.setattr("optout.engine.inbox.run_sync", slow_sync)
+    r, _ = ui.post("/act/inbox", {})
+    assert r.status == 303 and r.getheader("Location") == "/?m=inbox_started"  # no waiting
+    ui.post("/act/inbox", {})  # a second click while it runs doesn't start another
+    _, body = ui.req("GET", "/?m=inbox_started")
+    assert "Checking for replies" in body
+    assert "id='check-replies' class='hdr working' aria-busy='true' disabled" in body
+    _, j = ui.req("GET", "/api/job")
+    assert _json.loads(j)["inbox"] == "running"
+
+    release.set()
+    for _ in range(100):
+        state = _json.loads(ui.req("GET", "/api/job")[1])
+        if state["inbox"] != "running":
+            break
+        _time.sleep(0.05)
+    assert calls == [1]
+    assert (state["inbox"], state["applied"], state["review"]) == ("done", 2, 1)
+    _, body = ui.req("GET", "/")
+    assert "id='check-replies' class='hdr' title" in body  # usable again
+
+    def broken(config, **k):
+        raise ValueError("nothing sent yet")
+
+    monkeypatch.setattr("optout.engine.inbox.run_sync", broken)
+    ui.post("/act/inbox", {})
+    for _ in range(100):
+        if ui.app_.inbox_job["state"] != "running":
+            break
+        _time.sleep(0.05)
+    assert ui.app_.inbox_job == {"state": "error"}
+
+
+def test_plan_leaves_out_groups_with_no_brokers(ui):
+    _, body = ui.req("GET", "/")
+    plan = body.split("id='plan'", 1)[1].split("</table>", 1)[0]
+    assert "of 1 done" in plan  # the one email broker's group is shown
+    assert "of 0 done" not in plan  # empty groups are not
+    assert "<td class='num'>1</td>" in plan and "<td class='num'>3</td>" not in plan

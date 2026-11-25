@@ -15,7 +15,7 @@ import re
 from collections.abc import Callable, Iterable
 from datetime import date
 
-from .gmail_label import _ADDR_RE, SUBJECT, _q, fetch_bodies
+from .gmail_label import _ADDR_RE, SUBJECT, _q, fetch_bodies, messages_by_id
 
 _MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 _MSGID_RE = re.compile(r"[A-Za-z0-9._%+@=-]+")
@@ -136,8 +136,20 @@ class ImapReader:
         return out
 
     def fetch_message(self, message_id: str) -> bytes | None:
-        uids = self._by_message_id(message_id)
-        return self._fetch(uids[0]) if uids else None
+        return self.fetch_messages([message_id]).get(message_id)
+
+    def fetch_messages(self, message_ids: list[str]) -> dict[str, bytes]:
+        """Saved messages again, by Message-ID (read-only). Plain IMAP has no batched
+        Message-ID search, so each is found on its own, but the bodies come down 25 per
+        request."""
+        wanted: dict[str, str] = {}
+        uids: list[bytes] = []
+        for mid in message_ids:
+            found = self._by_message_id(mid)  # checks the id's characters
+            if found:
+                wanted.setdefault(mid.strip().strip("<>"), mid)
+                uids.extend(u for u in found[:1] if u not in uids)
+        return messages_by_id(self._conn, uids, self._message_ids(uids), wanted)
 
     # -- plumbing ----------------------------------------------------------
     def _search(self, *criteria: str) -> list[bytes]:
@@ -167,10 +179,3 @@ class ImapReader:
                 if m:
                     out[m.group(1)] = hdr.group(1).decode(errors="replace") if hdr else ""
         return out
-
-    def _fetch(self, uid: bytes) -> bytes | None:
-        _status, data = self._conn.uid("FETCH", uid.decode(), "(BODY.PEEK[]<0.300000>)")
-        for item in data or []:
-            if isinstance(item, tuple):
-                return bytes(item[1])
-        return None

@@ -1339,3 +1339,25 @@ def test_only_replies_matched_to_a_request_are_marked_read(session, world, monke
     marked.clear()
     assert ib._mark_recognised_read(session, Cfg, [matched, stranger], FakeGmail()) == 1
     assert marked == ["<m1@x>"]
+
+
+def test_saved_replies_are_read_again_in_one_batch(session):
+    from optout.engine.inbox import reparse_saved
+
+    for mid, state in (("<a@x>", "applied"), ("<b@x>", "review"), ("<c@x>", "ignored")):
+        session.add(
+            InboxMessage(message_id=mid, from_addr="p@acme.example", text="old", state=state)
+        )
+    session.commit()
+    asked: list[list[str]] = []
+
+    class Mailbox:
+        def fetch_messages(self, ids):
+            asked.append(sorted(ids))
+            return {"<a@x>": raw("Re: Data Deletion Request", "We deleted your data.")}
+
+    assert reparse_saved(session, Mailbox()) == 1
+    assert asked == [["<a@x>", "<b@x>"]]  # one call for every saved reply; ignored mail left out
+    rows = {r.message_id: r for r in session.exec(select(InboxMessage))}
+    assert "deleted your data" in rows["<a@x>"].text
+    assert rows["<b@x>"].text == "old"  # no longer in the mailbox: kept as it was

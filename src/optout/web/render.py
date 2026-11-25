@@ -104,8 +104,9 @@ main:focus{outline:none}
 .topbar .updated{margin-left:auto;color:var(--muted);font-size:13px}
 main{padding:20px 0 48px}
 h1{font-size:24px;letter-spacing:-.02em;margin:4px 0 12px}
-h2{font-size:16px;margin:0 0 12px;letter-spacing:-.01em}
-h1,h2,h3,legend{text-wrap:balance}p,li{text-wrap:pretty}
+h2,.h2{font-size:16px;margin:0 0 12px;letter-spacing:-.01em}
+summary .h2{display:block;font-weight:700}
+h1,h2,.h2,h3,legend{text-wrap:balance}p,li{text-wrap:pretty}
 .tnum,[data-live]{font-variant-numeric:tabular-nums}
 .warn-t{color:var(--warn-ink);font-weight:600}.warn-t .ico{margin-right:3px}.crit-t{color:var(--crit-ink);font-weight:600}
 .ico{display:inline-block;vertical-align:-.15em;flex:none}
@@ -286,7 +287,7 @@ button.hdr.working::after{border-color:var(--text-2);border-right-color:transpar
 .topbar button.hdr.working .ico{visibility:hidden}
 details.fold>summary,details.settings>summary{display:flex;align-items:baseline;gap:12px;cursor:pointer;list-style:none}
 details.fold>summary::-webkit-details-marker,details.settings>summary::-webkit-details-marker{display:none}
-details.fold>summary h2,details.settings>summary h2{margin:0}
+details.fold>summary .h2,details.settings>summary .h2{margin:0}
 /* The gap under a heading lives inside the folding content, so it slides away with it
    instead of vanishing the moment a section starts to close. */
 details.fold>.fold-body,details.settings>form:first-of-type{padding-top:12px}
@@ -675,6 +676,8 @@ const swap = async (res, slug) => {
 const post = async (form, submitter) => {
   d.body.classList.add('busy');
   const btn = submitter || form.querySelector('button[type=submit]:not(.nojs)');
+  // A reply check carries on in the background: its button stays busy until it's done.
+  const checking = form.getAttribute('action') === '/act/inbox';
   const fields = [...form.querySelectorAll('button, select, input')].filter((el) => !el.disabled);
   try {
     // Read the fields first: disabled fields are left out of a submission.
@@ -689,11 +692,38 @@ const post = async (form, submitter) => {
   } catch (_) {
     location.reload();
   } finally {
-    // Only matters for a form outside the swapped area (the header's reply-check button).
-    if (btn) { btn.classList.remove('working'); btn.removeAttribute('aria-busy'); }
-    fields.forEach((el) => { if (el.isConnected) el.disabled = false; });
+    if (!checking) {
+      if (btn) { btn.classList.remove('working'); btn.removeAttribute('aria-busy'); }
+      fields.forEach((el) => { if (el.isConnected) el.disabled = false; });
+    }
     d.body.classList.remove('busy');
   }
+  if (checking) watchInbox();
+};
+
+// The header's reply check: poll until it's done, then show what it found.
+let inboxPolling = false;
+const watchInbox = () => {
+  if (inboxPolling) return;
+  inboxPolling = true;
+  const btn = d.getElementById('check-replies');
+  const step = async () => {
+    try {
+      const res = await fetch('/api/job', { cache: 'no-store' });
+      if (res.ok) {
+        const j = await res.json();
+        if (j.inbox !== 'running') {
+          inboxPolling = false;
+          if (btn) { btn.classList.remove('working'); btn.removeAttribute('aria-busy'); btn.disabled = false; }
+          const next = j.inbox === 'error' ? '/?m=inboxerr' : '/?m=inbox&a=' + j.applied + '&r=' + j.review;
+          await swap(await fetch(next));
+          return;
+        }
+      }
+    } catch (_) { /* try again */ }
+    setTimeout(step, 1500);
+  };
+  setTimeout(step, 1000);
 };
 
 d.addEventListener('submit', (e) => {
@@ -936,6 +966,7 @@ setTimeout(watch, 4000);
 
 filter();
 start();
+if (d.querySelector('#check-replies.working')) watchInbox();
 fillZone();
 applyFolds();
 })();"""
@@ -980,6 +1011,7 @@ def page(
     refresh: int | None = None,
     updated: str = "",
     fetch_csrf: str | None = None,
+    checking: bool = False,
 ) -> str:
     # No-script fallback. The target has no #fragment: a refresh to the same URL with a
     # fragment is treated as an in-page jump and never reloads.
@@ -995,9 +1027,11 @@ def page(
         if updated
         else ""
     )
+    # While a check runs in the background the button stays busy (same size, spinner).
+    busy = "class='hdr working' aria-busy='true' disabled " if checking else "class='hdr' "
     fetch = (
         "<form method='post' action='/act/inbox' class='inline'>"
-        f"{_hidden(fetch_csrf)}<button type='submit' class='hdr' title='Read new "
+        f"{_hidden(fetch_csrf)}<button type='submit' id='check-replies' {busy}title='Read new "
         f"broker replies in your inbox and update the list'>{icon('mail', 16)}Check for replies"
         "</button></form>"
         if fetch_csrf and updated and not nav
@@ -1246,6 +1280,7 @@ class UI:
     used: int = 0
     limit: int = 0
     job: dict = field(default_factory=dict)
+    inbox_checking: bool = False  # a "Check for replies" is running in the background
     drafts: list[str] = field(default_factory=list)
     waiting: int = 0  # every broker ready to email, beyond today's room too
     draft_titles: dict[str, str] = field(default_factory=dict)  # file name -> readable title
@@ -1545,11 +1580,17 @@ def _replies_panel(ui: UI) -> str:
 
 
 def _fold(fid: str, title: str, body: str, note: str = "", *, open_: bool = True) -> str:
-    """A card you can fold away; the browser remembers which ones you folded."""
+    """A card you can fold away; the browser remembers which ones you folded.
+
+    The title is a real <h2> for heading navigation, kept just outside the <summary>: a
+    summary is a button, and Safari's VoiceOver flattens a heading inside it. The summary
+    shows the same words, styled as a heading."""
     extra = f"<span class='muted small'>{note}</span>" if note else ""
     return (
-        f"<details class='card fold' id='{e(fid)}'{' open' if open_ else ''}><summary><h2 id='{e(fid)}-h'>"
-        f"{e(title)}</h2>{extra}</summary><div class='fold-body'>{body}</div></details>"
+        f"<h2 class='sr-only' id='{e(fid)}-h'>{e(title)}</h2>"
+        f"<details class='card fold' id='{e(fid)}'{' open' if open_ else ''} "
+        f"aria-labelledby='{e(fid)}-h'><summary><span class='h2'>"
+        f"{e(title)}</span>{extra}</summary><div class='fold-body'>{body}</div></details>"
     )
 
 
@@ -1886,8 +1927,9 @@ def _settings_panel(ui: UI) -> str:
         "rel='noreferrer'>create an app password</a>.</p>"
     )
     return (
-        f"<details class='card settings' id='settings'{' open' if ui.settings_open else ''}>"
-        "<summary><h2>Settings</h2><span class='muted small'>Your details, sending, and "
+        "<h2 class='sr-only' id='settings-h'>Settings</h2>"
+        f"<details class='card settings' id='settings'{' open' if ui.settings_open else ''} "
+        "aria-labelledby='settings-h'><summary><span class='h2'>Settings</span><span class='muted small'>Your details, sending, and "
         "Gmail</span></summary>"
         f"<form method='post' action='/act/settings'>{_hidden(ui.csrf)}{about}{sending}"
         f"{_groups_fieldset(v)}{_backup_fieldset(v)}"
@@ -2601,6 +2643,8 @@ def dashboard(
         f"{len(d.rows)} brokers",
     )
     refresh = 3 if ui and ui.job.get("state") == "running" else None
+    if refresh is None and ui and ui.inbox_checking:
+        refresh = 5  # without scripts, reload until the reply check is done
     return page(
         "optout · dashboard",
         f"<h1>{e(headline)}</h1>{_goal(d)}{_stats(d, ui)}{flash}{top}{attn}{send}{plan}"
@@ -2609,6 +2653,7 @@ def dashboard(
         refresh=refresh,
         updated=d.generated,
         fetch_csrf=act.csrf if act is not None and act.inbox_ok else None,
+        checking=act is not None and act.inbox_checking,
     )
 
 
@@ -2788,7 +2833,8 @@ def _plan_panel(d: Dashboard, ui: UI) -> str:
     """The order to work in: one row per group, with progress and the next step."""
     room = max(0, ui.limit - ui.used) if ui.limit else 0
     rows = []
-    for n, t in enumerate(d.plan, 1):
+    # A group with no brokers in it ("0 of 0 done") is left out; the steps renumber.
+    for n, t in enumerate((t for t in d.plan if t.total), 1):
         if t.key == "too-much":
             progress = f"{t.total - t.done} skipped on purpose (never emailed)" + (
                 f" · {t.done} already done" if t.done else ""

@@ -92,3 +92,12 @@ def test_new_replies_are_downloaded_in_one_request():
         assert r.fetch_replies(set(), since=date(2026, 11, 1)) == [b"A", b"B"]
     bodies = [c for c in fake.calls if c[0] == "FETCH" and "BODY.PEEK[]" in c[2]]
     assert len(bodies) == 1 and bodies[0][1] == "7,8"
+
+
+def test_a_saved_reply_is_read_again_by_message_id():
+    fake = FakeIMAP()
+    with ImapReader("u@x.example", "pw", "h", connect=lambda: fake) as r:
+        assert r.fetch_message("<a@x.example>") == b"hello"
+        assert r.fetch_messages(["<a@x.example>", "<gone@x.example>"]) == {
+            "<a@x.example>": b"hello"
+        }

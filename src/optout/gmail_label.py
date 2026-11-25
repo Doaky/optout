@@ -32,8 +32,14 @@ _HDR_FROM = re.compile(r"^From:(.*(?:\r?\n[ \t].*)*)", re.IGNORECASE | re.MULTIL
 
 def fetch_bodies(conn: imaplib.IMAP4, uids: list[bytes]) -> list[bytes]:
     """The first 300 KB of each message, in the order asked, fetched a batch per round trip
-    (one request for 25 messages, not 25 requests). BODY.PEEK, so nothing is marked read.
-    A server may put the UID before or after the body, so both places are checked."""
+    (one request for 25 messages, not 25 requests). BODY.PEEK, so nothing is marked read."""
+    got = bodies_by_uid(conn, uids)
+    return [got[u] for u in uids if u in got]
+
+
+def bodies_by_uid(conn: imaplib.IMAP4, uids: list[bytes]) -> dict[bytes, bytes]:
+    """Like fetch_bodies, keyed by UID. A server may put the UID before or after the body,
+    so both places are checked."""
     got: dict[bytes, bytes] = {}
     for i in range(0, len(uids), _BODIES_PER_FETCH):
         part = uids[i : i + _BODIES_PER_FETCH]
@@ -48,7 +54,21 @@ def fetch_bodies(conn: imaplib.IMAP4, uids: list[bytes]) -> list[bytes]:
             uid = m.group(1) if m else (part[0] if len(part) == 1 else None)
             if uid is not None:
                 got[uid] = bytes(item[1])
-    return [got[u] for u in uids if u in got]
+    return got
+
+
+def messages_by_id(
+    conn: imaplib.IMAP4, uids: list[bytes], ids: dict[bytes, str], wanted: dict[str, str]
+) -> dict[str, bytes]:
+    """Bodies for the found *uids*, keyed by the caller's spelling of each Message-ID.
+    *ids* maps UID -> Message-ID as found in the header; *wanted* maps the bare id -> the
+    caller's spelling."""
+    bodies = bodies_by_uid(conn, [u for u in uids if ids.get(u, "").strip("<>") in wanted])
+    out: dict[str, bytes] = {}
+    for u, raw in bodies.items():
+        mid = wanted[ids[u].strip("<>")]
+        out.setdefault(mid, raw)  # the first copy found, if a message is in two places
+    return out
 
 
 def valid_label(name: str) -> bool:
@@ -235,11 +255,23 @@ class GmailLabeler:
 
     def fetch_message(self, message_id: str) -> bytes | None:
         """One saved message again, found by its Message-ID (read-only, not marked read)."""
-        token = message_id.strip().strip("<>")
-        if not re.fullmatch(r"[A-Za-z0-9._%+@=-]+", token):
-            return None
-        uids = self._search(f"rfc822msgid:{token}")
-        return self._fetch(uids[0]) if uids else None
+        return self.fetch_messages([message_id]).get(message_id)
+
+    def fetch_messages(self, message_ids: list[str]) -> dict[str, bytes]:
+        """Saved messages again, by Message-ID (read-only, not marked read): 50 ids per
+        search and 25 bodies per download, instead of two round trips per message. Ids
+        with odd characters, and messages no longer in the mailbox, are left out."""
+        wanted: dict[str, str] = {}
+        for mid in message_ids:
+            token = mid.strip().strip("<>")
+            if re.fullmatch(r"[A-Za-z0-9._%+@=-]+", token):
+                wanted.setdefault(token, mid)
+        tokens = list(wanted)
+        uids: list[bytes] = []
+        for i in range(0, len(tokens), _IDS_PER_SEARCH):
+            query = " OR ".join(f"rfc822msgid:{t}" for t in tokens[i : i + _IDS_PER_SEARCH])
+            uids.extend(u for u in self._search(query) if u not in uids)
+        return messages_by_id(self._conn, uids, self._message_ids(uids), wanted)
 
     def _message_ids(self, uids: list[bytes]) -> dict[bytes, str]:
         out: dict[bytes, str] = {}
@@ -256,13 +288,6 @@ class GmailLabeler:
                 if m:
                     out[m.group(1)] = hdr.group(1).decode(errors="replace") if hdr else ""
         return out
-
-    def _fetch(self, uid: bytes) -> bytes | None:
-        _status, data = self._conn.uid("FETCH", uid.decode(), "(BODY.PEEK[]<0.300000>)")
-        for item in data or []:
-            if isinstance(item, tuple):
-                return bytes(item[1])
-        return None
 
     def label_replies(self, addresses: Iterable[str], *, since: date) -> int:
         """Label inbox mail since *since* that is plainly a reply to us: sent from an exact

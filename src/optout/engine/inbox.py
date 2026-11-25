@@ -844,18 +844,7 @@ def run_sync(config, *, dry_run: bool = False) -> SyncReport:
             found = gmail.display_names([r.message_id for r in nameless]) if nameless else {}
             reparsed = 0
             if not dry_run and parser_version_seen() < PARSER_VERSION:
-                saved = session.exec(
-                    select(InboxMessage).where(
-                        InboxMessage.state.in_(("applied", "review", "resolved"))  # type: ignore[attr-defined]
-                    )
-                ).all()
-                for r in saved:
-                    raw = gmail.fetch_message(r.message_id)
-                    if raw:
-                        fresh = parse_message(raw)
-                        r.text, r.from_name = fresh.text, fresh.from_name or r.from_name
-                        session.add(r)
-                        reparsed += 1
+                reparsed = reparse_saved(session, gmail)
                 mark_parser_version()
             for r in nameless:
                 if found.get(r.message_id):
@@ -1072,6 +1061,26 @@ def deciding_sentence(text: str, kind: str) -> str:
         real = [q for q in quotes if not _BOILERPLATE.search(q)] or quotes
         return max(real, key=_sentence_score) if real else ""
     return ""
+
+
+def reparse_saved(session: Session, mailbox) -> int:
+    """Read saved replies again with the current parser (after it changed), so their text
+    and sender name match what a new reply would get. One batched download for all of
+    them, not two round trips per reply. Returns how many were updated."""
+    saved = session.exec(
+        select(InboxMessage).where(
+            InboxMessage.state.in_(("applied", "review", "resolved"))  # type: ignore[attr-defined]
+        )
+    ).all()
+    raw_by_id = mailbox.fetch_messages([r.message_id for r in saved]) if saved else {}
+    done = 0
+    for r in saved:
+        if raw := raw_by_id.get(r.message_id):
+            fresh = parse_message(raw)
+            r.text, r.from_name = fresh.text, fresh.from_name or r.from_name
+            session.add(r)
+            done += 1
+    return done
 
 
 def parser_version_seen() -> int:
