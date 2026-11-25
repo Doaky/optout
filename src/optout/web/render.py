@@ -128,7 +128,7 @@ h3.att-group{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:1
 h3.att-group .ico{color:var(--text-2)}
 h3.att-group .gc{font-variant-numeric:tabular-nums;font-size:12px;font-weight:700;
   padding:0 7px;border-radius:999px;background:var(--surface);color:var(--text-2);line-height:20px}
-h3.att-group .gb{flex-basis:100%;font-size:13px;font-weight:400;color:var(--text-2);padding-left:24px}
+h3.att-group .gb{flex-basis:100%;text-wrap:pretty;font-size:13px;font-weight:400;color:var(--text-2);padding-left:24px}
 h3.att-group.urgent{background:color-mix(in srgb,var(--critical) 9%,var(--surface));
   box-shadow:inset 3px 0 0 var(--critical);color:var(--crit-ink)}
 h3.att-group.urgent .ico{color:var(--crit-ink)}
@@ -363,7 +363,7 @@ summary .on-open{display:none}
 details[open]>summary .on-closed{display:none}
 details[open]>summary .on-open{display:inline}
 details.mini{margin-top:2px}
-details.mini>summary{cursor:pointer;color:var(--accent);font-size:12.5px;width:max-content;
+details.mini>summary{cursor:pointer;color:var(--accent);font-size:12.5px;width:max-content;max-width:100%;
   list-style:none}
 details.mini>summary::-webkit-details-marker{display:none}
 details.mini[open]>summary{margin-bottom:6px}
@@ -412,6 +412,47 @@ a.ibtn:hover{border-color:var(--accent);color:var(--text)}
 @media (max-width:700px){.att{flex-direction:column;align-items:flex-start}}
 .attn li.att{align-items:flex-start;padding:12px 0}
 @media (max-width:700px){.attn li.att{align-items:stretch}}
+/* Narrow windows (down to 400px): less nested padding, rows that stack instead of clipping. */
+@media (max-width:700px){.att-actions{width:100%;align-items:flex-start}.att-stack{flex:1}
+  .att-stack button{width:100%}}
+@media (max-width:640px){
+  .card{padding:14px}
+  fieldset{padding:10px 12px 12px}
+  .topbar .updated{display:none}
+  .topbar .brand{margin-right:auto}
+  details.fold>summary,details.settings>summary{flex-wrap:wrap;row-gap:2px}
+  details.fold>summary>.muted,details.settings>summary>.muted{order:2;flex-basis:100%}
+  details.fold>summary::after,details.settings>summary::after{order:1}
+  form.inline.pwform{flex-wrap:wrap}.pwform .fld{flex:1 1 100%}
+  form.inline{flex-wrap:wrap;max-width:100%}
+  form.inline>select,form.inline>input:not([type=hidden],[type=checkbox],[type=radio]){max-width:100%;min-width:0}
+  #req-table,#req-table tbody{display:block}
+  #req-table thead tr{display:flex;flex-wrap:wrap;gap:4px 14px;padding:6px 12px}
+  #req-table thead th{padding:0;border:0}
+  #req-table thead th:not([data-sortkey]){display:none}
+  /* Each request is a small card: name and status on top, then sent / deadline / menu,
+     then the latest reply when there is one. */
+  #req-table tbody tr{display:flex;flex-wrap:wrap;align-items:flex-start;gap:4px 14px;
+    padding:10px 12px;border-bottom:1px solid var(--line)}
+  #req-table tbody tr::before{content:"";order:3;flex-basis:100%;height:0;margin:-2px 0}
+  #req-table tbody td{display:block;padding:0;border:0;white-space:normal}
+  #req-table tbody td:nth-child(1){order:1;flex:1 1 0;min-width:0}
+  #req-table tbody td:nth-child(2){order:2;flex:none}
+  #req-table tbody td:nth-child(3){order:4}
+  #req-table tbody td:nth-child(4){order:5}
+  #req-table tbody td:nth-child(5){order:7;flex-basis:100%}
+  #req-table tbody td:nth-child(6){order:6;margin-left:auto}
+  #req-table tr#nomatch td{flex-basis:100%}
+  #req-table td.latest.none{display:none}
+  #req-table td.num::before{content:"Sent ";color:var(--muted)}
+  #req-table td.latest::before{content:"Latest: ";color:var(--muted)}
+}
+/* Very narrow: the header buttons keep their icons; their words stay for screen readers. */
+@media (max-width:480px){
+  .hdr-link>span,.topbar button.hdr>.lbl{position:absolute;width:1px;height:1px;overflow:hidden;
+    clip-path:inset(50%);white-space:nowrap}
+  .hdr-link,.topbar button.hdr{padding:0 9px}
+}
 a.btnlink{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:var(--r-control);
   border:1px solid var(--control-line);background:var(--surface);color:var(--text);text-decoration:none;
   font-weight:500;font-size:13.5px;line-height:1.4}
@@ -1032,7 +1073,7 @@ def page(
     fetch = (
         "<form method='post' action='/act/inbox' class='inline'>"
         f"{_hidden(fetch_csrf)}<button type='submit' id='check-replies' {busy}title='Read new "
-        f"broker replies in your inbox and update the list'>{icon('mail', 16)}Check for replies"
+        f"broker replies in your inbox and update the list'>{icon('mail', 16)}<span class='lbl'>Check for replies</span>"
         "</button></form>"
         if fetch_csrf and updated and not nav
         else ""
@@ -2564,7 +2605,7 @@ def dashboard(
         f"<td>{_status_cell(r, csrf if with_actions else '')}</td>"
         f"<td class='num'>{e(_short(r.submitted))}</td>"
         f"<td>{_days_cell(r)}<div class='muted small'>{_due(r)}</div></td>"
-        f"<td class='small latest'>{e(r.last_check)}"
+        f"<td class='small latest{' none' if r.last_check in ('', '—') else ''}'>{e(r.last_check)}"
         f"{' <span class=crit-t>Form changed</span>' if r.drifted else ''}</td>"
         f"{('<td>' + row_form(r.slug, csrf, r.name, r.status, r.stopped) + '</td>') if with_actions else ''}</tr>"
         for r in shown
