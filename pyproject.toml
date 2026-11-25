@@ -68,6 +68,8 @@ dev = [
     "mypy>=1.10",
     "types-PyYAML",
     "aiosmtpd>=1.4",
+    "pytest-cov>=7.1.0",
+    "diff-cover>=11.0.4",
 ]
 
 [tool.setuptools.packages.find]

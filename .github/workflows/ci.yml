@@ -4,6 +4,9 @@ on:
   push:
     branches: ["main", "master"]
   pull_request:
+  schedule:
+    - cron: "0 9 * * *" # daily, so a newly published vulnerability is caught without a push
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -40,12 +43,28 @@ jobs:
         python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # diff-cover compares against main
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
       - run: uv sync --extra dev
-      - run: uv run pytest --tb=short -q
+      # Fails if total coverage drops below the floor. Raise the floor as tests are added.
+      - run: uv run pytest --tb=short -q --cov=optout --cov-report=term --cov-report=xml --cov-fail-under=74
+      # On pull requests: at least 80% of the lines the PR adds or changes must be tested.
+      - if: github.event_name == 'pull_request'
+        run: uv run diff-cover coverage.xml --compare-branch=origin/${{ github.base_ref }} --fail-under=80
+
+  audit:
+    name: Audit dependencies (pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      # Checks every pinned package in uv.lock against the PyPI advisory database.
+      - run: uv export --frozen --all-extras --no-hashes --no-emit-project -o requirements-audit.txt
+      - run: uvx pip-audit --strict -r requirements-audit.txt
 
   validate-brokers:
     name: Validate broker YAMLs
